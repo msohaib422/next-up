@@ -120,10 +120,10 @@ export default function TasksPage() {
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-[3] min-w-0">
+        <div className="flex-[2] min-w-0">
           <Input icon={Search} placeholder="Search tasks..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <div className="relative flex-[1] min-w-0">
+        <div className="relative w-[220px] shrink-0">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Calendar className="h-5 w-5 text-gray-400" />
           </div>
