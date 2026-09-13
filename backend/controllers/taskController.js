@@ -37,13 +37,14 @@ export const getTask = async (req, res, next) => {
 
 export const createTask = async (req, res, next) => {
   try {
-    const { subject, title, description, deadline, priority, status } = req.body;
+    const { subject, title, description, deadline, deadlineMode, priority, status } = req.body;
     const task = await Task.create({
       user: req.user._id,
       subject,
       title,
       description,
       deadline,
+      deadlineMode,
       priority,
       status,
     });

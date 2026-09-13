@@ -66,7 +66,7 @@ export default function TasksPage() {
 
   const handleToggleComplete = async (task) => {
     try {
-      await api.put(`/tasks/${task._id}`, { status: task.status === 'completed' ? 'pending' : 'completed' })
+      await api.put(`/tasks/${task._id}`, { status: task.status === 'Completed' ? 'Pending' : 'Completed' })
       fetchTasks()
     } catch (err) {
       toast.error('Failed to update task')
@@ -88,7 +88,7 @@ export default function TasksPage() {
     return null
   }
 
-  const priorityColor = (p) => p === 'high' ? 'danger' : p === 'medium' ? 'info' : 'success'
+  const priorityColor = (p) => p === 'High' ? 'danger' : p === 'Medium' ? 'info' : 'success'
 
   if (loading) return <LoadingSpinner />
 
@@ -110,9 +110,9 @@ export default function TasksPage() {
           onChange={(e) => setStatusFilter(e.target.value)}
           options={[
             { value: 'all', label: 'All Status' },
-            { value: 'pending', label: 'Pending' },
-            { value: 'in-progress', label: 'In Progress' },
-            { value: 'completed', label: 'Completed' },
+            { value: 'Pending', label: 'Pending' },
+            { value: 'In Progress', label: 'In Progress' },
+            { value: 'Completed', label: 'Completed' },
           ]}
         />
         <Select
@@ -120,9 +120,9 @@ export default function TasksPage() {
           onChange={(e) => setPriorityFilter(e.target.value)}
           options={[
             { value: 'all', label: 'All Priority' },
-            { value: 'high', label: 'High' },
-            { value: 'medium', label: 'Medium' },
-            { value: 'low', label: 'Low' },
+            { value: 'High', label: 'High' },
+            { value: 'Medium', label: 'Medium' },
+            { value: 'Low', label: 'Low' },
           ]}
         />
       </div>
@@ -150,12 +150,12 @@ export default function TasksPage() {
                 <button
                   onClick={(e) => { e.stopPropagation(); handleToggleComplete(task) }}
                   className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
-                    task.status === 'completed'
+                    task.status === 'Completed'
                       ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                       : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
                   }`}
                 >
-                  {task.status === 'completed' ? '✓ Done' : 'Mark Done'}
+                  {task.status === 'Completed' ? '✓ Done' : 'Mark Done'}
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); handleDelete(task._id) }}

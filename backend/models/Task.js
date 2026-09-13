@@ -23,7 +23,12 @@ const taskSchema = new mongoose.Schema(
     },
     deadline: {
       type: Date,
-      required: [true, 'Please provide a deadline'],
+      default: null,
+    },
+    deadlineMode: {
+      type: String,
+      enum: ['Date', 'Upcoming Lecture', 'As Possible'],
+      default: 'Date',
     },
     priority: {
       type: String,
