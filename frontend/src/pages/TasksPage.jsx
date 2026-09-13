@@ -142,9 +142,9 @@ export default function TasksPage() {
                 <Badge color={priorityColor(task.priority)} size="sm">{task.priority}</Badge>
                 {getDeadlineBadge(task)}
               </div>
-              <h3 className="font-semibold text-gray-900 dark:text-white mb-1"><span className="font-bold">Title:</span> {task.title}</h3>
-              {task.subject && <p className="text-base text-gray-700 dark:text-gray-300 mb-1"><span className="font-semibold">Subject:</span> {task.subject}</p>}
-              {task.description?.trim() && <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 line-clamp-2"><span className="font-medium text-gray-600 dark:text-gray-300">Description:</span> {task.description}</p>}
+              <h3 className="text-[15px] text-gray-900 dark:text-white mb-1"><span className="font-bold">Title:</span> <span className="font-normal">{task.title}</span></h3>
+              {task.subject && <p className="text-sm text-gray-700 dark:text-gray-300 mb-1"><span className="font-bold">Subject:</span> <span className="font-normal">{task.subject}</span></p>}
+              {task.description?.trim() && <p className="text-sm text-gray-500 dark:text-gray-400 mb-1 line-clamp-2"><span className="font-bold">Description:</span> <span className="font-normal">{task.description}</span></p>}
               <div className="flex items-center gap-2 mt-3 pt-3 border-t dark:border-gray-700">
                 <button
                   onClick={(e) => { e.stopPropagation(); handleToggleComplete(task) }}
