@@ -8,7 +8,6 @@ import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Input from '../components/ui/Input'
 import Select from '../components/ui/Select'
-import Modal from '../components/ui/Modal'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import TaskModal from '../components/TaskModal'
@@ -22,7 +21,6 @@ export default function TasksPage() {
   const [priorityFilter, setPriorityFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [dateFilter, setDateFilter] = useState('')
-  const [preview, setPreview] = useState(null)
 
   useEffect(() => { fetchTasks() }, [])
 
@@ -111,13 +109,7 @@ export default function TasksPage() {
 
   const handleAttachmentOpen = (attachment) => {
     if (!attachment?.url) return
-    if (attachment.type === 'application/pdf') {
-      window.open(attachment.url, '_blank', 'noopener,noreferrer')
-      return
-    }
-    if (attachment.type?.startsWith('image/')) {
-      setPreview(attachment)
-    }
+    window.open(attachment.url, '_blank', 'noopener,noreferrer')
   }
 
   const handleDownload = async (attachment) => {
@@ -265,26 +257,6 @@ export default function TasksPage() {
       )}
 
       <TaskModal isOpen={showModal} onClose={() => { setShowModal(false); setEditingTask(null) }} onSave={handleSave} task={editingTask} />
-
-      {preview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setPreview(null)}>
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate">{preview.name}</h3>
-              <button onClick={() => setPreview(null)} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-auto p-4">
-              {preview.url && preview.type?.startsWith('image/') ? (
-                <img src={preview.url} alt={preview.name} className="max-w-full max-h-[70vh] mx-auto rounded object-contain" />
-              ) : (
-                <p className="text-sm text-gray-500">Preview unavailable for this attachment.</p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
