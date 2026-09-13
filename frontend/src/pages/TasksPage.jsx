@@ -85,9 +85,12 @@ export default function TasksPage() {
       if (!matchTitle && !matchSubject && !matchDescription) return false
     }
     if (dateFilter) {
-      if (t.deadlineMode !== 'Date' || !t.deadline) return false
-      const taskDate = new Date(t.deadline).toISOString().slice(0, 10)
-      if (taskDate !== dateFilter) return false
+      if (!t.createdAt) return false
+      const created = new Date(t.createdAt)
+      const y = created.getFullYear()
+      const m = String(created.getMonth() + 1).padStart(2, '0')
+      const d = String(created.getDate()).padStart(2, '0')
+      if (`${y}-${m}-${d}` !== dateFilter) return false
     }
     return true
   })
@@ -128,6 +131,7 @@ export default function TasksPage() {
             type="date"
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
+            title="Filter by added date"
             className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 pl-10 pr-3 py-2 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-colors"
           />
         </div>
