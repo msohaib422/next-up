@@ -9,8 +9,10 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
     subject: '', title: '', description: '', deadline: '', deadlineMode: null, priority: 'Medium', status: 'Pending'
   })
   const [loading, setLoading] = useState(false)
+  const [errors, setErrors] = useState({})
 
   useEffect(() => {
+    setErrors({})
     if (task) {
       const mode = task.deadlineMode || null
       setForm({
@@ -40,6 +42,17 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    const newErrors = {}
+    if (!form.deadlineMode) {
+      newErrors.deadlineMode = 'Please select a deadline.'
+    } else if (form.deadlineMode === 'Date' && !form.deadline) {
+      newErrors.deadline = 'Please select a date.'
+    }
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors)
+      return
+    }
+    setErrors({})
     setLoading(true)
     try {
       await onSave(form)
@@ -84,6 +97,7 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
                   onChange={(e) => setForm({ ...form, deadline: e.target.value })}
                   className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:border-primary-500 focus:ring-primary-500"
                 />
+                {errors.deadline && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.deadline}</p>}
               </div>
             )}
             <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none w-fit">
@@ -105,6 +119,7 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
               As Possible
             </label>
           </div>
+          {errors.deadlineMode && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.deadlineMode}</p>}
         </div>
         <div className="grid grid-cols-2 gap-4">
           <Select

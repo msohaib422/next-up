@@ -27,10 +27,10 @@ const taskSchema = new mongoose.Schema(
     },
     deadlineMode: {
       type: String,
-      default: null,
+      required: [true, 'Please select a deadline'],
       validate: {
         validator: function (v) {
-          return v === null || ['Date', 'Upcoming Lecture', 'As Possible'].includes(v);
+          return ['Date', 'Upcoming Lecture', 'As Possible'].includes(v);
         },
         message: '{VALUE} is not a valid deadline mode',
       },

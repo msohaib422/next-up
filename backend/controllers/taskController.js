@@ -40,8 +40,14 @@ export const createTask = async (req, res, next) => {
     const { subject, title, description, deadline, deadlineMode, priority, status } = req.body;
 
     const validModes = ['Date', 'Upcoming Lecture', 'As Possible'];
-    const sanitizedDeadlineMode = validModes.includes(deadlineMode) ? deadlineMode : null;
-    const sanitizedDeadline = sanitizedDeadlineMode === 'Date' && deadline ? deadline : null;
+    if (!deadlineMode || !validModes.includes(deadlineMode)) {
+      return res.status(400).json({ success: false, message: 'Please select a deadline.' });
+    }
+    if (deadlineMode === 'Date' && !deadline) {
+      return res.status(400).json({ success: false, message: 'Please select a date.' });
+    }
+
+    const sanitizedDeadline = deadlineMode === 'Date' && deadline ? deadline : null;
 
     const task = await Task.create({
       user: req.user._id,
@@ -49,7 +55,7 @@ export const createTask = async (req, res, next) => {
       title,
       description,
       deadline: sanitizedDeadline,
-      deadlineMode: sanitizedDeadlineMode,
+      deadlineMode,
       priority,
       status,
     });
