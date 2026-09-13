@@ -38,13 +38,18 @@ export const getTask = async (req, res, next) => {
 export const createTask = async (req, res, next) => {
   try {
     const { subject, title, description, deadline, deadlineMode, priority, status } = req.body;
+
+    const validModes = ['Date', 'Upcoming Lecture', 'As Possible'];
+    const sanitizedDeadlineMode = validModes.includes(deadlineMode) ? deadlineMode : null;
+    const sanitizedDeadline = sanitizedDeadlineMode === 'Date' && deadline ? deadline : null;
+
     const task = await Task.create({
       user: req.user._id,
       subject,
       title,
       description,
-      deadline,
-      deadlineMode,
+      deadline: sanitizedDeadline,
+      deadlineMode: sanitizedDeadlineMode,
       priority,
       status,
     });

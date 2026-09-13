@@ -27,8 +27,13 @@ const taskSchema = new mongoose.Schema(
     },
     deadlineMode: {
       type: String,
-      enum: ['Date', 'Upcoming Lecture', 'As Possible'],
-      default: 'Date',
+      default: null,
+      validate: {
+        validator: function (v) {
+          return v === null || ['Date', 'Upcoming Lecture', 'As Possible'].includes(v);
+        },
+        message: '{VALUE} is not a valid deadline mode',
+      },
     },
     priority: {
       type: String,

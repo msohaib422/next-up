@@ -41,12 +41,12 @@ function UserDashboard() {
           api.get('/timetable').catch(() => ({ data: [] })),
         ])
 
-        const tasks = Array.isArray(tasksRes.data) ? tasksRes.data : (tasksRes.data.tasks || [])
-        const events = Array.isArray(eventsRes.data) ? eventsRes.data : (eventsRes.data.events || [])
-        const quizzesData = Array.isArray(quizzesRes.data) ? quizzesRes.data : (quizzesRes.data.quizzes || [])
-        const remindersData = Array.isArray(remindersRes.data) ? remindersRes.data : (remindersRes.data.reminders || [])
-        const annData = Array.isArray(annRes.data) ? annRes.data : (annRes.data.announcements || [])
-        const timetable = Array.isArray(timetableRes.data) ? timetableRes.data : (timetableRes.data.lectures || timetableRes.data.timetable || [])
+        const tasks = Array.isArray(tasksRes.data) ? tasksRes.data : (tasksRes.data.data || [])
+        const events = Array.isArray(eventsRes.data) ? eventsRes.data : (eventsRes.data.data || [])
+        const quizzesData = Array.isArray(quizzesRes.data) ? quizzesRes.data : (quizzesRes.data.data || [])
+        const remindersData = Array.isArray(remindersRes.data) ? remindersRes.data : (remindersRes.data.data || [])
+        const annData = Array.isArray(annRes.data) ? annRes.data : (annRes.data.data || [])
+        const timetable = Array.isArray(timetableRes.data) ? timetableRes.data : (timetableRes.data.data || [])
 
         setStats({
           totalTasks: tasks.length,
