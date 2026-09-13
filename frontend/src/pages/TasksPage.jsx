@@ -235,12 +235,12 @@ export default function TasksPage() {
               </button>
             </div>
             <div className="flex-1 overflow-auto p-4">
-              {preview.type?.startsWith('image/') ? (
-                <img src={preview.url} alt={preview.name} className="max-w-full max-h-[70vh] mx-auto rounded" />
-              ) : preview.type === 'application/pdf' ? (
+              {preview.url && preview.type?.startsWith('image/') ? (
+                <img src={preview.url} alt={preview.name} className="max-w-full max-h-[70vh] mx-auto rounded object-contain" />
+              ) : preview.url && preview.type === 'application/pdf' ? (
                 <iframe src={preview.url} className="w-full h-[70vh] rounded border" title={preview.name} />
               ) : (
-                <p className="text-sm text-gray-500">Preview not available for this file type.</p>
+                <p className="text-sm text-gray-500">Preview unavailable for this attachment.</p>
               )}
             </div>
           </div>
