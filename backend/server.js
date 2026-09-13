@@ -51,6 +51,11 @@ app.get('/api/health', (req, res) => {
   res.json({ success: true, message: 'Server is running' });
 });
 
+app.use((req, res, next) => {
+  console.log(`[404] Unmatched route: ${req.method} ${req.originalUrl}`);
+  res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.originalUrl}` });
+});
+
 app.use(errorHandler);
 
 connectDB();

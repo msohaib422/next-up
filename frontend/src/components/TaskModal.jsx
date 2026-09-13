@@ -81,9 +81,7 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
     if (!file) return attachment
     const formData = new FormData()
     formData.append('file', file)
-    const res = await api.post('/tasks/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
+    const res = await api.post('/tasks/upload', formData)
     return res.data.data
   }
 
@@ -111,7 +109,8 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
       await onSave({ ...form, attachment: uploadedAttachment || null })
     } catch (err) {
       setUploading(false)
-      toast.error(err.response?.data?.message || 'Upload failed')
+      const msg = err.response?.data?.message || err.message || 'Upload failed. Please try again.'
+      toast.error(msg)
     } finally {
       setLoading(false)
     }

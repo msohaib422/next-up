@@ -4,13 +4,31 @@ import { uploadToCloudinary } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
 
 export const uploadTaskFile = [
-  upload.single('file'),
+  (req, res, next) => {
+    console.log('[Upload] Multer middleware hit, Content-Type:', req.headers['content-type']);
+    upload.single('file')(req, res, (err) => {
+      if (err) {
+        console.error('[Upload] Multer error:', err.message, err.code);
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ success: false, message: 'File is too large. Maximum size is 10 MB.' });
+        }
+        return res.status(400).json({ success: false, message: err.message || 'File upload failed.' });
+      }
+      console.log('[Upload] Multer success, file:', req.file?.originalname, req.file?.size);
+      next();
+    });
+  },
   async (req, res, next) => {
     try {
+      console.log('[Upload] Cloudinary upload handler hit');
       if (!req.file) {
+        console.error('[Upload] No file on req after multer');
         return res.status(400).json({ success: false, message: 'No file provided.' });
       }
-      const result = await uploadToCloudinary(req.file.buffer, 'tasks', `${Date.now()}-${req.file.originalname}`);
+      const safeName = `${Date.now()}-${req.file.originalname.replace(/[^a-zA-Z0-9_.-]/g, '_')}`;
+      console.log('[Upload] Uploading to Cloudinary, folder: tasks, public_id:', safeName);
+      const result = await uploadToCloudinary(req.file.buffer, 'tasks', safeName);
+      console.log('[Upload] Cloudinary success:', result.secure_url);
       res.json({
         success: true,
         data: {
@@ -20,7 +38,24 @@ export const uploadTaskFile = [
         },
       });
     } catch (error) {
-      next(error);
+      console.error('[Upload] Cloudinary upload error:', {
+        message: error.message,
+        name: error.name,
+        http_code: error.http_code,
+      });
+
+      let message;
+      if (error.message?.includes('Cloudinary configuration missing')) {
+        message = 'Upload service is not configured. Please contact support.';
+      } else if (error.http_code === 401 || error.message?.includes('authentication failed')) {
+        message = 'Upload service authentication failed. Please contact support.';
+      } else if (error.message?.includes('File too large') || error.code === 'LIMIT_FILE_SIZE') {
+        message = 'File is too large. Maximum size is 10 MB.';
+      } else {
+        message = error.message || 'File upload to storage failed.';
+      }
+
+      res.status(500).json({ success: false, message });
     }
   }
 ];
