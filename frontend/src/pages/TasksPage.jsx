@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
-import { Plus, CheckSquare, Search, Filter, Calendar, X, Paperclip } from 'lucide-react'
+import { Plus, CheckSquare, Search, Filter, Calendar, X, Paperclip, Download } from 'lucide-react'
 import { parseISO, isPast, isToday } from 'date-fns'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
@@ -23,7 +23,6 @@ export default function TasksPage() {
   const [search, setSearch] = useState('')
   const [dateFilter, setDateFilter] = useState('')
   const [preview, setPreview] = useState(null)
-  const [pdfError, setPdfError] = useState(false)
 
   useEffect(() => { fetchTasks() }, [])
 
@@ -110,6 +109,36 @@ export default function TasksPage() {
 
   const priorityColor = (p) => p === 'High' ? 'danger' : p === 'Medium' ? 'info' : 'success'
 
+  const handleAttachmentOpen = (attachment) => {
+    if (!attachment?.url) return
+    if (attachment.type === 'application/pdf') {
+      window.open(attachment.url, '_blank', 'noopener,noreferrer')
+      return
+    }
+    if (attachment.type?.startsWith('image/')) {
+      setPreview(attachment)
+    }
+  }
+
+  const handleDownload = async (attachment) => {
+    if (!attachment?.url) return
+    try {
+      const response = await fetch(attachment.url)
+      if (!response.ok) throw new Error('Download failed')
+      const blob = await response.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = attachment.name || 'attachment'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(blobUrl)
+    } catch {
+      toast.error('Failed to download attachment')
+    }
+  }
+
   if (loading) return <LoadingSpinner />
 
   return (
@@ -194,12 +223,23 @@ export default function TasksPage() {
               {task.subject && <p className="text-sm text-gray-700 dark:text-gray-300 mb-1"><span className="font-bold">Subject:</span> <span className="font-normal">{task.subject}</span></p>}
               {task.description?.trim() && <p className="text-sm text-gray-500 dark:text-gray-400 mb-1 line-clamp-2"><span className="font-bold">Description:</span> <span className="font-normal">{task.description}</span></p>}
               {task.attachment?.name && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); setPreview(task.attachment); setPdfError(false) }}
-                  className="flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline mt-1"
-                >
-                  <Paperclip className="w-3 h-3" /> {task.attachment.name}
-                </button>
+                <div className="flex items-center gap-2 mt-1">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleAttachmentOpen(task.attachment) }}
+                    className="flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline min-w-0"
+                  >
+                    <Paperclip className="w-3 h-3 shrink-0" />
+                    <span className="truncate">{task.attachment.name}</span>
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDownload(task.attachment) }}
+                    className="text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 shrink-0"
+                    aria-label="Download attachment"
+                    title="Download"
+                  >
+                    <Download className="w-3 h-3" />
+                  </button>
+                </div>
               )}
               <div className="flex items-center gap-2 mt-3 pt-3 border-t dark:border-gray-700">
                 <button
@@ -227,38 +267,17 @@ export default function TasksPage() {
       <TaskModal isOpen={showModal} onClose={() => { setShowModal(false); setEditingTask(null) }} onSave={handleSave} task={editingTask} />
 
       {preview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => { setPreview(null); setPdfError(false) }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setPreview(null)}>
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate">{preview.name}</h3>
-              <button onClick={() => { setPreview(null); setPdfError(false) }} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+              <button onClick={() => setPreview(null)} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
             <div className="flex-1 overflow-auto p-4">
               {preview.url && preview.type?.startsWith('image/') ? (
                 <img src={preview.url} alt={preview.name} className="max-w-full max-h-[70vh] mx-auto rounded object-contain" />
-              ) : preview.url && preview.type === 'application/pdf' ? (
-                pdfError ? (
-                  <div className="flex flex-col items-center justify-center h-[70vh] gap-4">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">PDF preview is not available in this browser.</p>
-                    <a
-                      href={preview.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors"
-                    >
-                      Open PDF in new tab
-                    </a>
-                  </div>
-                ) : (
-                  <iframe
-                    src={preview.url}
-                    className="w-full h-[70vh] rounded border"
-                    title={preview.name}
-                    onError={() => setPdfError(true)}
-                  />
-                )
               ) : (
                 <p className="text-sm text-gray-500">Preview unavailable for this attachment.</p>
               )}
