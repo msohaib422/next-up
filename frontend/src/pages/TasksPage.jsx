@@ -23,6 +23,7 @@ export default function TasksPage() {
   const [search, setSearch] = useState('')
   const [dateFilter, setDateFilter] = useState('')
   const [preview, setPreview] = useState(null)
+  const [pdfError, setPdfError] = useState(false)
 
   useEffect(() => { fetchTasks() }, [])
 
@@ -194,7 +195,7 @@ export default function TasksPage() {
               {task.description?.trim() && <p className="text-sm text-gray-500 dark:text-gray-400 mb-1 line-clamp-2"><span className="font-bold">Description:</span> <span className="font-normal">{task.description}</span></p>}
               {task.attachment?.name && (
                 <button
-                  onClick={(e) => { e.stopPropagation(); setPreview(task.attachment) }}
+                  onClick={(e) => { e.stopPropagation(); setPreview(task.attachment); setPdfError(false) }}
                   className="flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline mt-1"
                 >
                   <Paperclip className="w-3 h-3" /> {task.attachment.name}
@@ -226,11 +227,11 @@ export default function TasksPage() {
       <TaskModal isOpen={showModal} onClose={() => { setShowModal(false); setEditingTask(null) }} onSave={handleSave} task={editingTask} />
 
       {preview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setPreview(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => { setPreview(null); setPdfError(false) }}>
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate">{preview.name}</h3>
-              <button onClick={() => setPreview(null)} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+              <button onClick={() => { setPreview(null); setPdfError(false) }} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
@@ -238,7 +239,26 @@ export default function TasksPage() {
               {preview.url && preview.type?.startsWith('image/') ? (
                 <img src={preview.url} alt={preview.name} className="max-w-full max-h-[70vh] mx-auto rounded object-contain" />
               ) : preview.url && preview.type === 'application/pdf' ? (
-                <iframe src={preview.url} className="w-full h-[70vh] rounded border" title={preview.name} />
+                pdfError ? (
+                  <div className="flex flex-col items-center justify-center h-[70vh] gap-4">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">PDF preview is not available in this browser.</p>
+                    <a
+                      href={preview.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors"
+                    >
+                      Open PDF in new tab
+                    </a>
+                  </div>
+                ) : (
+                  <iframe
+                    src={preview.url}
+                    className="w-full h-[70vh] rounded border"
+                    title={preview.name}
+                    onError={() => setPdfError(true)}
+                  />
+                )
               ) : (
                 <p className="text-sm text-gray-500">Preview unavailable for this attachment.</p>
               )}
