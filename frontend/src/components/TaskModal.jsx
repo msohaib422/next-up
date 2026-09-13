@@ -1,8 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Modal from './ui/Modal'
 import Input from './ui/Input'
 import Select from './ui/Select'
 import Button from './ui/Button'
+import api from '../api/axios'
+import toast from 'react-hot-toast'
+import { Paperclip, X } from 'lucide-react'
+
+const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+const MAX_SIZE = 10 * 1024 * 1024
 
 export default function TaskModal({ isOpen, onClose, onSave, task }) {
   const [form, setForm] = useState({
@@ -10,9 +16,15 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
   })
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState({})
+  const [file, setFile] = useState(null)
+  const [uploading, setUploading] = useState(false)
+  const [attachment, setAttachment] = useState(null)
+  const fileInputRef = useRef(null)
 
   useEffect(() => {
     setErrors({})
+    setFile(null)
+    setAttachment(null)
     if (task) {
       const mode = task.deadlineMode || null
       setForm({
@@ -24,6 +36,9 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
         priority: task.priority || 'Medium',
         status: task.status || 'Pending',
       })
+      if (task.attachment?.name) {
+        setAttachment(task.attachment)
+      }
     } else {
       setForm({ subject: '', title: '', description: '', deadline: '', deadlineMode: null, priority: 'Medium', status: 'Pending' })
     }
@@ -38,6 +53,38 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
         deadline: newMode === 'Date' ? prev.deadline : '',
       }
     })
+  }
+
+  const handleFileChange = (e) => {
+    const selected = e.target.files?.[0]
+    if (!selected) return
+    if (!ALLOWED_TYPES.includes(selected.type)) {
+      setErrors(prev => ({ ...prev, file: 'Only PDF, JPG, JPEG, PNG, WEBP files are allowed.' }))
+      return
+    }
+    if (selected.size > MAX_SIZE) {
+      setErrors(prev => ({ ...prev, file: 'File must be under 10 MB.' }))
+      return
+    }
+    setErrors(prev => { const n = { ...prev }; delete n.file; return n })
+    setFile(selected)
+    setAttachment(null)
+  }
+
+  const handleRemoveFile = () => {
+    setFile(null)
+    setAttachment(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const uploadFile = async () => {
+    if (!file) return attachment
+    const formData = new FormData()
+    formData.append('file', file)
+    const res = await api.post('/tasks/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return res.data.data
   }
 
   const handleSubmit = async (e) => {
@@ -55,7 +102,16 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
     setErrors({})
     setLoading(true)
     try {
-      await onSave(form)
+      let uploadedAttachment = attachment
+      if (file) {
+        setUploading(true)
+        uploadedAttachment = await uploadFile()
+        setUploading(false)
+      }
+      await onSave({ ...form, attachment: uploadedAttachment || null })
+    } catch (err) {
+      setUploading(false)
+      toast.error(err.response?.data?.message || 'Upload failed')
     } finally {
       setLoading(false)
     }
@@ -69,7 +125,7 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
       actions={
         <>
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSubmit} loading={loading}>{task ? 'Update' : 'Create'}</Button>
+          <Button onClick={handleSubmit} loading={loading || uploading}>{task ? 'Update' : 'Create'}</Button>
         </>
       }
     >
@@ -77,6 +133,28 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
         <Input label="Subject" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="e.g. Mathematics" />
         <Input label="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Task title" required />
         <Input label="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Optional description" />
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Attachment</label>
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+              <Paperclip className="w-4 h-4" />
+              {file ? file.name : (attachment?.name || 'Choose PDF or Image')}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.webp"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+            </label>
+            {(file || attachment) && (
+              <button type="button" onClick={handleRemoveFile} className="text-gray-400 hover:text-red-500">
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          {errors.file && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.file}</p>}
+        </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Deadline</label>
           <div className="flex flex-col gap-1">

@@ -45,6 +45,11 @@ const taskSchema = new mongoose.Schema(
       enum: ['Pending', 'In Progress', 'Completed', 'Overdue'],
       default: 'Pending',
     },
+    attachment: {
+      name: { type: String, default: '' },
+      url: { type: String, default: '' },
+      type: { type: String, default: '' },
+    },
   },
   { timestamps: true }
 );

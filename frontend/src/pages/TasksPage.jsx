@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
-import { Plus, CheckSquare, Search, Filter, Calendar, X } from 'lucide-react'
+import { Plus, CheckSquare, Search, Filter, Calendar, X, Paperclip } from 'lucide-react'
 import { parseISO, isPast, isToday } from 'date-fns'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
@@ -22,6 +22,7 @@ export default function TasksPage() {
   const [priorityFilter, setPriorityFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [dateFilter, setDateFilter] = useState('')
+  const [preview, setPreview] = useState(null)
 
   useEffect(() => { fetchTasks() }, [])
 
@@ -191,6 +192,14 @@ export default function TasksPage() {
               <h3 className="text-[15px] text-gray-900 dark:text-white mb-1"><span className="font-bold">Title:</span> <span className="font-normal">{task.title}</span></h3>
               {task.subject && <p className="text-sm text-gray-700 dark:text-gray-300 mb-1"><span className="font-bold">Subject:</span> <span className="font-normal">{task.subject}</span></p>}
               {task.description?.trim() && <p className="text-sm text-gray-500 dark:text-gray-400 mb-1 line-clamp-2"><span className="font-bold">Description:</span> <span className="font-normal">{task.description}</span></p>}
+              {task.attachment?.name && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setPreview(task.attachment) }}
+                  className="flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline mt-1"
+                >
+                  <Paperclip className="w-3 h-3" /> {task.attachment.name}
+                </button>
+              )}
               <div className="flex items-center gap-2 mt-3 pt-3 border-t dark:border-gray-700">
                 <button
                   onClick={(e) => { e.stopPropagation(); handleToggleComplete(task) }}
@@ -215,6 +224,28 @@ export default function TasksPage() {
       )}
 
       <TaskModal isOpen={showModal} onClose={() => { setShowModal(false); setEditingTask(null) }} onSave={handleSave} task={editingTask} />
+
+      {preview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setPreview(null)}>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate">{preview.name}</h3>
+              <button onClick={() => setPreview(null)} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              {preview.type?.startsWith('image/') ? (
+                <img src={preview.url} alt={preview.name} className="max-w-full max-h-[70vh] mx-auto rounded" />
+              ) : preview.type === 'application/pdf' ? (
+                <iframe src={preview.url} className="w-full h-[70vh] rounded border" title={preview.name} />
+              ) : (
+                <p className="text-sm text-gray-500">Preview not available for this file type.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
