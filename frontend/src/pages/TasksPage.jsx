@@ -80,12 +80,22 @@ export default function TasksPage() {
     return true
   })
 
-  const getDeadlineBadge = (deadline) => {
-    if (!deadline) return null
-    const d = parseISO(deadline)
-    if (isPast(d) && !isToday(d)) return <Badge color="danger" size="sm">Overdue</Badge>
-    if (isToday(d)) return <Badge color="warning" size="sm">Due Today</Badge>
+  const getDeadlineBadge = (task) => {
+    if (task.deadlineMode === 'Upcoming Lecture') return <Badge color="info" size="sm">Upcoming Lecture</Badge>
+    if (task.deadlineMode === 'As Possible') return <Badge color="warning" size="sm">As Possible</Badge>
+    if (task.deadline) {
+      const d = parseISO(task.deadline)
+      if (isPast(d) && !isToday(d)) return <Badge color="danger" size="sm">Overdue</Badge>
+      if (isToday(d)) return <Badge color="warning" size="sm">Due Today</Badge>
+    }
     return null
+  }
+
+  const formatDeadline = (task) => {
+    if (task.deadlineMode === 'Upcoming Lecture') return 'Due by Upcoming Lecture'
+    if (task.deadlineMode === 'As Possible') return 'As Possible'
+    if (task.deadline) return `Due: ${format(parseISO(task.deadline), 'MMM d, h:mm a')}`
+    return 'No Deadline'
   }
 
   const priorityColor = (p) => p === 'High' ? 'danger' : p === 'Medium' ? 'info' : 'success'
@@ -137,15 +147,14 @@ export default function TasksPage() {
             <Card key={task._id} className="p-4" onClick={() => { setEditingTask(task); setShowModal(true) }}>
               <div className="flex items-start justify-between mb-2">
                 <Badge color={priorityColor(task.priority)} size="sm">{task.priority}</Badge>
-                {getDeadlineBadge(task.deadline)}
+                {getDeadlineBadge(task)}
               </div>
               <h3 className="font-semibold text-gray-900 dark:text-white mb-1">{task.title}</h3>
-              {task.subject && <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">{task.subject}</p>}
-              {task.deadline && (
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Due: {format(parseISO(task.deadline), 'MMM d, h:mm a')}
-                </p>
-              )}
+              {task.subject && <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">{task.subject}</p>}
+              {task.description && <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 line-clamp-2">{task.description}</p>}
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {formatDeadline(task)}
+              </p>
               <div className="flex items-center gap-2 mt-3 pt-3 border-t dark:border-gray-700">
                 <button
                   onClick={(e) => { e.stopPropagation(); handleToggleComplete(task) }}

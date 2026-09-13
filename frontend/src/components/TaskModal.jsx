@@ -67,7 +67,7 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Deadline</label>
           <div className="flex flex-col gap-1">
-            <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+            <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none w-fit">
               <input
                 type="checkbox"
                 checked={form.deadlineMode === 'Date'}
@@ -86,7 +86,7 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
                 />
               </div>
             )}
-            <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+            <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none w-fit">
               <input
                 type="checkbox"
                 checked={form.deadlineMode === 'Upcoming Lecture'}
@@ -95,7 +95,7 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
               />
               Due by Upcoming Lecture
             </label>
-            <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+            <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none w-fit">
               <input
                 type="checkbox"
                 checked={form.deadlineMode === 'As Possible'}
