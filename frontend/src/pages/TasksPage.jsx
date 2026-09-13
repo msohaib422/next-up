@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
-import { Plus, CheckSquare, Search, Filter } from 'lucide-react'
+import { Plus, CheckSquare, Search, Filter, Calendar, X } from 'lucide-react'
 import { parseISO, isPast, isToday } from 'date-fns'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
@@ -21,6 +21,7 @@ export default function TasksPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState('all')
   const [search, setSearch] = useState('')
+  const [dateFilter, setDateFilter] = useState('')
 
   useEffect(() => { fetchTasks() }, [])
 
@@ -76,7 +77,18 @@ export default function TasksPage() {
   const filtered = tasks.filter(t => {
     if (statusFilter !== 'all' && t.status !== statusFilter) return false
     if (priorityFilter !== 'all' && t.priority !== priorityFilter) return false
-    if (search && !t.title.toLowerCase().includes(search.toLowerCase()) && !t.subject?.toLowerCase().includes(search.toLowerCase())) return false
+    if (search) {
+      const q = search.toLowerCase()
+      const matchTitle = t.title?.toLowerCase().includes(q)
+      const matchSubject = t.subject?.toLowerCase().includes(q)
+      const matchDescription = t.description?.toLowerCase().includes(q)
+      if (!matchTitle && !matchSubject && !matchDescription) return false
+    }
+    if (dateFilter) {
+      if (t.deadlineMode !== 'Date' || !t.deadline) return false
+      const taskDate = new Date(t.deadline).toISOString().slice(0, 10)
+      if (taskDate !== dateFilter) return false
+    }
     return true
   })
 
@@ -105,35 +117,65 @@ export default function TasksPage() {
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-1">
+        <div className="flex-[3] min-w-0">
           <Input icon={Search} placeholder="Search tasks..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <Select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          options={[
-            { value: 'all', label: 'All Status' },
-            { value: 'Pending', label: 'Pending' },
-            { value: 'In Progress', label: 'In Progress' },
-            { value: 'Completed', label: 'Completed' },
-          ]}
-        />
-        <Select
-          value={priorityFilter}
-          onChange={(e) => setPriorityFilter(e.target.value)}
-          options={[
-            { value: 'all', label: 'All Priority' },
-            { value: 'High', label: 'High' },
-            { value: 'Medium', label: 'Medium' },
-            { value: 'Low', label: 'Low' },
-          ]}
-        />
+        <div className="relative flex-[1] min-w-0">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <Calendar className="h-5 w-5 text-gray-400" />
+          </div>
+          <input
+            type="date"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 pl-10 pr-3 py-2 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-colors"
+          />
+        </div>
+        <div className="w-32 shrink-0">
+          <Select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            options={[
+              { value: 'all', label: 'Status' },
+              { value: 'Pending', label: 'Pending' },
+              { value: 'In Progress', label: 'In Progress' },
+              { value: 'Completed', label: 'Completed' },
+            ]}
+          />
+        </div>
+        <div className="w-32 shrink-0">
+          <Select
+            value={priorityFilter}
+            onChange={(e) => setPriorityFilter(e.target.value)}
+            options={[
+              { value: 'all', label: 'Priority' },
+              { value: 'High', label: 'High' },
+              { value: 'Medium', label: 'Medium' },
+              { value: 'Low', label: 'Low' },
+            ]}
+          />
+        </div>
+        {(search || dateFilter || statusFilter !== 'all' || priorityFilter !== 'all') && (
+          <button
+            onClick={() => { setSearch(''); setDateFilter(''); setStatusFilter('all'); setPriorityFilter('all') }}
+            className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          >
+            <X className="w-4 h-4" /> Clear
+          </button>
+        )}
       </div>
 
       {filtered.length === 0 ? (
-        <EmptyState icon={CheckSquare} title="No tasks found" description="Create your first task to get started" action={
-          <Button onClick={() => setShowModal(true)}><Plus className="w-4 h-4" /> Add Task</Button>
-        } />
+        <EmptyState
+          icon={CheckSquare}
+          title="No tasks found"
+          description={(search || dateFilter || statusFilter !== 'all' || priorityFilter !== 'all')
+            ? 'No tasks match your current filters. Try adjusting your search or filters.'
+            : 'Create your first task to get started'}
+          action={
+            <Button onClick={() => setShowModal(true)}><Plus className="w-4 h-4" /> Add Task</Button>
+          }
+        />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map(task => (
