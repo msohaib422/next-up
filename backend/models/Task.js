@@ -35,6 +35,10 @@ const taskSchema = new mongoose.Schema(
       enum: ['Pending', 'In Progress', 'Completed', 'Overdue'],
       default: 'Pending',
     },
+    dueByLecture: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

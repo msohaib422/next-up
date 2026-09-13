@@ -37,7 +37,7 @@ export const getTask = async (req, res, next) => {
 
 export const createTask = async (req, res, next) => {
   try {
-    const { subject, title, description, deadline, priority, status } = req.body;
+    const { subject, title, description, deadline, priority, status, dueByLecture } = req.body;
     const task = await Task.create({
       user: req.user._id,
       subject,
@@ -46,6 +46,7 @@ export const createTask = async (req, res, next) => {
       deadline,
       priority,
       status,
+      dueByLecture,
     });
 
     await createActivity(req.user._id, 'task_created', `Created task: ${title}`, '', 'Task', task._id);

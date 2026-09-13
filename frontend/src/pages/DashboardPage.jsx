@@ -50,7 +50,7 @@ function UserDashboard() {
 
         setStats({
           totalTasks: tasks.length,
-          pendingTasks: tasks.filter(t => t.status !== 'completed').length,
+          pendingTasks: tasks.filter(t => t.status !== 'Completed').length,
           upcomingEvents: events.filter(e => !isPast(parseISO(e.date || e.startTime))).length,
           upcomingQuizzes: quizzesData.filter(q => !isPast(parseISO(q.date || q.quizDate))).length,
         })
@@ -62,7 +62,7 @@ function UserDashboard() {
 
         setDeadlines(
           tasks
-            .filter(t => t.status !== 'completed' && t.deadline)
+            .filter(t => t.status !== 'Completed' && t.deadline)
             .sort((a, b) => new Date(a.deadline) - new Date(b.deadline))
             .slice(0, 5)
         )
@@ -76,7 +76,7 @@ function UserDashboard() {
 
         setReminders(
           remindersData
-            .filter(r => r.status !== 'completed')
+            .filter(r => r.status !== 'Completed')
             .sort((a, b) => new Date(a.date || a.reminderDate) - new Date(b.date || b.reminderDate))
             .slice(0, 3)
         )
@@ -198,7 +198,7 @@ function UserDashboard() {
                         ? 'Overdue'
                         : formatDistanceToNow(parseISO(task.deadline), { addSuffix: true })}
                     </p>
-                    <Badge color={task.priority === 'high' ? 'danger' : task.priority === 'medium' ? 'info' : 'success'} size="sm">
+                    <Badge color={task.priority === 'High' ? 'danger' : task.priority === 'Medium' ? 'info' : 'success'} size="sm">
                       {task.priority}
                     </Badge>
                   </div>
