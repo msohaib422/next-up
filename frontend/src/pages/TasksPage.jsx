@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
 import { Plus, CheckSquare, Search, Filter } from 'lucide-react'
-import { format, parseISO, isPast, isToday } from 'date-fns'
+import { parseISO, isPast, isToday } from 'date-fns'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -91,13 +91,6 @@ export default function TasksPage() {
     return null
   }
 
-  const formatDeadline = (task) => {
-    if (task.deadlineMode === 'Upcoming Lecture') return 'Due by Upcoming Lecture'
-    if (task.deadlineMode === 'As Possible') return 'As Possible'
-    if (task.deadline) return `Due: ${format(parseISO(task.deadline), 'MMM d, h:mm a')}`
-    return 'No Deadline'
-  }
-
   const priorityColor = (p) => p === 'High' ? 'danger' : p === 'Medium' ? 'info' : 'success'
 
   if (loading) return <LoadingSpinner />
@@ -150,11 +143,8 @@ export default function TasksPage() {
                 {getDeadlineBadge(task)}
               </div>
               <h3 className="font-semibold text-gray-900 dark:text-white mb-1">{task.title}</h3>
-              {task.subject && <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">{task.subject}</p>}
+              {task.subject && <p className="text-base font-medium text-gray-700 dark:text-gray-300 mb-1">{task.subject}</p>}
               {task.description && <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 line-clamp-2">{task.description}</p>}
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                {formatDeadline(task)}
-              </p>
               <div className="flex items-center gap-2 mt-3 pt-3 border-t dark:border-gray-700">
                 <button
                   onClick={(e) => { e.stopPropagation(); handleToggleComplete(task) }}
