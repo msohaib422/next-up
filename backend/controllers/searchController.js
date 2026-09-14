@@ -1,9 +1,6 @@
 import Task from '../models/Task.js';
 import Quiz from '../models/Quiz.js';
-import Reminder from '../models/Reminder.js';
-import Event from '../models/Event.js';
 import Announcement from '../models/Announcement.js';
-import Reference from '../models/Reference.js';
 import ImportantDate from '../models/ImportantDate.js';
 
 export const globalSearch = async (req, res, next) => {
@@ -32,14 +29,11 @@ export const globalSearch = async (req, res, next) => {
       textQuery.createdAt = dateFilter;
     }
 
-    const [tasks, quizzes, reminders, events, announcements, references, importantDates] =
+    const [tasks, quizzes, announcements, importantDates] =
       await Promise.all([
         Task.find({ user: req.user._id, ...textQuery }).limit(10),
         Quiz.find({ user: req.user._id, ...textQuery }).limit(10),
-        Reminder.find({ user: req.user._id, ...textQuery }).limit(10),
-        Event.find({ user: req.user._id, ...textQuery }).limit(10),
         Announcement.find({ user: req.user._id, ...textQuery }).limit(10),
-        Reference.find({ user: req.user._id, ...textQuery }).limit(10),
         ImportantDate.find({ user: req.user._id, ...textQuery }).limit(10),
       ]);
 
@@ -48,10 +42,7 @@ export const globalSearch = async (req, res, next) => {
       data: {
         tasks,
         quizzes,
-        reminders,
-        events,
         announcements,
-        references,
         importantDates,
       },
     });
