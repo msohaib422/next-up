@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
-import { Plus, CheckSquare, Search, Filter, Calendar, X, Paperclip, Download } from 'lucide-react'
-import { parseISO, isPast, isToday } from 'date-fns'
+import { Plus, CheckSquare, Search, Calendar, X, Paperclip, Download } from 'lucide-react'
+import { parseISO, isPast, isToday, startOfDay } from 'date-fns'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -11,6 +11,24 @@ import Select from '../components/ui/Select'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import TaskModal from '../components/TaskModal'
+
+const PRIORITY_ORDER = ['High', 'Medium', 'Low']
+
+const normalizePriority = (p) => {
+  if (!p) return 'Medium'
+  const lower = p.toLowerCase()
+  if (lower === 'high') return 'High'
+  if (lower === 'medium') return 'Medium'
+  if (lower === 'low') return 'Low'
+  return 'Medium'
+}
+
+const sortByDeadline = (a, b) => {
+  if (!a.deadline && !b.deadline) return 0
+  if (!a.deadline) return 1
+  if (!b.deadline) return -1
+  return new Date(a.deadline) - new Date(b.deadline)
+}
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState([])
@@ -66,33 +84,60 @@ export default function TasksPage() {
 
   const handleToggleComplete = async (task) => {
     try {
-      await api.put(`/tasks/${task._id}`, { status: task.status === 'Completed' ? 'Pending' : 'Completed' })
-      fetchTasks()
+      const newStatus = task.status === 'Completed' ? 'Pending' : 'Completed'
+      const res = await api.put(`/tasks/${task._id}`, { status: newStatus })
+      const updated = res.data?.data
+      setTasks(prev => prev.map(t =>
+        t._id === task._id ? { ...t, status: updated?.status || newStatus } : t
+      ))
+      toast.success(task.status === 'Completed' ? 'Task restored' : 'Task completed')
     } catch (err) {
       toast.error('Failed to update task')
     }
   }
 
-  const filtered = tasks.filter(t => {
-    if (statusFilter !== 'all' && t.status !== statusFilter) return false
-    if (priorityFilter !== 'all' && t.priority !== priorityFilter) return false
-    if (search) {
-      const q = search.toLowerCase()
-      const matchTitle = t.title?.toLowerCase().includes(q)
-      const matchSubject = t.subject?.toLowerCase().includes(q)
-      const matchDescription = t.description?.toLowerCase().includes(q)
-      if (!matchTitle && !matchSubject && !matchDescription) return false
-    }
-    if (dateFilter) {
-      if (!t.createdAt) return false
-      const created = new Date(t.createdAt)
-      const y = created.getFullYear()
-      const m = String(created.getMonth() + 1).padStart(2, '0')
-      const d = String(created.getDate()).padStart(2, '0')
-      if (`${y}-${m}-${d}` !== dateFilter) return false
-    }
-    return true
-  })
+  const filtered = useMemo(() => {
+    return tasks.filter(t => {
+      if (statusFilter !== 'all' && t.status !== statusFilter) return false
+      if (priorityFilter !== 'all' && t.priority !== priorityFilter) return false
+      if (search) {
+        const q = search.toLowerCase()
+        const matchTitle = t.title?.toLowerCase().includes(q)
+        const matchSubject = t.subject?.toLowerCase().includes(q)
+        const matchDescription = t.description?.toLowerCase().includes(q)
+        if (!matchTitle && !matchSubject && !matchDescription) return false
+      }
+      if (dateFilter) {
+        if (!t.createdAt) return false
+        const created = startOfDay(new Date(t.createdAt))
+        const boundary = startOfDay(new Date(dateFilter + 'T00:00:00'))
+        if (created < boundary) return false
+      }
+      return true
+    })
+  }, [tasks, statusFilter, priorityFilter, search, dateFilter])
+
+  const activeTasks = useMemo(() =>
+    filtered.filter(t => t.status !== 'Completed'),
+    [filtered]
+  )
+
+  const completedTasks = useMemo(() =>
+    [...filtered.filter(t => t.status === 'Completed')].sort(sortByDeadline),
+    [filtered]
+  )
+
+  const groupedTasks = useMemo(() => {
+    const groups = { High: [], Medium: [], Low: [] }
+    activeTasks.forEach(task => {
+      const priority = normalizePriority(task.priority)
+      groups[priority].push(task)
+    })
+    Object.keys(groups).forEach(key => {
+      groups[key].sort(sortByDeadline)
+    })
+    return groups
+  }, [activeTasks])
 
   const getDeadlineBadge = (task) => {
     if (task.deadlineMode === 'Upcoming Lecture') return <Badge color="info" size="sm">Upcoming Lecture</Badge>
@@ -131,7 +176,58 @@ export default function TasksPage() {
     }
   }
 
+  const renderTaskCard = (task) => (
+    <Card key={task._id} className="p-4" onClick={() => { setEditingTask(task); setShowModal(true) }}>
+      <div className="flex items-start justify-between mb-2">
+        <Badge color={priorityColor(task.priority)} size="sm">{task.priority}</Badge>
+        {getDeadlineBadge(task)}
+      </div>
+      <h3 className="text-[15px] text-gray-900 dark:text-white mb-1"><span className="font-bold">Title:</span> <span className="font-normal">{task.title}</span></h3>
+      {task.subject && <p className="text-sm text-gray-700 dark:text-gray-300 mb-1"><span className="font-bold">Subject:</span> <span className="font-normal">{task.subject}</span></p>}
+      {task.description?.trim() && <p className="text-sm text-gray-500 dark:text-gray-400 mb-1 line-clamp-2"><span className="font-bold">Description:</span> <span className="font-normal">{task.description}</span></p>}
+      {task.attachment?.name && (
+        <div className="flex items-center gap-2 mt-2 pt-1">
+          <button
+            onClick={(e) => { e.stopPropagation(); handleAttachmentOpen(task.attachment) }}
+            className="flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline min-w-0"
+          >
+            <Paperclip className="w-3 h-3 shrink-0" />
+            <span className="truncate">{task.attachment.name}</span>
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleDownload(task.attachment) }}
+            className="text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 shrink-0 ml-auto"
+            aria-label="Download attachment"
+            title="Download"
+          >
+            <Download className="w-[21px] h-[21px]" />
+          </button>
+        </div>
+      )}
+      <div className="flex items-center gap-2 mt-3 pt-3 border-t dark:border-gray-700">
+        <button
+          onClick={(e) => { e.stopPropagation(); handleToggleComplete(task) }}
+          className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
+            task.status === 'Completed'
+              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+              : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+          }`}
+        >
+          {task.status === 'Completed' ? '✓ Done' : 'Mark Done'}
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); handleDelete(task._id) }}
+          className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50"
+        >
+          Delete
+        </button>
+      </div>
+    </Card>
+  )
+
   if (loading) return <LoadingSpinner />
+
+  const hasAnyTasks = filtered.length > 0
 
   return (
     <div className="space-y-6">
@@ -154,7 +250,7 @@ export default function TasksPage() {
             type="date"
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
-            title="Filter by added date"
+            title="Filter by added date (shows tasks created on or after this date)"
             className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 pl-10 pr-3 py-2 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-colors"
           />
         </div>
@@ -192,7 +288,7 @@ export default function TasksPage() {
         )}
       </div>
 
-      {filtered.length === 0 ? (
+      {!hasAnyTasks ? (
         <EmptyState
           icon={CheckSquare}
           title="No tasks found"
@@ -204,55 +300,32 @@ export default function TasksPage() {
           }
         />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map(task => (
-            <Card key={task._id} className="p-4" onClick={() => { setEditingTask(task); setShowModal(true) }}>
-              <div className="flex items-start justify-between mb-2">
-                <Badge color={priorityColor(task.priority)} size="sm">{task.priority}</Badge>
-                {getDeadlineBadge(task)}
-              </div>
-              <h3 className="text-[15px] text-gray-900 dark:text-white mb-1"><span className="font-bold">Title:</span> <span className="font-normal">{task.title}</span></h3>
-              {task.subject && <p className="text-sm text-gray-700 dark:text-gray-300 mb-1"><span className="font-bold">Subject:</span> <span className="font-normal">{task.subject}</span></p>}
-              {task.description?.trim() && <p className="text-sm text-gray-500 dark:text-gray-400 mb-1 line-clamp-2"><span className="font-bold">Description:</span> <span className="font-normal">{task.description}</span></p>}
-              {task.attachment?.name && (
-                <div className="flex items-center gap-2 mt-1">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleAttachmentOpen(task.attachment) }}
-                    className="flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline min-w-0"
-                  >
-                    <Paperclip className="w-3 h-3 shrink-0" />
-                    <span className="truncate">{task.attachment.name}</span>
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleDownload(task.attachment) }}
-                    className="text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 shrink-0"
-                    aria-label="Download attachment"
-                    title="Download"
-                  >
-                    <Download className="w-3 h-3" />
-                  </button>
+        <div className="space-y-8">
+          {PRIORITY_ORDER.map(priority => {
+            const tasks = groupedTasks[priority]
+            if (tasks.length === 0) return null
+            return (
+              <div key={priority}>
+                <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+                  {priority} Priority
+                </h2>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {tasks.map(renderTaskCard)}
                 </div>
-              )}
-              <div className="flex items-center gap-2 mt-3 pt-3 border-t dark:border-gray-700">
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleToggleComplete(task) }}
-                  className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
-                    task.status === 'Completed'
-                      ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                      : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
-                  }`}
-                >
-                  {task.status === 'Completed' ? '✓ Done' : 'Mark Done'}
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleDelete(task._id) }}
-                  className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50"
-                >
-                  Delete
-                </button>
               </div>
-            </Card>
-          ))}
+            )
+          })}
+
+          {completedTasks.length > 0 && (
+            <div>
+              <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+                Completed Tasks
+              </h2>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {completedTasks.map(renderTaskCard)}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
