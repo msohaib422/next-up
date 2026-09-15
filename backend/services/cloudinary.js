@@ -53,7 +53,35 @@ export const uploadToCloudinary = (buffer, folder, filename) => {
   });
 };
 
-export const deleteFromCloudinary = async (publicId) => {
+export const deleteFromCloudinary = async ({ publicId, resourceType = 'image' } = {}) => {
+  if (!publicId) {
+    console.warn('[Cloudinary Delete] No publicId provided, skipping.');
+    return { success: false, reason: 'no_publicId' };
+  }
+
   ensureCloudinaryConfig();
-  await cloudinary.uploader.destroy(publicId);
+
+  try {
+    console.log(`[Cloudinary Delete] publicId: ${publicId}, resourceType: ${resourceType}`);
+    const result = await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
+
+    if (result.result === 'not found') {
+      console.log(`[Cloudinary Delete] publicId: ${publicId}, status: not_found (already deleted or never existed)`);
+      return { success: true, status: 'not_found' };
+    }
+
+    console.log(`[Cloudinary Delete] publicId: ${publicId}, status: ${result.result}`);
+    return { success: true, status: result.result };
+  } catch (error) {
+    console.error(`[Cloudinary Delete] publicId: ${publicId}, status: failed, reason: ${error.message}`);
+    return { success: false, reason: error.message };
+  }
 };
+
+export const extractCloudinaryMetadata = (result) => ({
+  publicId: result.public_id || '',
+  resourceType: result.resource_type || 'image',
+  type: result.type || 'upload',
+  format: result.format || '',
+  url: result.secure_url || result.url || '',
+});

@@ -49,6 +49,8 @@ const taskSchema = new mongoose.Schema(
       name: { type: String, default: '' },
       url: { type: String, default: '' },
       type: { type: String, default: '' },
+      publicId: { type: String, default: '' },
+      resourceType: { type: String, default: '' },
     },
   },
   { timestamps: true }

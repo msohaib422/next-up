@@ -1,6 +1,6 @@
 import Task from '../models/Task.js';
 import { createActivity } from './activityController.js';
-import { uploadToCloudinary } from '../services/cloudinary.js';
+import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
 
 export const uploadTaskFile = [
@@ -29,12 +29,16 @@ export const uploadTaskFile = [
       console.log('[Upload] Uploading to Cloudinary, folder: tasks, public_id:', safeName);
       const result = await uploadToCloudinary(req.file.buffer, 'tasks', safeName);
       console.log('[Upload] Cloudinary success:', result.secure_url);
+
+      const meta = extractCloudinaryMetadata(result);
       res.json({
         success: true,
         data: {
           name: req.file.originalname,
-          url: result.secure_url,
+          url: meta.url,
           type: req.file.mimetype,
+          publicId: meta.publicId,
+          resourceType: meta.resourceType,
         },
       });
     } catch (error) {
@@ -124,6 +128,8 @@ export const createTask = async (req, res, next) => {
         name: attachment.name,
         url: attachment.url,
         type: attachment.type || '',
+        publicId: attachment.publicId || '',
+        resourceType: attachment.resourceType || '',
       };
     }
 
@@ -139,14 +145,43 @@ export const createTask = async (req, res, next) => {
 
 export const updateTask = async (req, res, next) => {
   try {
-    const task = await Task.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
-      req.body,
-      { new: true, runValidators: true }
-    );
-    if (!task) {
+    const existingTask = await Task.findOne({ _id: req.params.id, user: req.user._id });
+    if (!existingTask) {
       return res.status(404).json({ success: false, message: 'Task not found' });
     }
+
+    const { attachment: newAttachment, ...updateFields } = req.body;
+
+    if (newAttachment && newAttachment.url && newAttachment.url !== existingTask.attachment?.url) {
+      if (existingTask.attachment?.publicId) {
+        await deleteFromCloudinary({
+          publicId: existingTask.attachment.publicId,
+          resourceType: existingTask.attachment.resourceType || 'image',
+        });
+      }
+      updateFields.attachment = {
+        name: newAttachment.name || '',
+        url: newAttachment.url || '',
+        type: newAttachment.type || '',
+        publicId: newAttachment.publicId || '',
+        resourceType: newAttachment.resourceType || '',
+      };
+    } else if (newAttachment === null || newAttachment === '') {
+      if (existingTask.attachment?.publicId) {
+        await deleteFromCloudinary({
+          publicId: existingTask.attachment.publicId,
+          resourceType: existingTask.attachment.resourceType || 'image',
+        });
+      }
+      updateFields.attachment = { name: '', url: '', type: '', publicId: '', resourceType: '' };
+    }
+
+    const task = await Task.findOneAndUpdate(
+      { _id: req.params.id, user: req.user._id },
+      updateFields,
+      { new: true, runValidators: true }
+    );
+
     res.json({ success: true, data: task });
   } catch (error) {
     next(error);
@@ -155,10 +190,20 @@ export const updateTask = async (req, res, next) => {
 
 export const deleteTask = async (req, res, next) => {
   try {
-    const task = await Task.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+    const task = await Task.findOne({ _id: req.params.id, user: req.user._id });
     if (!task) {
       return res.status(404).json({ success: false, message: 'Task not found' });
     }
+
+    if (task.attachment?.publicId) {
+      await deleteFromCloudinary({
+        publicId: task.attachment.publicId,
+        resourceType: task.attachment.resourceType || 'image',
+      });
+    }
+
+    await Task.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+
     res.json({ success: true, data: {} });
   } catch (error) {
     next(error);

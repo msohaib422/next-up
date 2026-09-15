@@ -189,9 +189,9 @@ export default function TasksPage() {
         <div className="flex items-center gap-2 mt-2 pt-1">
           <button
             onClick={(e) => { e.stopPropagation(); handleAttachmentOpen(task.attachment) }}
-            className="flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline min-w-0"
+            className="flex items-center gap-1.5 text-[13px] text-primary-600 dark:text-primary-400 hover:underline min-w-0"
           >
-            <Paperclip className="w-3 h-3 shrink-0" />
+            <Paperclip className="w-3.5 h-3.5 shrink-0" />
             <span className="truncate">{task.attachment.name}</span>
           </button>
           <button
