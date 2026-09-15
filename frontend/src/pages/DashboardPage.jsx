@@ -38,27 +38,15 @@ function UserDashboard() {
           api.get('/lectures').catch(() => ({ data: [] })),
         ])
 
-<<<<<<< HEAD
-        const tasks = Array.isArray(tasksRes.data) ? tasksRes.data : (tasksRes.data.data || [])
-        const events = Array.isArray(eventsRes.data) ? eventsRes.data : (eventsRes.data.data || [])
+        const tasks = Array.isArray(tasksRes.data) ? 
+        tasksRes.data : (tasksRes.data.data || [])
         const quizzesData = Array.isArray(quizzesRes.data) ? quizzesRes.data : (quizzesRes.data.data || [])
-        const remindersData = Array.isArray(remindersRes.data) ? remindersRes.data : (remindersRes.data.data || [])
         const annData = Array.isArray(annRes.data) ? annRes.data : (annRes.data.data || [])
-=======
-        const tasks = Array.isArray(tasksRes.data) ? tasksRes.data : (tasksRes.data.tasks || [])
-        const quizzesData = Array.isArray(quizzesRes.data) ? quizzesRes.data : (quizzesRes.data.quizzes || [])
-        const annData = Array.isArray(annRes.data) ? annRes.data : (annRes.data.announcements || [])
->>>>>>> to-do/updated/novi
         const timetable = Array.isArray(timetableRes.data) ? timetableRes.data : (timetableRes.data.data || [])
 
         setStats({
           totalTasks: tasks.length,
-<<<<<<< HEAD
           pendingTasks: tasks.filter(t => t.status !== 'Completed').length,
-          upcomingEvents: events.filter(e => !isPast(parseISO(e.date || e.startTime))).length,
-=======
-          pendingTasks: tasks.filter(t => t.status !== 'completed').length,
->>>>>>> to-do/updated/novi
           upcomingQuizzes: quizzesData.filter(q => !isPast(parseISO(q.date || q.quizDate))).length,
         })
 
@@ -79,16 +67,6 @@ function UserDashboard() {
             .slice(0, 3)
         )
 
-<<<<<<< HEAD
-        setReminders(
-          remindersData
-            .filter(r => r.status !== 'Completed')
-            .sort((a, b) => new Date(a.date || a.reminderDate) - new Date(b.date || b.reminderDate))
-            .slice(0, 3)
-        )
-
-=======
->>>>>>> to-do/updated/novi
         setAnnouncements(annData.slice(0, 3))
       } catch (err) {
         console.error(err)
