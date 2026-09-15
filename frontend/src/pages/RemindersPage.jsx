@@ -17,7 +17,7 @@ export default function RemindersPage() {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ title: '', description: '', date: '', type: 'general', priority: 'medium', status: 'pending' })
+  const [form, setForm] = useState({ title: '', description: '', date: '', type: 'General', priority: 'Medium', status: 'Pending' })
   const [typeFilter, setTypeFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [saving, setSaving] = useState(false)
@@ -41,11 +41,11 @@ export default function RemindersPage() {
       setForm({
         title: item.title || '', description: item.description || '',
         date: item.date ? new Date(item.date).toISOString().slice(0, 16) : '',
-        type: item.type || 'general', priority: item.priority || 'medium', status: item.status || 'pending',
+        type: item.type || 'General', priority: item.priority || 'Medium', status: item.status || 'Pending',
       })
     } else {
       setEditing(null)
-      setForm({ title: '', description: '', date: '', type: 'general', priority: 'medium', status: 'pending' })
+      setForm({ title: '', description: '', date: '', type: 'General', priority: 'Medium', status: 'Pending' })
     }
     setShowModal(true)
   }
@@ -87,9 +87,9 @@ export default function RemindersPage() {
     return true
   })
 
-  const priorityColor = (p) => p === 'high' ? 'danger' : p === 'medium' ? 'info' : 'success'
+  const priorityColor = (p) => p === 'High' ? 'danger' : p === 'Medium' ? 'info' : 'success'
   const typeColor = (t) => {
-    const map = { exam: 'danger', assignment: 'warning', meeting: 'info', general: 'neutral' }
+    const map = { Exam: 'danger', Assignment: 'warning', Meeting: 'info', General: 'neutral' }
     return map[t] || 'neutral'
   }
 
@@ -172,10 +172,10 @@ export default function RemindersPage() {
           <Input label="Date & Time" type="datetime-local" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
           <div className="grid grid-cols-2 gap-4">
             <Select label="Type" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} options={[
-              { value: 'general', label: 'General' }, { value: 'exam', label: 'Exam' }, { value: 'assignment', label: 'Assignment' }, { value: 'meeting', label: 'Meeting' },
+              { value: 'General', label: 'General' }, { value: 'Exam', label: 'Exam' }, { value: 'Assignment', label: 'Assignment' }, { value: 'Meeting', label: 'Meeting' },
             ]} />
             <Select label="Priority" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} options={[
-              { value: 'low', label: 'Low' }, { value: 'medium', label: 'Medium' }, { value: 'high', label: 'High' },
+              { value: 'Low', label: 'Low' }, { value: 'Medium', label: 'Medium' }, { value: 'High', label: 'High' },
             ]} />
           </div>
         </form>

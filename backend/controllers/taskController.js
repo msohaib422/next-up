@@ -1,5 +1,68 @@
 import Task from '../models/Task.js';
 import { createActivity } from './activityController.js';
+import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
+import upload from '../middleware/upload.js';
+
+export const uploadTaskFile = [
+  (req, res, next) => {
+    console.log('[Upload] Multer middleware hit, Content-Type:', req.headers['content-type']);
+    upload.single('file')(req, res, (err) => {
+      if (err) {
+        console.error('[Upload] Multer error:', err.message, err.code);
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ success: false, message: 'File is too large. Maximum size is 10 MB.' });
+        }
+        return res.status(400).json({ success: false, message: err.message || 'File upload failed.' });
+      }
+      console.log('[Upload] Multer success, file:', req.file?.originalname, req.file?.size);
+      next();
+    });
+  },
+  async (req, res, next) => {
+    try {
+      console.log('[Upload] Cloudinary upload handler hit');
+      if (!req.file) {
+        console.error('[Upload] No file on req after multer');
+        return res.status(400).json({ success: false, message: 'No file provided.' });
+      }
+      const safeName = `${Date.now()}-${req.file.originalname.replace(/[^a-zA-Z0-9_.-]/g, '_')}`;
+      console.log('[Upload] Uploading to Cloudinary, folder: tasks, public_id:', safeName);
+      const result = await uploadToCloudinary(req.file.buffer, 'tasks', safeName);
+      console.log('[Upload] Cloudinary success:', result.secure_url);
+
+      const meta = extractCloudinaryMetadata(result);
+      res.json({
+        success: true,
+        data: {
+          name: req.file.originalname,
+          url: meta.url,
+          type: req.file.mimetype,
+          publicId: meta.publicId,
+          resourceType: meta.resourceType,
+        },
+      });
+    } catch (error) {
+      console.error('[Upload] Cloudinary upload error:', {
+        message: error.message,
+        name: error.name,
+        http_code: error.http_code,
+      });
+
+      let message;
+      if (error.message?.includes('Cloudinary configuration missing')) {
+        message = 'Upload service is not configured. Please contact support.';
+      } else if (error.http_code === 401 || error.message?.includes('authentication failed')) {
+        message = 'Upload service authentication failed. Please contact support.';
+      } else if (error.message?.includes('File too large') || error.code === 'LIMIT_FILE_SIZE') {
+        message = 'File is too large. Maximum size is 10 MB.';
+      } else {
+        message = error.message || 'File upload to storage failed.';
+      }
+
+      res.status(500).json({ success: false, message });
+    }
+  }
+];
 
 export const getTasks = async (req, res, next) => {
   try {
@@ -37,16 +100,40 @@ export const getTask = async (req, res, next) => {
 
 export const createTask = async (req, res, next) => {
   try {
-    const { subject, title, description, deadline, priority, status } = req.body;
-    const task = await Task.create({
+    const { subject, title, description, deadline, deadlineMode, priority, status, attachment } = req.body;
+
+    const validModes = ['Date', 'Upcoming Lecture', 'As Possible'];
+    if (!deadlineMode || !validModes.includes(deadlineMode)) {
+      return res.status(400).json({ success: false, message: 'Please select a deadline.' });
+    }
+    if (deadlineMode === 'Date' && !deadline) {
+      return res.status(400).json({ success: false, message: 'Please select a date.' });
+    }
+
+    const sanitizedDeadline = deadlineMode === 'Date' && deadline ? deadline : null;
+
+    const taskData = {
       user: req.user._id,
       subject,
       title,
       description,
-      deadline,
+      deadline: sanitizedDeadline,
+      deadlineMode,
       priority,
       status,
-    });
+    };
+
+    if (attachment && attachment.name && attachment.url) {
+      taskData.attachment = {
+        name: attachment.name,
+        url: attachment.url,
+        type: attachment.type || '',
+        publicId: attachment.publicId || '',
+        resourceType: attachment.resourceType || '',
+      };
+    }
+
+    const task = await Task.create(taskData);
 
     await createActivity(req.user._id, 'task_created', `Created task: ${title}`, '', 'Task', task._id);
 
@@ -58,14 +145,43 @@ export const createTask = async (req, res, next) => {
 
 export const updateTask = async (req, res, next) => {
   try {
-    const task = await Task.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
-      req.body,
-      { new: true, runValidators: true }
-    );
-    if (!task) {
+    const existingTask = await Task.findOne({ _id: req.params.id, user: req.user._id });
+    if (!existingTask) {
       return res.status(404).json({ success: false, message: 'Task not found' });
     }
+
+    const { attachment: newAttachment, ...updateFields } = req.body;
+
+    if (newAttachment && newAttachment.url && newAttachment.url !== existingTask.attachment?.url) {
+      if (existingTask.attachment?.publicId) {
+        await deleteFromCloudinary({
+          publicId: existingTask.attachment.publicId,
+          resourceType: existingTask.attachment.resourceType || 'image',
+        });
+      }
+      updateFields.attachment = {
+        name: newAttachment.name || '',
+        url: newAttachment.url || '',
+        type: newAttachment.type || '',
+        publicId: newAttachment.publicId || '',
+        resourceType: newAttachment.resourceType || '',
+      };
+    } else if (newAttachment === null || newAttachment === '') {
+      if (existingTask.attachment?.publicId) {
+        await deleteFromCloudinary({
+          publicId: existingTask.attachment.publicId,
+          resourceType: existingTask.attachment.resourceType || 'image',
+        });
+      }
+      updateFields.attachment = { name: '', url: '', type: '', publicId: '', resourceType: '' };
+    }
+
+    const task = await Task.findOneAndUpdate(
+      { _id: req.params.id, user: req.user._id },
+      updateFields,
+      { new: true, runValidators: true }
+    );
+
     res.json({ success: true, data: task });
   } catch (error) {
     next(error);
@@ -74,10 +190,20 @@ export const updateTask = async (req, res, next) => {
 
 export const deleteTask = async (req, res, next) => {
   try {
-    const task = await Task.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+    const task = await Task.findOne({ _id: req.params.id, user: req.user._id });
     if (!task) {
       return res.status(404).json({ success: false, message: 'Task not found' });
     }
+
+    if (task.attachment?.publicId) {
+      await deleteFromCloudinary({
+        publicId: task.attachment.publicId,
+        resourceType: task.attachment.resourceType || 'image',
+      });
+    }
+
+    await Task.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+
     res.json({ success: true, data: {} });
   } catch (error) {
     next(error);

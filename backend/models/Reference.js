@@ -42,6 +42,14 @@ const referenceSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    publicId: {
+      type: String,
+      default: '',
+    },
+    resourceType: {
+      type: String,
+      default: '',
+    },
     storageType: {
       type: String,
       enum: ['cloudinary', 'r2'],

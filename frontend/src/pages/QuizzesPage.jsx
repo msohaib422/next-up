@@ -17,7 +17,7 @@ export default function QuizzesPage() {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ subject: '', title: '', description: '', date: '', priority: 'medium', isSurprise: false })
+  const [form, setForm] = useState({ subject: '', title: '', description: '', date: '', priority: 'Medium', isSurprise: false })
   const [statusFilter, setStatusFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [saving, setSaving] = useState(false)
@@ -43,12 +43,12 @@ export default function QuizzesPage() {
         title: quiz.title || '',
         description: quiz.description || '',
         date: quiz.date ? new Date(quiz.date).toISOString().slice(0, 16) : '',
-        priority: quiz.priority || 'medium',
+        priority: quiz.priority || 'Medium',
         isSurprise: quiz.isSurprise || false,
       })
     } else {
       setEditing(null)
-      setForm({ subject: '', title: '', description: '', date: '', priority: 'medium', isSurprise: false })
+      setForm({ subject: '', title: '', description: '', date: '', priority: 'Medium', isSurprise: false })
     }
     setShowModal(true)
   }
@@ -91,7 +91,7 @@ export default function QuizzesPage() {
     return true
   })
 
-  const priorityColor = (p) => p === 'high' ? 'danger' : p === 'medium' ? 'info' : 'success'
+  const priorityColor = (p) => p === 'High' ? 'danger' : p === 'Medium' ? 'info' : 'success'
 
   if (loading) return <LoadingSpinner />
 
@@ -167,7 +167,7 @@ export default function QuizzesPage() {
             label="Priority"
             value={form.priority}
             onChange={(e) => setForm({ ...form, priority: e.target.value })}
-            options={[{ value: 'low', label: 'Low' }, { value: 'medium', label: 'Medium' }, { value: 'high', label: 'High' }]}
+            options={[{ value: 'Low', label: 'Low' }, { value: 'Medium', label: 'Medium' }, { value: 'High', label: 'High' }]}
           />
           <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
             <input type="checkbox" checked={form.isSurprise} onChange={(e) => setForm({ ...form, isSurprise: e.target.checked })} className="rounded" />

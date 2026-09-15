@@ -24,6 +24,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    profileImageMeta: {
+      publicId: { type: String, default: '' },
+      resourceType: { type: String, default: '' },
+    },
     role: {
       type: String,
       enum: ['user', 'collaborator'],

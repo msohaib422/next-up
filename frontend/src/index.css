@@ -20,3 +20,17 @@
 ::-webkit-scrollbar-thumb {
   @apply bg-gray-300 dark:bg-gray-600 rounded-full;
 }
+
+input[type="date"] {
+  width: 100% !important;
+}
+
+input[type="date"]::-webkit-datetime-edit {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+input[type="date"]::-webkit-inner-spin-button,
+input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 1;
+}

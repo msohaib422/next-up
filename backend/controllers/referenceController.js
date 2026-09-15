@@ -1,5 +1,6 @@
 import Reference from '../models/Reference.js';
 import { createActivity } from './activityController.js';
+import { deleteFromCloudinary } from '../services/cloudinary.js';
 
 export const getReferences = async (req, res, next) => {
   try {
@@ -37,7 +38,7 @@ export const getReference = async (req, res, next) => {
 
 export const createReference = async (req, res, next) => {
   try {
-    const { subject, topic, description, date, fileType, fileUrl, fileName, fileKey, storageType } = req.body;
+    const { subject, topic, description, date, fileType, fileUrl, fileName, fileKey, storageType, publicId, resourceType } = req.body;
     const reference = await Reference.create({
       user: req.user._id,
       subject,
@@ -49,6 +50,8 @@ export const createReference = async (req, res, next) => {
       fileName,
       fileKey,
       storageType,
+      publicId: publicId || '',
+      resourceType: resourceType || '',
     });
 
     await createActivity(req.user._id, 'reference_added', `Added reference: ${topic}`, '', 'Reference', reference._id);
@@ -61,14 +64,31 @@ export const createReference = async (req, res, next) => {
 
 export const updateReference = async (req, res, next) => {
   try {
-    const reference = await Reference.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
-      req.body,
-      { new: true, runValidators: true }
-    );
-    if (!reference) {
+    const existing = await Reference.findOne({ _id: req.params.id, user: req.user._id });
+    if (!existing) {
       return res.status(404).json({ success: false, message: 'Reference not found' });
     }
+
+    const { fileUrl: newFileUrl, publicId: newPublicId, resourceType: newResourceType, ...updateFields } = req.body;
+
+    if (newFileUrl && newFileUrl !== existing.fileUrl) {
+      if (existing.publicId) {
+        await deleteFromCloudinary({
+          publicId: existing.publicId,
+          resourceType: existing.resourceType || 'image',
+        });
+      }
+      updateFields.fileUrl = newFileUrl;
+      updateFields.publicId = newPublicId || '';
+      updateFields.resourceType = newResourceType || '';
+    }
+
+    const reference = await Reference.findOneAndUpdate(
+      { _id: req.params.id, user: req.user._id },
+      updateFields,
+      { new: true, runValidators: true }
+    );
+
     res.json({ success: true, data: reference });
   } catch (error) {
     next(error);
@@ -77,10 +97,20 @@ export const updateReference = async (req, res, next) => {
 
 export const deleteReference = async (req, res, next) => {
   try {
-    const reference = await Reference.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+    const reference = await Reference.findOne({ _id: req.params.id, user: req.user._id });
     if (!reference) {
       return res.status(404).json({ success: false, message: 'Reference not found' });
     }
+
+    if (reference.publicId) {
+      await deleteFromCloudinary({
+        publicId: reference.publicId,
+        resourceType: reference.resourceType || 'image',
+      });
+    }
+
+    await Reference.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+
     res.json({ success: true, data: {} });
   } catch (error) {
     next(error);

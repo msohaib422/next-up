@@ -21,8 +21,6 @@ import activityRoutes from './routes/activityRoutes.js';
 import submissionRoutes from './routes/submissionRoutes.js';
 import searchRoutes from './routes/searchRoutes.js';
 
-connectDB();
-
 const app = express();
 
 app.use(cors());
@@ -53,10 +51,20 @@ app.get('/api/health', (req, res) => {
   res.json({ success: true, message: 'Server is running' });
 });
 
+app.use((req, res, next) => {
+  console.log(`[404] Unmatched route: ${req.method} ${req.originalUrl}`);
+  res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.originalUrl}` });
+});
+
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 5000;
+connectDB();
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+if (!process.env.VERCEL) {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+
+export default app;

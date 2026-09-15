@@ -23,7 +23,17 @@ const taskSchema = new mongoose.Schema(
     },
     deadline: {
       type: Date,
-      required: [true, 'Please provide a deadline'],
+      default: null,
+    },
+    deadlineMode: {
+      type: String,
+      required: [true, 'Please select a deadline'],
+      validate: {
+        validator: function (v) {
+          return ['Date', 'Upcoming Lecture', 'As Possible'].includes(v);
+        },
+        message: '{VALUE} is not a valid deadline mode',
+      },
     },
     priority: {
       type: String,
@@ -34,6 +44,13 @@ const taskSchema = new mongoose.Schema(
       type: String,
       enum: ['Pending', 'In Progress', 'Completed', 'Overdue'],
       default: 'Pending',
+    },
+    attachment: {
+      name: { type: String, default: '' },
+      url: { type: String, default: '' },
+      type: { type: String, default: '' },
+      publicId: { type: String, default: '' },
+      resourceType: { type: String, default: '' },
     },
   },
   { timestamps: true }
