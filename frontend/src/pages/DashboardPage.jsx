@@ -6,7 +6,7 @@ import Card from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
 import EmptyState from '../components/ui/EmptyState'
 import {
-  CheckSquare, Clock, Calendar, HelpCircle, Bell, Megaphone,
+  CheckSquare, Clock, HelpCircle, Megaphone,
   Plus, AlertTriangle, CheckCircle2, PlayCircle
 } from 'lucide-react'
 import { format, formatDistanceToNow, isPast, isToday, addDays, parseISO } from 'date-fns'
@@ -17,7 +17,6 @@ function UserDashboard() {
   const [schedule, setSchedule] = useState([])
   const [deadlines, setDeadlines] = useState([])
   const [quizzes, setQuizzes] = useState([])
-  const [reminders, setReminders] = useState([])
   const [announcements, setAnnouncements] = useState([])
   const [currentTime, setCurrentTime] = useState(new Date())
   const [loading, setLoading] = useState(true)
@@ -32,32 +31,38 @@ function UserDashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [tasksRes, eventsRes, quizzesRes, remindersRes, annRes, timetableRes] = await Promise.all([
+        const [tasksRes, quizzesRes, annRes, timetableRes] = await Promise.all([
           api.get('/tasks').catch(() => ({ data: [] })),
-          api.get('/events').catch(() => ({ data: [] })),
           api.get('/quizzes').catch(() => ({ data: [] })),
-          api.get('/reminders').catch(() => ({ data: [] })),
           api.get('/announcements').catch(() => ({ data: [] })),
-          api.get('/timetable').catch(() => ({ data: [] })),
+          api.get('/lectures').catch(() => ({ data: [] })),
         ])
 
+<<<<<<< HEAD
         const tasks = Array.isArray(tasksRes.data) ? tasksRes.data : (tasksRes.data.data || [])
         const events = Array.isArray(eventsRes.data) ? eventsRes.data : (eventsRes.data.data || [])
         const quizzesData = Array.isArray(quizzesRes.data) ? quizzesRes.data : (quizzesRes.data.data || [])
         const remindersData = Array.isArray(remindersRes.data) ? remindersRes.data : (remindersRes.data.data || [])
         const annData = Array.isArray(annRes.data) ? annRes.data : (annRes.data.data || [])
+=======
+        const tasks = Array.isArray(tasksRes.data) ? tasksRes.data : (tasksRes.data.tasks || [])
+        const quizzesData = Array.isArray(quizzesRes.data) ? quizzesRes.data : (quizzesRes.data.quizzes || [])
+        const annData = Array.isArray(annRes.data) ? annRes.data : (annRes.data.announcements || [])
+>>>>>>> to-do/updated/novi
         const timetable = Array.isArray(timetableRes.data) ? timetableRes.data : (timetableRes.data.data || [])
 
         setStats({
           totalTasks: tasks.length,
+<<<<<<< HEAD
           pendingTasks: tasks.filter(t => t.status !== 'Completed').length,
           upcomingEvents: events.filter(e => !isPast(parseISO(e.date || e.startTime))).length,
+=======
+          pendingTasks: tasks.filter(t => t.status !== 'completed').length,
+>>>>>>> to-do/updated/novi
           upcomingQuizzes: quizzesData.filter(q => !isPast(parseISO(q.date || q.quizDate))).length,
         })
 
-        const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-        const todayName = dayNames[currentTime.getDay()]
-        const todaySchedule = timetable.filter(l => l.day?.toLowerCase() === todayName)
+        const todaySchedule = timetable.slice(0, 5)
         setSchedule(todaySchedule)
 
         setDeadlines(
@@ -74,6 +79,7 @@ function UserDashboard() {
             .slice(0, 3)
         )
 
+<<<<<<< HEAD
         setReminders(
           remindersData
             .filter(r => r.status !== 'Completed')
@@ -81,6 +87,8 @@ function UserDashboard() {
             .slice(0, 3)
         )
 
+=======
+>>>>>>> to-do/updated/novi
         setAnnouncements(annData.slice(0, 3))
       } catch (err) {
         console.error(err)
@@ -91,15 +99,7 @@ function UserDashboard() {
     fetchData()
   }, [])
 
-  const getLectureStatus = (lecture) => {
-    if (!lecture.startTime || !lecture.endTime) return 'upcoming'
-    const now = currentTime
-    const [sh, sm] = lecture.startTime.split(':').map(Number)
-    const [eh, em] = lecture.endTime.split(':').map(Number)
-    const start = new Date(now); start.setHours(sh, sm, 0, 0)
-    const end = new Date(now); end.setHours(eh, em, 0, 0)
-    if (now >= start && now <= end) return 'ongoing'
-    if (now > end) return 'completed'
+  const getLectureStatus = () => {
     return 'upcoming'
   }
 
@@ -116,11 +116,10 @@ function UserDashboard() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         {[
           { label: 'Total Tasks', value: stats?.totalTasks || 0, icon: CheckSquare, color: 'text-blue-600 bg-blue-100 dark:bg-blue-900/30' },
           { label: 'Pending Tasks', value: stats?.pendingTasks || 0, icon: Clock, color: 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30' },
-          { label: 'Upcoming Events', value: stats?.upcomingEvents || 0, icon: Calendar, color: 'text-green-600 bg-green-100 dark:bg-green-900/30' },
           { label: 'Upcoming Quizzes', value: stats?.upcomingQuizzes || 0, icon: HelpCircle, color: 'text-purple-600 bg-purple-100 dark:bg-purple-900/30' },
         ].map((stat, i) => (
           <Card key={i} className="p-4">
@@ -162,7 +161,7 @@ function UserDashboard() {
                   <div className="flex-1">
                     <p className="font-medium text-gray-900 dark:text-white">{lecture.subject}</p>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {lecture.teacher} · {lecture.classroom} · {lecture.startTime}–{lecture.endTime}
+                      {lecture.timeline}{lecture.notes ? ` · ${lecture.notes}` : ''}
                     </p>
                   </div>
                   <Badge color={status === 'ongoing' ? 'success' : status === 'completed' ? 'neutral' : 'info'} size="sm">
@@ -233,27 +232,6 @@ function UserDashboard() {
         </Card>
 
         <Card className="p-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Reminders</h2>
-          {reminders.length === 0 ? (
-            <EmptyState icon={Bell} title="No reminders" />
-          ) : (
-            <div className="space-y-2">
-              {reminders.map(reminder => (
-                <div key={reminder._id} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-white text-sm">{reminder.title}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{reminder.type}</p>
-                  </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {format(parseISO(reminder.date || reminder.reminderDate), 'MMM d, h:mm a')}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-
-        <Card className="p-4">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recent Announcements</h2>
           {announcements.length === 0 ? (
             <EmptyState icon={Megaphone} title="No announcements" />
@@ -275,7 +253,6 @@ function UserDashboard() {
       <div className="flex flex-wrap gap-3">
         {[
           { label: 'Add Task', to: '/tasks', icon: CheckSquare },
-          { label: 'Add Event', to: '/events', icon: Calendar },
           { label: 'Timetable', to: '/timetable', icon: Clock },
         ].map(action => (
           <button

@@ -12,26 +12,27 @@ const lectureSchema = new mongoose.Schema(
       required: [true, 'Please provide a subject'],
       trim: true,
     },
-    teacher: {
+    timeline: {
+      type: String,
+      enum: ['Weekly', 'Monthly', 'Continued till next change'],
+      default: 'Weekly',
+    },
+    notes: {
       type: String,
       default: '',
     },
-    classroom: {
+    fileUrl: {
       type: String,
       default: '',
     },
-    day: {
+    fileName: {
       type: String,
-      enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-      required: [true, 'Please provide a day'],
+      default: '',
     },
-    startTime: {
+    fileType: {
       type: String,
-      required: [true, 'Please provide a start time'],
-    },
-    endTime: {
-      type: String,
-      required: [true, 'Please provide an end time'],
+      enum: ['image', 'pdf', 'document', 'other'],
+      default: 'other',
     },
   },
   { timestamps: true }

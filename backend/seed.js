@@ -5,8 +5,6 @@ import mongoose from 'mongoose';
 import User from './models/User.js';
 import Task from './models/Task.js';
 import Quiz from './models/Quiz.js';
-import Reminder from './models/Reminder.js';
-import Event from './models/Event.js';
 import Announcement from './models/Announcement.js';
 import Lecture from './models/Lecture.js';
 import ImportantDate from './models/ImportantDate.js';
@@ -69,8 +67,6 @@ const seed = async () => {
     console.log('Clearing demo data...');
     await Task.deleteMany({ user: demoUser._id });
     await Quiz.deleteMany({ user: demoUser._id });
-    await Reminder.deleteMany({ user: demoUser._id });
-    await Event.deleteMany({ user: demoUser._id });
     await Announcement.deleteMany({ user: demoUser._id });
     await Lecture.deleteMany({ user: demoUser._id });
     await ImportantDate.deleteMany({ user: demoUser._id });
@@ -152,76 +148,6 @@ const seed = async () => {
     ]);
     console.log(`Created ${quizzes.length} quizzes`);
 
-    console.log('Seeding reminders...');
-    const reminders = await Reminder.insertMany([
-      {
-        user: demoUser._id,
-        subject: 'General',
-        title: 'Submit Library Books',
-        description: 'Return 3 overdue library books',
-        date: new Date('2026-09-16'),
-        time: '17:00',
-        type: 'General',
-        priority: 'Medium',
-        status: 'Pending',
-      },
-      {
-        user: demoUser._id,
-        subject: 'Computer Science',
-        title: 'Project Submission',
-        description: 'Submit the final year project proposal',
-        date: new Date('2026-09-25'),
-        time: '23:59',
-        type: 'Submission',
-        priority: 'High',
-        status: 'Pending',
-      },
-      {
-        user: demoUser._id,
-        subject: 'Mathematics',
-        title: 'Assignment 4 Preparation',
-        description: 'Start working on Calculus Assignment 4',
-        date: new Date('2026-09-20'),
-        time: '09:00',
-        type: 'Assignment',
-        priority: 'Low',
-        status: 'Pending',
-      },
-    ]);
-    console.log(`Created ${reminders.length} reminders`);
-
-    console.log('Seeding events...');
-    const events = await Event.insertMany([
-      {
-        user: demoUser._id,
-        title: 'University Open Day',
-        date: new Date('2026-09-19'),
-        time: '10:00',
-        location: 'Main Auditorium',
-        description: 'Annual university open day for prospective students',
-        type: 'University',
-      },
-      {
-        user: demoUser._id,
-        title: 'CS Department Seminar',
-        date: new Date('2026-09-21'),
-        time: '14:00',
-        location: 'Room 301, CS Building',
-        description: 'Guest lecture on AI in Healthcare',
-        type: 'Department',
-      },
-      {
-        user: demoUser._id,
-        title: 'Study Group Meeting',
-        date: new Date('2026-09-17'),
-        time: '16:00',
-        location: 'Library Room 2',
-        description: 'Group study session for Physics midterm',
-        type: 'Academic',
-      },
-    ]);
-    console.log(`Created ${events.length} events`);
-
     console.log('Seeding announcements...');
     const announcements = await Announcement.insertMany([
       {
@@ -248,65 +174,42 @@ const seed = async () => {
       {
         user: demoUser._id,
         subject: 'Mathematics',
-        teacher: 'Dr. Smith',
-        classroom: 'Room 101',
-        day: 'Monday',
-        startTime: '09:00',
-        endTime: '10:30',
+        timeline: 'Weekly',
+        notes: 'Regular weekly class',
       },
       {
         user: demoUser._id,
         subject: 'Physics',
-        teacher: 'Prof. Johnson',
-        classroom: 'Room 204',
-        day: 'Monday',
-        startTime: '11:00',
-        endTime: '12:30',
+        timeline: 'Weekly',
+        notes: 'Lab sessions included',
       },
       {
         user: demoUser._id,
         subject: 'Computer Science',
-        teacher: 'Dr. Williams',
-        classroom: 'Lab 3',
-        day: 'Tuesday',
-        startTime: '10:00',
-        endTime: '12:00',
+        timeline: 'Monthly',
+        notes: 'Programming workshops',
       },
       {
         user: demoUser._id,
         subject: 'English',
-        teacher: 'Mrs. Brown',
-        classroom: 'Room 105',
-        day: 'Wednesday',
-        startTime: '09:00',
-        endTime: '10:30',
+        timeline: 'Continued till next change',
       },
       {
         user: demoUser._id,
         subject: 'Mathematics',
-        teacher: 'Dr. Smith',
-        classroom: 'Room 101',
-        day: 'Wednesday',
-        startTime: '14:00',
-        endTime: '15:30',
+        timeline: 'Weekly',
+        notes: 'Advanced topics',
       },
       {
         user: demoUser._id,
         subject: 'Chemistry',
-        teacher: 'Prof. Davis',
-        classroom: 'Lab 1',
-        day: 'Thursday',
-        startTime: '11:00',
-        endTime: '13:00',
+        timeline: 'Monthly',
+        notes: 'Lab practicals',
       },
       {
         user: demoUser._id,
         subject: 'Physics',
-        teacher: 'Prof. Johnson',
-        classroom: 'Room 204',
-        day: 'Friday',
-        startTime: '09:00',
-        endTime: '10:30',
+        timeline: 'Weekly',
       },
     ]);
     console.log(`Created ${lectures.length} lectures`);

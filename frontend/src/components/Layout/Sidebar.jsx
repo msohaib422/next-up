@@ -2,34 +2,24 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useTheme } from '../../hooks/useTheme'
 import {
-  LayoutDashboard, CheckSquare, HelpCircle, Bell, Calendar,
-  Megaphone, BookOpen, Clock, CalendarDays, FileCheck, User,
-  Search, Activity, LogOut, Sun, Moon, X, GraduationCap
+  LayoutDashboard, CheckSquare, HelpCircle, Megaphone,
+  Clock, FileCheck, User,
+  LogOut, Sun, Moon, X, GraduationCap
 } from 'lucide-react'
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/tasks', icon: CheckSquare, label: 'Tasks' },
   { to: '/quizzes', icon: HelpCircle, label: 'Quizzes' },
-  { to: '/reminders', icon: Bell, label: 'Reminders' },
-  { to: '/events', icon: Calendar, label: 'Events' },
+  { to: '/submissions', icon: FileCheck, label: 'Assignments' },
   { to: '/announcements', icon: Megaphone, label: 'Announcements' },
-  { to: '/references', icon: BookOpen, label: 'References' },
   { to: '/timetable', icon: Clock, label: 'Timetable' },
-  { to: '/important-dates', icon: CalendarDays, label: 'Important Dates' },
-  { to: '/activity', icon: Activity, label: 'Activity' },
 ]
-
-const collaboratorItem = { to: '/submissions', icon: FileCheck, label: 'Submissions' }
 
 export default function Sidebar({ isOpen, onClose }) {
   const { user, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
-
-  const allItems = user?.role === 'collaborator'
-    ? [...navItems.slice(0, 9), collaboratorItem, navItems[9]]
-    : navItems
 
   const handleNavClick = () => {
     if (window.innerWidth < 1024) onClose()
@@ -53,7 +43,7 @@ export default function Sidebar({ isOpen, onClose }) {
         </div>
 
         <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-          {allItems.map(item => (
+          {navItems.map(item => (
             <NavLink
               key={item.to}
               to={item.to}
