@@ -150,9 +150,9 @@ export default function TasksPage() {
     if (task.deadline) {
       const d = parseISO(task.deadline)
       const dateStr = format(d, 'MMM d, yyyy')
-      if (isPast(d) && !isToday(d)) return <Badge bgColor="#FFD700" size="sm">{dateStr}</Badge>
-      if (isToday(d)) return <Badge bgColor="#FFD700" size="sm">Today</Badge>
-      return <Badge bgColor="#FFD700" size="sm">{dateStr}</Badge>
+      if (isPast(d) && !isToday(d)) return <Badge bgColor="#FFE08A" size="sm">{dateStr}</Badge>
+      if (isToday(d)) return <Badge bgColor="#FFE08A" size="sm">Today</Badge>
+      return <Badge bgColor="#FFE08A" size="sm">{dateStr}</Badge>
     }
     return null
   }
@@ -163,8 +163,8 @@ export default function TasksPage() {
   }
 
   const priorityBgColor = (p) => {
-    if (p === 'Medium') return '#FFA500'
-    if (p === 'Low') return '#FFFF00'
+    if (p === 'Medium') return '#FF9B7A'
+    if (p === 'Low') return '#D8BFD8'
     return undefined
   }
 
