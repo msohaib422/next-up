@@ -73,9 +73,8 @@ export const getTasks = async (req, res, next) => {
     if (priority) query.priority = priority;
     if (search) {
       query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { subject: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
+        { title: { $regex: '^' + search, $options: 'i' } },
+        { subject: { $regex: '^' + search, $options: 'i' } },
       ];
     }
 

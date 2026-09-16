@@ -10,7 +10,7 @@ import Input from '../components/ui/Input'
 import Select from '../components/ui/Select'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
-import TaskModal from '../components/TaskModal'
+import AssignmentModal from '../components/AssignmentModal'
 
 const PRIORITY_ORDER = ['High', 'Medium', 'Low']
 
@@ -30,125 +30,125 @@ const sortByDeadline = (a, b) => {
   return new Date(a.deadline) - new Date(b.deadline)
 }
 
-export default function TasksPage() {
-  const [tasks, setTasks] = useState([])
+export default function AssignmentsPage() {
+  const [assignments, setAssignments] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
-  const [editingTask, setEditingTask] = useState(null)
+  const [editingAssignment, setEditingAssignment] = useState(null)
   const [statusFilter, setStatusFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState('all')
   const [subjectFilter, setSubjectFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [dateFilter, setDateFilter] = useState('')
 
-  useEffect(() => { fetchTasks() }, [])
+  useEffect(() => { fetchAssignments() }, [])
 
-  const fetchTasks = async () => {
+  const fetchAssignments = async () => {
     try {
-      const res = await api.get('/tasks')
-      setTasks(Array.isArray(res.data) ? res.data : (res.data.data || []))
+      const res = await api.get('/assignments')
+      setAssignments(Array.isArray(res.data) ? res.data : (res.data.data || []))
     } catch (err) {
-      toast.error('Failed to load tasks')
+      toast.error('Failed to load assignments')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleSave = async (taskData) => {
+  const handleSave = async (assignmentData) => {
     try {
-      if (editingTask) {
-        await api.put(`/tasks/${editingTask._id}`, taskData)
-        toast.success('Task updated')
+      if (editingAssignment) {
+        await api.put(`/assignments/${editingAssignment._id}`, assignmentData)
+        toast.success('Assignment updated')
       } else {
-        await api.post('/tasks', taskData)
-        toast.success('Task created')
+        await api.post('/assignments', assignmentData)
+        toast.success('Assignment created')
       }
       setShowModal(false)
-      setEditingTask(null)
-      fetchTasks()
+      setEditingAssignment(null)
+      fetchAssignments()
     } catch (err) {
       throw err
     }
   }
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete this task?')) return
+    if (!confirm('Delete this assignment?')) return
     try {
-      await api.delete(`/tasks/${id}`)
-      toast.success('Task deleted')
-      fetchTasks()
+      await api.delete(`/assignments/${id}`)
+      toast.success('Assignment deleted')
+      fetchAssignments()
     } catch (err) {
-      toast.error('Failed to delete task')
+      toast.error('Failed to delete assignment')
     }
   }
 
-  const handleToggleComplete = async (task) => {
+  const handleToggleComplete = async (assignment) => {
     try {
-      const newStatus = task.status === 'Completed' ? 'Pending' : 'Completed'
-      const res = await api.put(`/tasks/${task._id}`, { status: newStatus })
+      const newStatus = assignment.status === 'Completed' ? 'Pending' : 'Completed'
+      const res = await api.put(`/assignments/${assignment._id}`, { status: newStatus })
       const updated = res.data?.data
-      setTasks(prev => prev.map(t =>
-        t._id === task._id ? { ...t, status: updated?.status || newStatus } : t
+      setAssignments(prev => prev.map(a =>
+        a._id === assignment._id ? { ...a, status: updated?.status || newStatus } : a
       ))
-      toast.success(task.status === 'Completed' ? 'Task restored' : 'Task completed')
+      toast.success(assignment.status === 'Completed' ? 'Assignment restored' : 'Assignment completed')
     } catch (err) {
-      toast.error('Failed to update task')
+      toast.error('Failed to update assignment')
     }
   }
 
   const subjects = useMemo(() => {
-    const set = new Set(tasks.map(t => t.subject).filter(Boolean))
+    const set = new Set(assignments.map(a => a.subject).filter(Boolean))
     return Array.from(set).sort()
-  }, [tasks])
+  }, [assignments])
 
   const filtered = useMemo(() => {
-    return tasks.filter(t => {
-      if (statusFilter !== 'all' && t.status !== statusFilter) return false
-      if (priorityFilter !== 'all' && t.priority !== priorityFilter) return false
-      if (subjectFilter !== 'all' && t.subject !== subjectFilter) return false
+    return assignments.filter(a => {
+      if (statusFilter !== 'all' && a.status !== statusFilter) return false
+      if (priorityFilter !== 'all' && a.priority !== priorityFilter) return false
+      if (subjectFilter !== 'all' && a.subject !== subjectFilter) return false
       if (search) {
         const q = search.toLowerCase()
-        const matchTitle = t.title?.toLowerCase().startsWith(q)
-        const matchSubject = t.subject?.toLowerCase().startsWith(q)
+        const matchTitle = a.title?.toLowerCase().startsWith(q)
+        const matchSubject = a.subject?.toLowerCase().startsWith(q)
         if (!matchTitle && !matchSubject) return false
       }
       if (dateFilter) {
-        if (!t.createdAt) return false
-        const d = new Date(t.createdAt)
+        if (!a.createdAt) return false
+        const d = new Date(a.createdAt)
         const created = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
         if (created !== dateFilter) return false
       }
       return true
     })
-  }, [tasks, statusFilter, priorityFilter, subjectFilter, search, dateFilter])
+  }, [assignments, statusFilter, priorityFilter, subjectFilter, search, dateFilter])
 
-  const activeTasks = useMemo(() =>
-    filtered.filter(t => t.status !== 'Completed'),
+  const activeAssignments = useMemo(() =>
+    filtered.filter(a => a.status !== 'Completed'),
     [filtered]
   )
 
-  const completedTasks = useMemo(() =>
-    [...filtered.filter(t => t.status === 'Completed')].sort(sortByDeadline),
+  const completedAssignments = useMemo(() =>
+    [...filtered.filter(a => a.status === 'Completed')].sort(sortByDeadline),
     [filtered]
   )
 
-  const groupedTasks = useMemo(() => {
+  const groupedAssignments = useMemo(() => {
     const groups = { High: [], Medium: [], Low: [] }
-    activeTasks.forEach(task => {
-      const priority = normalizePriority(task.priority)
-      groups[priority].push(task)
+    activeAssignments.forEach(assignment => {
+      const priority = normalizePriority(assignment.priority)
+      groups[priority].push(assignment)
     })
     Object.keys(groups).forEach(key => {
       groups[key].sort(sortByDeadline)
     })
     return groups
-  }, [activeTasks])
+  }, [activeAssignments])
 
-  const getDeadlineBadge = (task) => {
-    if (task.deadlineMode === 'Upcoming Lecture') return <Badge color="info" size="sm">Upcoming Lecture</Badge>
-    if (task.deadlineMode === 'As Possible') return <Badge color="warning" size="sm">As Possible</Badge>
-    if (task.deadline) {
-      const d = parseISO(task.deadline)
+  const getDeadlineBadge = (assignment) => {
+    if (assignment.deadlineMode === 'Upcoming Lecture') return <Badge color="info" size="sm">Upcoming Lecture</Badge>
+    if (assignment.deadlineMode === 'As Possible') return <Badge color="warning" size="sm">As Possible</Badge>
+    if (assignment.deadline) {
+      const d = parseISO(assignment.deadline)
       if (isPast(d) && !isToday(d)) return <Badge color="danger" size="sm">Overdue</Badge>
       if (isToday(d)) return <Badge color="warning" size="sm">Due Today</Badge>
     }
@@ -181,26 +181,26 @@ export default function TasksPage() {
     }
   }
 
-  const renderTaskCard = (task) => (
-    <Card key={task._id} className="p-4 flex flex-col h-full" onClick={() => { setEditingTask(task); setShowModal(true) }}>
+  const renderAssignmentCard = (assignment) => (
+    <Card key={assignment._id} className="p-4 flex flex-col h-full" onClick={() => { setEditingAssignment(assignment); setShowModal(true) }}>
       <div className="flex items-start justify-between mb-2">
-        <Badge color={priorityColor(task.priority)} size="sm">{task.priority}</Badge>
-        {getDeadlineBadge(task)}
+        <Badge color={priorityColor(assignment.priority)} size="sm">{assignment.priority}</Badge>
+        {getDeadlineBadge(assignment)}
       </div>
-      <h3 className="text-[15px] text-gray-900 dark:text-white mb-1"><span className="font-bold">Title:</span> <span className="font-normal">{task.title}</span></h3>
-      {task.subject && <p className="text-sm text-gray-700 dark:text-gray-300 mb-1"><span className="font-bold">Course:</span> <span className="font-normal">{task.subject}</span></p>}
-      {task.description?.trim() && <p className="text-sm text-gray-500 dark:text-gray-400 mb-1 line-clamp-2"><span className="font-bold">Description:</span> <span className="font-normal">{task.description}</span></p>}
-      {task.attachment?.name && (
+      <h3 className="text-[15px] text-gray-900 dark:text-white mb-1"><span className="font-bold">Title:</span> <span className="font-normal">{assignment.title}</span></h3>
+      {assignment.subject && <p className="text-sm text-gray-700 dark:text-gray-300 mb-1"><span className="font-bold">Course:</span> <span className="font-normal">{assignment.subject}</span></p>}
+      {assignment.description?.trim() && <p className="text-sm text-gray-500 dark:text-gray-400 mb-1 line-clamp-2"><span className="font-bold">Description:</span> <span className="font-normal">{assignment.description}</span></p>}
+      {assignment.attachment?.name && (
         <div className="flex items-center gap-2 mt-2 pt-1">
           <button
-            onClick={(e) => { e.stopPropagation(); handleAttachmentOpen(task.attachment) }}
+            onClick={(e) => { e.stopPropagation(); handleAttachmentOpen(assignment.attachment) }}
             className="flex items-center gap-1.5 text-[13px] text-primary-600 dark:text-primary-400 hover:underline min-w-0"
           >
             <Paperclip className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">{task.attachment.name}</span>
+            <span className="truncate">{assignment.attachment.name}</span>
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); handleDownload(task.attachment) }}
+            onClick={(e) => { e.stopPropagation(); handleDownload(assignment.attachment) }}
             className="text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 shrink-0 ml-auto"
             aria-label="Download attachment"
             title="Download"
@@ -212,17 +212,17 @@ export default function TasksPage() {
       <div className="flex-1" />
       <div className="flex items-center gap-2 mt-3 pt-3 border-t dark:border-gray-700">
         <button
-          onClick={(e) => { e.stopPropagation(); handleToggleComplete(task) }}
+          onClick={(e) => { e.stopPropagation(); handleToggleComplete(assignment) }}
           className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
-            task.status === 'Completed'
+            assignment.status === 'Completed'
               ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
               : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
           }`}
         >
-          {task.status === 'Completed' ? '✓ Done' : 'Mark Done'}
+          {assignment.status === 'Completed' ? '✓ Done' : 'Mark Done'}
         </button>
         <button
-          onClick={(e) => { e.stopPropagation(); handleDelete(task._id) }}
+          onClick={(e) => { e.stopPropagation(); handleDelete(assignment._id) }}
           className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50"
         >
           Delete
@@ -233,20 +233,20 @@ export default function TasksPage() {
 
   if (loading) return <LoadingSpinner />
 
-  const hasAnyTasks = filtered.length > 0
+  const hasAnyAssignments = filtered.length > 0
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Tasks</h1>
-        <Button onClick={() => { setEditingTask(null); setShowModal(true) }}>
-          <Plus className="w-4 h-4" /> Add Task
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Assignments</h1>
+        <Button onClick={() => { setEditingAssignment(null); setShowModal(true) }}>
+          <Plus className="w-4 h-4" /> Add Assignment
         </Button>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="flex-[2] min-w-0">
-          <Input icon={Search} placeholder="Search tasks..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Input icon={Search} placeholder="Search assignments..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <div className="relative w-[220px] shrink-0">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -304,48 +304,48 @@ export default function TasksPage() {
         )}
       </div>
 
-      {!hasAnyTasks ? (
+      {!hasAnyAssignments ? (
         <EmptyState
           icon={CheckSquare}
-          title="No tasks found"
+          title="No assignments found"
           description={(search || dateFilter || statusFilter !== 'all' || priorityFilter !== 'all' || subjectFilter !== 'all')
-            ? 'No tasks match your current filters. Try adjusting your search or filters.'
-            : 'Create your first task to get started'}
+            ? 'No assignments match your current filters. Try adjusting your search or filters.'
+            : 'Create your first assignment to get started'}
           action={
-            <Button onClick={() => setShowModal(true)}><Plus className="w-4 h-4" /> Add Task</Button>
+            <Button onClick={() => setShowModal(true)}><Plus className="w-4 h-4" /> Add Assignment</Button>
           }
         />
       ) : (
         <div className="space-y-8">
           {PRIORITY_ORDER.map(priority => {
-            const tasks = groupedTasks[priority]
-            if (tasks.length === 0) return null
+            const items = groupedAssignments[priority]
+            if (items.length === 0) return null
             return (
               <div key={priority}>
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
                   {priority} Priority
                 </h2>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {tasks.map(renderTaskCard)}
+                  {items.map(renderAssignmentCard)}
                 </div>
               </div>
             )
           })}
 
-          {completedTasks.length > 0 && (
+          {completedAssignments.length > 0 && (
             <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
               <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-                Completed Tasks
+                Completed Assignments
               </h2>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {completedTasks.map(renderTaskCard)}
+                {completedAssignments.map(renderAssignmentCard)}
               </div>
             </div>
           )}
         </div>
       )}
 
-      <TaskModal isOpen={showModal} onClose={() => { setShowModal(false); setEditingTask(null) }} onSave={handleSave} task={editingTask} />
+      <AssignmentModal isOpen={showModal} onClose={() => { setShowModal(false); setEditingAssignment(null) }} onSave={handleSave} assignment={editingAssignment} />
     </div>
   )
 }

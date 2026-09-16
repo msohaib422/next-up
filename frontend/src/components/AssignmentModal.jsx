@@ -10,7 +10,7 @@ import { Paperclip, X } from 'lucide-react'
 const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp']
 const MAX_SIZE = 10 * 1024 * 1024
 
-export default function TaskModal({ isOpen, onClose, onSave, task }) {
+export default function AssignmentModal({ isOpen, onClose, onSave, assignment }) {
   const [form, setForm] = useState({
     subject: '', title: '', description: '', deadline: '', deadlineMode: null, priority: 'Medium', status: 'Pending'
   })
@@ -25,24 +25,24 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
     setErrors({})
     setFile(null)
     setAttachment(null)
-    if (task) {
-      const mode = task.deadlineMode || null
+    if (assignment) {
+      const mode = assignment.deadlineMode || null
       setForm({
-        subject: task.subject || '',
-        title: task.title || '',
-        description: task.description || '',
-        deadline: mode === 'Date' && task.deadline ? new Date(task.deadline).toISOString().slice(0, 16) : '',
+        subject: assignment.subject || '',
+        title: assignment.title || '',
+        description: assignment.description || '',
+        deadline: mode === 'Date' && assignment.deadline ? new Date(assignment.deadline).toISOString().slice(0, 16) : '',
         deadlineMode: mode,
-        priority: task.priority || 'Medium',
-        status: task.status || 'Pending',
+        priority: assignment.priority || 'Medium',
+        status: assignment.status || 'Pending',
       })
-      if (task.attachment?.name) {
-        setAttachment(task.attachment)
+      if (assignment.attachment?.name) {
+        setAttachment(assignment.attachment)
       }
     } else {
       setForm({ subject: '', title: '', description: '', deadline: '', deadlineMode: null, priority: 'Medium', status: 'Pending' })
     }
-  }, [task, isOpen])
+  }, [assignment, isOpen])
 
   const handleDeadlineModeChange = (mode) => {
     setForm(prev => {
@@ -81,7 +81,7 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
     if (!file) return attachment
     const formData = new FormData()
     formData.append('file', file)
-    const res = await api.post('/tasks/upload', formData)
+    const res = await api.post('/assignments/upload', formData)
     return res.data.data
   }
 
@@ -120,17 +120,17 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={task ? 'Edit Task' : 'New Task'}
+      title={assignment ? 'Edit Assignment' : 'New Assignment'}
       actions={
         <>
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSubmit} loading={loading || uploading}>{task ? 'Update' : 'Create'}</Button>
+          <Button onClick={handleSubmit} loading={loading || uploading}>{assignment ? 'Update' : 'Create'}</Button>
         </>
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input label="Course" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="e.g. Mathematics" />
-        <Input label="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Task title" required />
+        <Input label="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Assignment title" required />
         <Input label="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Optional description" />
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Attachment</label>

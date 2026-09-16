@@ -11,7 +11,7 @@ import TasksPage from './pages/TasksPage'
 import QuizzesPage from './pages/QuizzesPage'
 import AnnouncementsPage from './pages/AnnouncementsPage'
 import TimetablePage from './pages/TimetablePage'
-import SubmissionsPage from './pages/SubmissionsPage'
+import AssignmentsPage from './pages/AssignmentsPage'
 import ProfilePage from './pages/ProfilePage'
 import SearchPage from './pages/SearchPage'
 
@@ -29,7 +29,7 @@ export default function App() {
       <Route path="/quizzes" element={<ProtectedRoute><Layout><QuizzesPage /></Layout></ProtectedRoute>} />
       <Route path="/announcements" element={<ProtectedRoute><Layout><AnnouncementsPage /></Layout></ProtectedRoute>} />
       <Route path="/timetable" element={<ProtectedRoute><Layout><TimetablePage /></Layout></ProtectedRoute>} />
-      <Route path="/submissions" element={<ProtectedRoute role="collaborator"><Layout><SubmissionsPage /></Layout></ProtectedRoute>} />
+      <Route path="/assignments" element={<ProtectedRoute><Layout><AssignmentsPage /></Layout></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><Layout><ProfilePage /></Layout></ProtectedRoute>} />
       <Route path="/search" element={<ProtectedRoute><Layout><SearchPage /></Layout></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -31,11 +31,12 @@ function UserDashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [tasksRes, quizzesRes, annRes, timetableRes] = await Promise.all([
+        const [tasksRes, quizzesRes, annRes, timetableRes, assignmentsRes] = await Promise.all([
           api.get('/tasks').catch(() => ({ data: [] })),
           api.get('/quizzes').catch(() => ({ data: [] })),
           api.get('/announcements').catch(() => ({ data: [] })),
           api.get('/lectures').catch(() => ({ data: [] })),
+          api.get('/assignments').catch(() => ({ data: [] })),
         ])
 
         const tasks = Array.isArray(tasksRes.data) ? 
@@ -43,22 +44,22 @@ function UserDashboard() {
         const quizzesData = Array.isArray(quizzesRes.data) ? quizzesRes.data : (quizzesRes.data.data || [])
         const annData = Array.isArray(annRes.data) ? annRes.data : (annRes.data.data || [])
         const timetable = Array.isArray(timetableRes.data) ? timetableRes.data : (timetableRes.data.data || [])
+        const assignmentsData = Array.isArray(assignmentsRes.data) ? assignmentsRes.data : (assignmentsRes.data.data || [])
 
         setStats({
-          totalTasks: tasks.length,
-          pendingTasks: tasks.filter(t => t.status !== 'Completed').length,
+          totalTasks: tasks.length + assignmentsData.length,
+          pendingTasks: tasks.filter(t => t.status !== 'Completed').length + assignmentsData.filter(a => a.status !== 'Completed').length,
           upcomingQuizzes: quizzesData.filter(q => !isPast(parseISO(q.date || q.quizDate))).length,
         })
 
         const todaySchedule = timetable.slice(0, 5)
         setSchedule(todaySchedule)
 
-        setDeadlines(
-          tasks
-            .filter(t => t.status !== 'Completed' && t.deadline)
-            .sort((a, b) => new Date(a.deadline) - new Date(b.deadline))
-            .slice(0, 5)
-        )
+        const allDeadlines = [
+          ...tasks.filter(t => t.status !== 'Completed' && t.deadline).map(t => ({ ...t, _type: 'task' })),
+          ...assignmentsData.filter(a => a.status !== 'Completed' && a.deadline).map(a => ({ ...a, _type: 'assignment' })),
+        ].sort((a, b) => new Date(a.deadline) - new Date(b.deadline)).slice(0, 5)
+        setDeadlines(allDeadlines)
 
         setQuizzes(
           quizzesData
@@ -159,24 +160,24 @@ function UserDashboard() {
             <EmptyState icon={CheckSquare} title="No pending deadlines" description="All caught up!" />
           ) : (
             <div className="space-y-2">
-              {deadlines.map(task => (
-                <div key={task._id} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
+              {deadlines.map(item => (
+                <div key={item._id} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
                   <div>
-                    <p className="font-medium text-gray-900 dark:text-white text-sm">{task.title}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{task.subject}</p>
+                    <p className="font-medium text-gray-900 dark:text-white text-sm">{item.title}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{item.subject}{item._type === 'assignment' ? ' · Assignment' : ''}</p>
                   </div>
                   <div className="text-right">
                     <p className={`text-xs font-medium ${
-                      isPast(parseISO(task.deadline)) ? 'text-red-600' : 'text-gray-500 dark:text-gray-400'
+                      isPast(parseISO(item.deadline)) ? 'text-red-600' : 'text-gray-500 dark:text-gray-400'
                     }`}>
-                      {isToday(parseISO(task.deadline))
+                      {isToday(parseISO(item.deadline))
                         ? 'Due Today'
-                        : isPast(parseISO(task.deadline))
+                        : isPast(parseISO(item.deadline))
                         ? 'Overdue'
-                        : formatDistanceToNow(parseISO(task.deadline), { addSuffix: true })}
+                        : formatDistanceToNow(parseISO(item.deadline), { addSuffix: true })}
                     </p>
-                    <Badge color={task.priority === 'High' ? 'danger' : task.priority === 'Medium' ? 'info' : 'success'} size="sm">
-                      {task.priority}
+                    <Badge color={item.priority === 'High' ? 'danger' : item.priority === 'Medium' ? 'info' : 'success'} size="sm">
+                      {item.priority}
                     </Badge>
                   </div>
                 </div>
@@ -248,7 +249,7 @@ function UserDashboard() {
 }
 
 function CollaboratorDashboard() {
-  const [submissions, setSubmissions] = useState([])
+  const [assignments, setAssignments] = useState([])
   const [stats, setStats] = useState({ pending: 0, approvedWeek: 0, rejectedWeek: 0 })
   const [loading, setLoading] = useState(true)
   const { user } = useAuth()
@@ -256,18 +257,17 @@ function CollaboratorDashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await api.get('/submissions?status=pending')
-        const data = Array.isArray(res.data) ? res.data : (res.data.submissions || [])
-        setSubmissions(data)
-        setStats(prev => ({ ...prev, pending: data.length }))
+        const res = await api.get('/assignments/pending')
+        const data = Array.isArray(res.data) ? res.data : (res.data.data || [])
+        setAssignments(data)
 
-        const allRes = await api.get('/submissions').catch(() => ({ data: [] }))
-        const all = Array.isArray(allRes.data) ? allRes.data : (allRes.data.submissions || [])
+        const allRes = await api.get('/assignments/my').catch(() => ({ data: [] }))
+        const all = Array.isArray(allRes.data) ? allRes.data : (allRes.data.data || [])
         const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7)
         setStats({
-          pending: all.filter(s => s.status === 'pending').length,
-          approvedWeek: all.filter(s => s.status === 'approved' && new Date(s.reviewedAt || s.updatedAt) > weekAgo).length,
-          rejectedWeek: all.filter(s => s.status === 'rejected' && new Date(s.reviewedAt || s.updatedAt) > weekAgo).length,
+          pending: all.filter(a => a.approvalStatus === 'Pending').length,
+          approvedWeek: all.filter(a => a.approvalStatus === 'Approved' && new Date(a.reviewedAt || a.updatedAt) > weekAgo).length,
+          rejectedWeek: all.filter(a => a.approvalStatus === 'Rejected' && new Date(a.reviewedAt || a.updatedAt) > weekAgo).length,
         })
       } catch (err) {
         console.error(err)
@@ -280,9 +280,19 @@ function CollaboratorDashboard() {
 
   const handleApprove = async (id) => {
     try {
-      await api.put(`/submissions/${id}/approve`)
-      setSubmissions(prev => prev.filter(s => s._id !== id))
+      await api.put(`/assignments/${id}/approve`)
+      setAssignments(prev => prev.filter(a => a._id !== id))
       setStats(prev => ({ ...prev, pending: prev.pending - 1, approvedWeek: prev.approvedWeek + 1 }))
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const handleReject = async (id) => {
+    try {
+      await api.put(`/assignments/${id}/reject`, { rejectionReason: '' })
+      setAssignments(prev => prev.filter(a => a._id !== id))
+      setStats(prev => ({ ...prev, pending: prev.pending - 1, rejectedWeek: prev.rejectedWeek + 1 }))
     } catch (err) {
       console.error(err)
     }
@@ -313,25 +323,31 @@ function CollaboratorDashboard() {
       </div>
 
       <Card className="p-4">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Pending Submissions</h2>
-        {submissions.length === 0 ? (
-          <EmptyState icon={CheckCircle2} title="No pending submissions" />
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Pending Assignments</h2>
+        {assignments.length === 0 ? (
+          <EmptyState icon={CheckCircle2} title="No pending assignments" />
         ) : (
           <div className="space-y-3">
-            {submissions.map(sub => (
-              <div key={sub._id} className="flex items-center justify-between p-3 border rounded-lg">
+            {assignments.map(assignment => (
+              <div key={assignment._id} className="flex items-center justify-between p-3 border rounded-lg">
                 <div>
-                  <p className="font-medium text-gray-900 dark:text-white">{sub.title}</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{assignment.title}</p>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {sub.entityType} · by {sub.submittedBy?.name || 'Unknown'} · {format(parseISO(sub.createdAt), 'MMM d')}
+                    {assignment.subject} · by {assignment.user?.name || 'Unknown'} · {format(parseISO(assignment.createdAt), 'MMM d')}
                   </p>
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => handleApprove(sub._id)}
+                    onClick={() => handleApprove(assignment._id)}
                     className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700"
                   >
                     Approve
+                  </button>
+                  <button
+                    onClick={() => handleReject(assignment._id)}
+                    className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700"
+                  >
+                    Reject
                   </button>
                 </div>
               </div>
