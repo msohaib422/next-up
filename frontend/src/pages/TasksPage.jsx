@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
 import { Plus, CheckSquare, Search, Calendar, X, Paperclip, Download } from 'lucide-react'
-import { parseISO, isPast, isToday } from 'date-fns'
+import { parseISO, isPast, isToday, format } from 'date-fns'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -149,17 +149,32 @@ export default function TasksPage() {
     if (task.deadlineMode === 'As Possible') return <Badge color="warning" size="sm">As Possible</Badge>
     if (task.deadline) {
       const d = parseISO(task.deadline)
-      if (isPast(d) && !isToday(d)) return <Badge color="danger" size="sm">Overdue</Badge>
-      if (isToday(d)) return <Badge color="warning" size="sm">Due Today</Badge>
+      const dateStr = format(d, 'MMM d, yyyy')
+      if (isPast(d) && !isToday(d)) return <Badge bgColor="#FFD700" size="sm">{dateStr}</Badge>
+      if (isToday(d)) return <Badge bgColor="#FFD700" size="sm">Today</Badge>
+      return <Badge bgColor="#FFD700" size="sm">{dateStr}</Badge>
     }
     return null
   }
 
-  const priorityColor = (p) => p === 'High' ? 'danger' : p === 'Medium' ? 'info' : 'success'
+  const priorityColor = (p) => {
+    if (p === 'High') return 'danger'
+    return undefined
+  }
+
+  const priorityBgColor = (p) => {
+    if (p === 'Medium') return '#FFA500'
+    if (p === 'Low') return '#FFFF00'
+    return undefined
+  }
+
+  const statusBgColor = (s) => {
+    if (s === 'In Progress') return '#800080'
+    return undefined
+  }
 
   const statusColor = (s) => {
     if (s === 'Completed') return 'success'
-    if (s === 'In Progress') return 'info'
     return 'neutral'
   }
 
@@ -190,8 +205,8 @@ export default function TasksPage() {
   const renderTaskCard = (task) => (
     <Card key={task._id} className="p-4 flex flex-col h-full" onClick={() => { setEditingTask(task); setShowModal(true) }}>
       <div className="flex items-center justify-between mb-2">
-        <Badge color={priorityColor(task.priority)} size="sm">{task.priority}</Badge>
-        <Badge color={statusColor(task.status)} size="sm">{task.status}</Badge>
+        <Badge color={priorityColor(task.priority)} bgColor={priorityBgColor(task.priority)} size="sm">{task.priority}</Badge>
+        <Badge color={statusColor(task.status)} bgColor={statusBgColor(task.status)} size="sm">{task.status}</Badge>
         {getDeadlineBadge(task)}
       </div>
       <h3 className="text-[15px] text-gray-900 dark:text-white mb-1"><span className="font-bold">Title:</span> <span className="font-normal">{task.title}</span></h3>

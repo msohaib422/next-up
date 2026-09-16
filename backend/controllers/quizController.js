@@ -1,5 +1,54 @@
 import Quiz from '../models/Quiz.js';
 import { createActivity } from './activityController.js';
+import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
+import upload from '../middleware/upload.js';
+
+export const uploadQuizFile = [
+  (req, res, next) => {
+    upload.single('file')(req, res, (err) => {
+      if (err) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ success: false, message: 'File is too large. Maximum size is 10 MB.' });
+        }
+        return res.status(400).json({ success: false, message: err.message || 'File upload failed.' });
+      }
+      next();
+    });
+  },
+  async (req, res, next) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ success: false, message: 'No file provided.' });
+      }
+      const safeName = `${Date.now()}-${req.file.originalname.replace(/[^a-zA-Z0-9_.-]/g, '_')}`;
+      const result = await uploadToCloudinary(req.file.buffer, 'quizzes', safeName);
+
+      const meta = extractCloudinaryMetadata(result);
+      res.json({
+        success: true,
+        data: {
+          name: req.file.originalname,
+          url: meta.url,
+          type: req.file.mimetype,
+          publicId: meta.publicId,
+          resourceType: meta.resourceType,
+        },
+      });
+    } catch (error) {
+      let message;
+      if (error.message?.includes('Cloudinary configuration missing')) {
+        message = 'Upload service is not configured. Please contact support.';
+      } else if (error.http_code === 401 || error.message?.includes('authentication failed')) {
+        message = 'Upload service authentication failed. Please contact support.';
+      } else if (error.message?.includes('File too large') || error.code === 'LIMIT_FILE_SIZE') {
+        message = 'File is too large. Maximum size is 10 MB.';
+      } else {
+        message = error.message || 'File upload to storage failed.';
+      }
+      res.status(500).json({ success: false, message });
+    }
+  }
+];
 
 export const getQuizzes = async (req, res, next) => {
   try {
@@ -37,7 +86,7 @@ export const getQuiz = async (req, res, next) => {
 
 export const createQuiz = async (req, res, next) => {
   try {
-    const { subject, title, description, date, deadlineMode, priority, status } = req.body;
+    const { subject, title, description, date, deadlineMode, priority, status, attachment } = req.body;
 
     const validModes = ['Date', 'Upcoming Lecture', 'Surprise'];
     if (!deadlineMode || !validModes.includes(deadlineMode)) {
@@ -50,7 +99,7 @@ export const createQuiz = async (req, res, next) => {
     const sanitizedDate = deadlineMode === 'Date' && date ? date : null;
     const isSurprise = deadlineMode === 'Surprise';
 
-    const quiz = await Quiz.create({
+    const quizData = {
       user: req.user._id,
       subject,
       title,
@@ -60,7 +109,19 @@ export const createQuiz = async (req, res, next) => {
       priority,
       status: status || 'Pending',
       isSurprise,
-    });
+    };
+
+    if (attachment && attachment.name && attachment.url) {
+      quizData.attachment = {
+        name: attachment.name,
+        url: attachment.url,
+        type: attachment.type || '',
+        publicId: attachment.publicId || '',
+        resourceType: attachment.resourceType || '',
+      };
+    }
+
+    const quiz = await Quiz.create(quizData);
 
     await createActivity(req.user._id, 'quiz_created', `Created quiz: ${title}`, '', 'Quiz', quiz._id);
 
@@ -72,7 +133,12 @@ export const createQuiz = async (req, res, next) => {
 
 export const updateQuiz = async (req, res, next) => {
   try {
-    const { date: newDate, deadlineMode: newDeadlineMode, ...updateFields } = req.body;
+    const existingQuiz = await Quiz.findOne({ _id: req.params.id, user: req.user._id });
+    if (!existingQuiz) {
+      return res.status(404).json({ success: false, message: 'Quiz not found' });
+    }
+
+    const { attachment: newAttachment, date: newDate, deadlineMode: newDeadlineMode, ...updateFields } = req.body;
 
     if (newDeadlineMode) {
       const validModes = ['Date', 'Upcoming Lecture', 'Surprise'];
@@ -84,14 +150,36 @@ export const updateQuiz = async (req, res, next) => {
       updateFields.isSurprise = newDeadlineMode === 'Surprise';
     }
 
+    if (newAttachment && newAttachment.url && newAttachment.url !== existingQuiz.attachment?.url) {
+      if (existingQuiz.attachment?.publicId) {
+        await deleteFromCloudinary({
+          publicId: existingQuiz.attachment.publicId,
+          resourceType: existingQuiz.attachment.resourceType || 'image',
+        });
+      }
+      updateFields.attachment = {
+        name: newAttachment.name || '',
+        url: newAttachment.url || '',
+        type: newAttachment.type || '',
+        publicId: newAttachment.publicId || '',
+        resourceType: newAttachment.resourceType || '',
+      };
+    } else if (newAttachment === null || newAttachment === '') {
+      if (existingQuiz.attachment?.publicId) {
+        await deleteFromCloudinary({
+          publicId: existingQuiz.attachment.publicId,
+          resourceType: existingQuiz.attachment.resourceType || 'image',
+        });
+      }
+      updateFields.attachment = { name: '', url: '', type: '', publicId: '', resourceType: '' };
+    }
+
     const quiz = await Quiz.findOneAndUpdate(
       { _id: req.params.id, user: req.user._id },
       updateFields,
       { new: true, runValidators: true }
     );
-    if (!quiz) {
-      return res.status(404).json({ success: false, message: 'Quiz not found' });
-    }
+
     res.json({ success: true, data: quiz });
   } catch (error) {
     next(error);
@@ -100,10 +188,20 @@ export const updateQuiz = async (req, res, next) => {
 
 export const deleteQuiz = async (req, res, next) => {
   try {
-    const quiz = await Quiz.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+    const quiz = await Quiz.findOne({ _id: req.params.id, user: req.user._id });
     if (!quiz) {
       return res.status(404).json({ success: false, message: 'Quiz not found' });
     }
+
+    if (quiz.attachment?.publicId) {
+      await deleteFromCloudinary({
+        publicId: quiz.attachment.publicId,
+        resourceType: quiz.attachment.resourceType || 'image',
+      });
+    }
+
+    await Quiz.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+
     res.json({ success: true, data: {} });
   } catch (error) {
     next(error);
