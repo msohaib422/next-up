@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
 import { Plus, CheckSquare, Search, Calendar, X, Paperclip, Download } from 'lucide-react'
-import { parseISO, isPast, isToday, startOfDay } from 'date-fns'
+import { parseISO, isPast, isToday } from 'date-fns'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -114,9 +114,9 @@ export default function AssignmentsPage() {
       }
       if (dateFilter) {
         if (!a.createdAt) return false
-        const created = startOfDay(new Date(a.createdAt))
-        const boundary = startOfDay(new Date(dateFilter + 'T00:00:00'))
-        if (created.getTime() !== boundary.getTime()) return false
+        const d = new Date(a.createdAt)
+        const created = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        if (created !== dateFilter) return false
       }
       return true
     })
