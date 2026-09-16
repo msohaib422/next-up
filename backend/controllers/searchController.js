@@ -11,17 +11,16 @@ export const globalSearch = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Please provide a search query' });
     }
 
-    const searchRegex = { $regex: q, $options: 'i' };
     const dateFilter = {};
 
     if (startDate) dateFilter.$gte = new Date(startDate);
     if (endDate) dateFilter.$lte = new Date(endDate);
 
+    const prefixRegex = { $regex: '^' + q, $options: 'i' };
     const textQuery = {
       $or: [
-        { title: searchRegex },
-        { subject: searchRegex },
-        { description: searchRegex },
+        { title: prefixRegex },
+        { subject: prefixRegex },
       ],
     };
 

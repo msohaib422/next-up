@@ -59,9 +59,8 @@ export const getAssignments = async (req, res, next) => {
     if (subject) query.subject = subject;
     if (search) {
       query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { subject: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
+        { title: { $regex: '^' + search, $options: 'i' } },
+        { subject: { $regex: '^' + search, $options: 'i' } },
       ];
     }
 

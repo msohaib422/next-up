@@ -87,7 +87,7 @@ export default function QuizzesPage() {
   const filtered = quizzes.filter(q => {
     if (statusFilter === 'upcoming' && new Date(q.date || q.quizDate) < new Date()) return false
     if (statusFilter === 'past' && new Date(q.date || q.quizDate) >= new Date()) return false
-    if (search && !q.title?.toLowerCase().includes(search.toLowerCase()) && !q.subject?.toLowerCase().includes(search.toLowerCase())) return false
+    if (search && !q.title?.toLowerCase().startsWith(search.toLowerCase()) && !q.subject?.toLowerCase().startsWith(search.toLowerCase())) return false
     return true
   })
 
@@ -159,7 +159,7 @@ export default function QuizzesPage() {
         }
       >
         <form onSubmit={handleSave} className="space-y-4">
-          <Input label="Subject" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="e.g. Physics" />
+          <Input label="Course" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="e.g. Physics" />
           <Input label="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required placeholder="Quiz title" />
           <Input label="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
           <Input label="Date & Time" type="datetime-local" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />

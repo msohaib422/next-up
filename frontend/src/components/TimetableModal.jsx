@@ -3,6 +3,8 @@ import Modal from './ui/Modal'
 import Input from './ui/Input'
 import Select from './ui/Select'
 import Button from './ui/Button'
+import api from '../api/axios'
+import toast from 'react-hot-toast'
 import { Upload, X, FileText } from 'lucide-react'
 
 const TIMELINE_OPTIONS = [
@@ -15,9 +17,11 @@ export default function TimetableModal({ isOpen, onClose, onSave, lecture }) {
   const [form, setForm] = useState({
     subject: '', timeline: 'Weekly', notes: '',
   })
+  const [file, setFile] = useState(null)
   const [attachment, setAttachment] = useState(null)
   const [attachmentPreview, setAttachmentPreview] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef(null)
 
   useEffect(() => {
@@ -28,49 +32,76 @@ export default function TimetableModal({ isOpen, onClose, onSave, lecture }) {
         notes: lecture.notes || '',
       })
       if (lecture.fileUrl) {
+        setAttachment({ name: lecture.fileName || 'Attachment', url: lecture.fileUrl, publicId: lecture.publicId, resourceType: lecture.resourceType })
         setAttachmentPreview({ name: lecture.fileName || 'Attachment', url: lecture.fileUrl, type: lecture.fileType })
       } else {
+        setAttachment(null)
         setAttachmentPreview(null)
       }
     } else {
       setForm({ subject: '', timeline: 'Weekly', notes: '' })
+      setAttachment(null)
       setAttachmentPreview(null)
     }
-    setAttachment(null)
+    setFile(null)
   }, [lecture, isOpen])
 
   const handleFileSelect = (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setAttachment(file)
+    const selected = e.target.files?.[0]
+    if (!selected) return
+    setFile(selected)
+    setAttachment(null)
     const reader = new FileReader()
     reader.onloadend = () => {
-      setAttachmentPreview({ name: file.name, url: reader.result, type: file.type.startsWith('image') ? 'image' : 'other' })
+      setAttachmentPreview({ name: selected.name, url: reader.result, type: selected.type.startsWith('image') ? 'image' : 'other' })
     }
-    reader.readAsDataURL(file)
+    reader.readAsDataURL(selected)
   }
 
   const handleRemoveAttachment = () => {
+    setFile(null)
     setAttachment(null)
     setAttachmentPreview(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const uploadFile = async () => {
+    if (!file) return attachment
+    const formData = new FormData()
+    formData.append('file', file)
+    const res = await api.post('/lectures/upload', formData)
+    return res.data.data
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     try {
+      let uploadedAttachment = attachment
+      if (file) {
+        setUploading(true)
+        uploadedAttachment = await uploadFile()
+        setUploading(false)
+      }
       const payload = { ...form }
-      if (attachmentPreview && !attachment) {
-        payload.fileUrl = lecture?.fileUrl || ''
-        payload.fileName = lecture?.fileName || ''
-        payload.fileType = lecture?.fileType || 'other'
-      } else if (attachment) {
-        payload.fileUrl = attachmentPreview.url
-        payload.fileName = attachment.name
-        payload.fileType = attachment.type.startsWith('image') ? 'image' : 'other'
+      if (uploadedAttachment) {
+        payload.fileUrl = uploadedAttachment.url
+        payload.fileName = uploadedAttachment.name
+        payload.fileType = uploadedAttachment.type?.startsWith('image') ? 'image' : 'other'
+        payload.publicId = uploadedAttachment.publicId
+        payload.resourceType = uploadedAttachment.resourceType
+      } else {
+        payload.fileUrl = ''
+        payload.fileName = ''
+        payload.fileType = 'other'
+        payload.publicId = ''
+        payload.resourceType = ''
       }
       await onSave(payload)
+    } catch (err) {
+      setUploading(false)
+      const msg = err.response?.data?.message || err.message || 'Upload failed. Please try again.'
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
@@ -84,12 +115,12 @@ export default function TimetableModal({ isOpen, onClose, onSave, lecture }) {
       actions={
         <>
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSubmit} loading={loading}>{lecture ? 'Update' : 'Create'}</Button>
+          <Button onClick={handleSubmit} loading={loading || uploading}>{lecture ? 'Update' : 'Create'}</Button>
         </>
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        <Input label="Subject" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="e.g. Timetable" required />
+        <Input label="Course" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="e.g. Timetable" required />
         <Select
           label="Timeline"
           value={form.timeline}
@@ -112,7 +143,7 @@ export default function TimetableModal({ isOpen, onClose, onSave, lecture }) {
               )}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{attachmentPreview.name}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{attachment ? `${(attachment.size / 1024).toFixed(1)} KB` : 'Existing file'}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{file ? `${(file.size / 1024).toFixed(1)} KB` : 'Existing file'}</p>
               </div>
               <button type="button" onClick={handleRemoveAttachment} className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
                 <X className="w-4 h-4 text-gray-500" />

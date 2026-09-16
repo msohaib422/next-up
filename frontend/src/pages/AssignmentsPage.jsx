@@ -109,10 +109,9 @@ export default function AssignmentsPage() {
       if (subjectFilter !== 'all' && a.subject !== subjectFilter) return false
       if (search) {
         const q = search.toLowerCase()
-        const matchTitle = a.title?.toLowerCase().includes(q)
-        const matchSubject = a.subject?.toLowerCase().includes(q)
-        const matchDescription = a.description?.toLowerCase().includes(q)
-        if (!matchTitle && !matchSubject && !matchDescription) return false
+        const matchTitle = a.title?.toLowerCase().startsWith(q)
+        const matchSubject = a.subject?.toLowerCase().startsWith(q)
+        if (!matchTitle && !matchSubject) return false
       }
       if (dateFilter) {
         if (!a.createdAt) return false
@@ -190,7 +189,7 @@ export default function AssignmentsPage() {
         {getDeadlineBadge(assignment)}
       </div>
       <h3 className="text-[15px] text-gray-900 dark:text-white mb-1"><span className="font-bold">Title:</span> <span className="font-normal">{assignment.title}</span></h3>
-      {assignment.subject && <p className="text-sm text-gray-700 dark:text-gray-300 mb-1"><span className="font-bold">Subject:</span> <span className="font-normal">{assignment.subject}</span></p>}
+      {assignment.subject && <p className="text-sm text-gray-700 dark:text-gray-300 mb-1"><span className="font-bold">Course:</span> <span className="font-normal">{assignment.subject}</span></p>}
       {assignment.description?.trim() && <p className="text-sm text-gray-500 dark:text-gray-400 mb-1 line-clamp-2"><span className="font-bold">Description:</span> <span className="font-normal">{assignment.description}</span></p>}
       {assignment.attachment?.name && (
         <div className="flex items-center gap-2 mt-2 pt-1">
@@ -267,7 +266,7 @@ export default function AssignmentsPage() {
             value={subjectFilter}
             onChange={(e) => setSubjectFilter(e.target.value)}
             options={[
-              { value: 'all', label: 'All Subjects' },
+              { value: 'all', label: 'All Courses' },
               ...subjects.map(s => ({ value: s, label: s })),
             ]}
           />

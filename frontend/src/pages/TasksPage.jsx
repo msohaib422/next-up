@@ -102,10 +102,9 @@ export default function TasksPage() {
       if (priorityFilter !== 'all' && t.priority !== priorityFilter) return false
       if (search) {
         const q = search.toLowerCase()
-        const matchTitle = t.title?.toLowerCase().includes(q)
-        const matchSubject = t.subject?.toLowerCase().includes(q)
-        const matchDescription = t.description?.toLowerCase().includes(q)
-        if (!matchTitle && !matchSubject && !matchDescription) return false
+        const matchTitle = t.title?.toLowerCase().startsWith(q)
+        const matchSubject = t.subject?.toLowerCase().startsWith(q)
+        if (!matchTitle && !matchSubject) return false
       }
       if (dateFilter) {
         if (!t.createdAt) return false
@@ -183,7 +182,7 @@ export default function TasksPage() {
         {getDeadlineBadge(task)}
       </div>
       <h3 className="text-[15px] text-gray-900 dark:text-white mb-1"><span className="font-bold">Title:</span> <span className="font-normal">{task.title}</span></h3>
-      {task.subject && <p className="text-sm text-gray-700 dark:text-gray-300 mb-1"><span className="font-bold">Subject:</span> <span className="font-normal">{task.subject}</span></p>}
+      {task.subject && <p className="text-sm text-gray-700 dark:text-gray-300 mb-1"><span className="font-bold">Course:</span> <span className="font-normal">{task.subject}</span></p>}
       {task.description?.trim() && <p className="text-sm text-gray-500 dark:text-gray-400 mb-1 line-clamp-2"><span className="font-bold">Description:</span> <span className="font-normal">{task.description}</span></p>}
       {task.attachment?.name && (
         <div className="flex items-center gap-2 mt-2 pt-1">

@@ -34,6 +34,14 @@ const lectureSchema = new mongoose.Schema(
       enum: ['image', 'pdf', 'document', 'other'],
       default: 'other',
     },
+    publicId: {
+      type: String,
+      default: '',
+    },
+    resourceType: {
+      type: String,
+      default: '',
+    },
   },
   { timestamps: true }
 );

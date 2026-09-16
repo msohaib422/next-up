@@ -27,7 +27,7 @@ export default function AnnouncementsPage() {
   }
 
   const filtered = announcements.filter(a => {
-    if (search && !a.title?.toLowerCase().includes(search.toLowerCase()) && !a.subject?.toLowerCase().includes(search.toLowerCase())) return false
+    if (search && !a.title?.toLowerCase().startsWith(search.toLowerCase()) && !a.subject?.toLowerCase().startsWith(search.toLowerCase())) return false
     return true
   })
 
