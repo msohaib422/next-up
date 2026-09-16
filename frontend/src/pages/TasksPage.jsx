@@ -37,6 +37,7 @@ export default function TasksPage() {
   const [editingTask, setEditingTask] = useState(null)
   const [statusFilter, setStatusFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState('all')
+  const [subjectFilter, setSubjectFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [dateFilter, setDateFilter] = useState('')
 
@@ -66,7 +67,6 @@ export default function TasksPage() {
       setEditingTask(null)
       fetchTasks()
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to save task')
       throw err
     }
   }
@@ -96,10 +96,16 @@ export default function TasksPage() {
     }
   }
 
+  const subjects = useMemo(() => {
+    const set = new Set(tasks.map(t => t.subject).filter(Boolean))
+    return Array.from(set).sort()
+  }, [tasks])
+
   const filtered = useMemo(() => {
     return tasks.filter(t => {
       if (statusFilter !== 'all' && t.status !== statusFilter) return false
       if (priorityFilter !== 'all' && t.priority !== priorityFilter) return false
+      if (subjectFilter !== 'all' && t.subject !== subjectFilter) return false
       if (search) {
         const q = search.toLowerCase()
         const matchTitle = t.title?.toLowerCase().startsWith(q)
@@ -114,7 +120,7 @@ export default function TasksPage() {
       }
       return true
     })
-  }, [tasks, statusFilter, priorityFilter, search, dateFilter])
+  }, [tasks, statusFilter, priorityFilter, subjectFilter, search, dateFilter])
 
   const activeTasks = useMemo(() =>
     filtered.filter(t => t.status !== 'Completed'),
@@ -250,8 +256,18 @@ export default function TasksPage() {
             type="date"
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
-            title="Filter by added date (shows tasks created on or after this date)"
+            title="Filter by exact added date"
             className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 pl-10 pr-3 py-2 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-colors"
+          />
+        </div>
+        <div className="w-36 shrink-0">
+          <Select
+            value={subjectFilter}
+            onChange={(e) => setSubjectFilter(e.target.value)}
+            options={[
+              { value: 'all', label: 'All Courses' },
+              ...subjects.map(s => ({ value: s, label: s })),
+            ]}
           />
         </div>
         <div className="w-32 shrink-0">
@@ -278,9 +294,9 @@ export default function TasksPage() {
             ]}
           />
         </div>
-        {(search || dateFilter || statusFilter !== 'all' || priorityFilter !== 'all') && (
+        {(search || dateFilter || statusFilter !== 'all' || priorityFilter !== 'all' || subjectFilter !== 'all') && (
           <button
-            onClick={() => { setSearch(''); setDateFilter(''); setStatusFilter('all'); setPriorityFilter('all') }}
+            onClick={() => { setSearch(''); setDateFilter(''); setStatusFilter('all'); setPriorityFilter('all'); setSubjectFilter('all') }}
             className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           >
             <X className="w-4 h-4" /> Clear
@@ -292,7 +308,7 @@ export default function TasksPage() {
         <EmptyState
           icon={CheckSquare}
           title="No tasks found"
-          description={(search || dateFilter || statusFilter !== 'all' || priorityFilter !== 'all')
+          description={(search || dateFilter || statusFilter !== 'all' || priorityFilter !== 'all' || subjectFilter !== 'all')
             ? 'No tasks match your current filters. Try adjusting your search or filters.'
             : 'Create your first task to get started'}
           action={

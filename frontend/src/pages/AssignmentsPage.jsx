@@ -67,7 +67,6 @@ export default function AssignmentsPage() {
       setEditingAssignment(null)
       fetchAssignments()
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to save assignment')
       throw err
     }
   }
@@ -117,7 +116,7 @@ export default function AssignmentsPage() {
         if (!a.createdAt) return false
         const created = startOfDay(new Date(a.createdAt))
         const boundary = startOfDay(new Date(dateFilter + 'T00:00:00'))
-        if (created < boundary) return false
+        if (created.getTime() !== boundary.getTime()) return false
       }
       return true
     })
@@ -257,7 +256,7 @@ export default function AssignmentsPage() {
             type="date"
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
-            title="Filter by added date (shows assignments created on or after this date)"
+            title="Filter by exact added date"
             className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 pl-10 pr-3 py-2 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-colors"
           />
         </div>
