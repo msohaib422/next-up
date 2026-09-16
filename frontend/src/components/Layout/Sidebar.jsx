@@ -11,7 +11,7 @@ const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/tasks', icon: CheckSquare, label: 'Tasks' },
   { to: '/quizzes', icon: HelpCircle, label: 'Quizzes' },
-  { to: '/submissions', icon: FileCheck, label: 'Assignments' },
+  { to: '/assignments', icon: FileCheck, label: 'Assignments' },
   { to: '/announcements', icon: Megaphone, label: 'Announcements' },
   { to: '/timetable', icon: Clock, label: 'Timetable' },
 ]

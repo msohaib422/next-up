@@ -15,7 +15,7 @@ import announcementRoutes from './routes/announcementRoutes.js';
 import lectureRoutes from './routes/lectureRoutes.js';
 import importantDateRoutes from './routes/importantDateRoutes.js';
 import activityRoutes from './routes/activityRoutes.js';
-import submissionRoutes from './routes/submissionRoutes.js';
+import assignmentRoutes from './routes/assignmentRoutes.js';
 import searchRoutes from './routes/searchRoutes.js';
 
 const app = express();
@@ -38,7 +38,7 @@ app.use('/api/announcements', announcementRoutes);
 app.use('/api/lectures', lectureRoutes);
 app.use('/api/important-dates', importantDateRoutes);
 app.use('/api/activities', activityRoutes);
-app.use('/api/submissions', submissionRoutes);
+app.use('/api/assignments', assignmentRoutes);
 app.use('/api/search', searchRoutes);
 
 app.get('/api/health', (req, res) => {
