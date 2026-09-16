@@ -23,11 +23,16 @@ const quizSchema = new mongoose.Schema(
     },
     date: {
       type: Date,
-      required: [true, 'Please provide a date'],
+      default: null,
     },
     time: {
       type: String,
       default: '',
+    },
+    deadlineMode: {
+      type: String,
+      enum: ['Date', 'Upcoming Lecture', 'Surprise'],
+      default: null,
     },
     priority: {
       type: String,
@@ -36,8 +41,8 @@ const quizSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['Upcoming', 'Completed'],
-      default: 'Upcoming',
+      enum: ['Pending', 'Postponed', 'Completed'],
+      default: 'Pending',
     },
     isSurprise: {
       type: Boolean,

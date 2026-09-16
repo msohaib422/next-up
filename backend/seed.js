@@ -122,7 +122,8 @@ const seed = async () => {
         date: new Date('2026-09-18'),
         time: '10:00',
         priority: 'High',
-        status: 'Upcoming',
+        deadlineMode: 'Date',
+        status: 'Pending',
       },
       {
         user: demoUser._id,
@@ -132,7 +133,8 @@ const seed = async () => {
         date: new Date('2026-09-23'),
         time: '14:00',
         priority: 'High',
-        status: 'Upcoming',
+        deadlineMode: 'Date',
+        status: 'Pending',
       },
       {
         user: demoUser._id,
@@ -142,6 +144,7 @@ const seed = async () => {
         date: new Date('2026-09-15'),
         time: '09:00',
         priority: 'Medium',
+        deadlineMode: 'Surprise',
         status: 'Completed',
         isSurprise: true,
       },

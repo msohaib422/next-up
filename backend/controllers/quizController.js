@@ -3,16 +3,16 @@ import { createActivity } from './activityController.js';
 
 export const getQuizzes = async (req, res, next) => {
   try {
-    const { status, priority, search, sort = '-createdAt' } = req.query;
+    const { status, priority, subject, search, sort = '-createdAt' } = req.query;
     const query = { user: req.user._id };
 
     if (status) query.status = status;
     if (priority) query.priority = priority;
+    if (subject) query.subject = subject;
     if (search) {
       query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { subject: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
+        { title: { $regex: '^' + search, $options: 'i' } },
+        { subject: { $regex: '^' + search, $options: 'i' } },
       ];
     }
 
@@ -37,16 +37,28 @@ export const getQuiz = async (req, res, next) => {
 
 export const createQuiz = async (req, res, next) => {
   try {
-    const { subject, title, description, date, time, priority, status, isSurprise } = req.body;
+    const { subject, title, description, date, deadlineMode, priority, status } = req.body;
+
+    const validModes = ['Date', 'Upcoming Lecture', 'Surprise'];
+    if (!deadlineMode || !validModes.includes(deadlineMode)) {
+      return res.status(400).json({ success: false, message: 'Please select a deadline.' });
+    }
+    if (deadlineMode === 'Date' && !date) {
+      return res.status(400).json({ success: false, message: 'Please select a date.' });
+    }
+
+    const sanitizedDate = deadlineMode === 'Date' && date ? date : null;
+    const isSurprise = deadlineMode === 'Surprise';
+
     const quiz = await Quiz.create({
       user: req.user._id,
       subject,
       title,
       description,
-      date,
-      time,
+      date: sanitizedDate,
+      deadlineMode,
       priority,
-      status,
+      status: status || 'Pending',
       isSurprise,
     });
 
@@ -60,9 +72,21 @@ export const createQuiz = async (req, res, next) => {
 
 export const updateQuiz = async (req, res, next) => {
   try {
+    const { date: newDate, deadlineMode: newDeadlineMode, ...updateFields } = req.body;
+
+    if (newDeadlineMode) {
+      const validModes = ['Date', 'Upcoming Lecture', 'Surprise'];
+      if (!validModes.includes(newDeadlineMode)) {
+        return res.status(400).json({ success: false, message: 'Invalid deadline mode.' });
+      }
+      updateFields.deadlineMode = newDeadlineMode;
+      updateFields.date = newDeadlineMode === 'Date' && newDate ? newDate : null;
+      updateFields.isSurprise = newDeadlineMode === 'Surprise';
+    }
+
     const quiz = await Quiz.findOneAndUpdate(
       { _id: req.params.id, user: req.user._id },
-      req.body,
+      updateFields,
       { new: true, runValidators: true }
     );
     if (!quiz) {

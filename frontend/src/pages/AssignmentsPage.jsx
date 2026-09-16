@@ -157,6 +157,12 @@ export default function AssignmentsPage() {
 
   const priorityColor = (p) => p === 'High' ? 'danger' : p === 'Medium' ? 'info' : 'success'
 
+  const statusColor = (s) => {
+    if (s === 'Completed') return 'success'
+    if (s === 'In Progress') return 'info'
+    return 'neutral'
+  }
+
   const handleAttachmentOpen = (attachment) => {
     if (!attachment?.url) return
     window.open(attachment.url, '_blank', 'noopener,noreferrer')
@@ -183,8 +189,9 @@ export default function AssignmentsPage() {
 
   const renderAssignmentCard = (assignment) => (
     <Card key={assignment._id} className="p-4 flex flex-col h-full" onClick={() => { setEditingAssignment(assignment); setShowModal(true) }}>
-      <div className="flex items-start justify-between mb-2">
+      <div className="flex items-center justify-between mb-2">
         <Badge color={priorityColor(assignment.priority)} size="sm">{assignment.priority}</Badge>
+        <Badge color={statusColor(assignment.status)} size="sm">{assignment.status}</Badge>
         {getDeadlineBadge(assignment)}
       </div>
       <h3 className="text-[15px] text-gray-900 dark:text-white mb-1"><span className="font-bold">Title:</span> <span className="font-normal">{assignment.title}</span></h3>

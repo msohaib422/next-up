@@ -157,6 +157,12 @@ export default function TasksPage() {
 
   const priorityColor = (p) => p === 'High' ? 'danger' : p === 'Medium' ? 'info' : 'success'
 
+  const statusColor = (s) => {
+    if (s === 'Completed') return 'success'
+    if (s === 'In Progress') return 'info'
+    return 'neutral'
+  }
+
   const handleAttachmentOpen = (attachment) => {
     if (!attachment?.url) return
     window.open(attachment.url, '_blank', 'noopener,noreferrer')
@@ -183,8 +189,9 @@ export default function TasksPage() {
 
   const renderTaskCard = (task) => (
     <Card key={task._id} className="p-4 flex flex-col h-full" onClick={() => { setEditingTask(task); setShowModal(true) }}>
-      <div className="flex items-start justify-between mb-2">
+      <div className="flex items-center justify-between mb-2">
         <Badge color={priorityColor(task.priority)} size="sm">{task.priority}</Badge>
+        <Badge color={statusColor(task.status)} size="sm">{task.status}</Badge>
         {getDeadlineBadge(task)}
       </div>
       <h3 className="text-[15px] text-gray-900 dark:text-white mb-1"><span className="font-bold">Title:</span> <span className="font-normal">{task.title}</span></h3>
