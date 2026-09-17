@@ -85,6 +85,16 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
     return res.data.data
   }
 
+  const getMinDateTime = () => {
+    const now = new Date()
+    const y = now.getFullYear()
+    const m = String(now.getMonth() + 1).padStart(2, '0')
+    const d = String(now.getDate()).padStart(2, '0')
+    const h = String(now.getHours()).padStart(2, '0')
+    const min = String(now.getMinutes()).padStart(2, '0')
+    return `${y}-${m}-${d}T${h}:${min}`
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     const newErrors = {}
@@ -92,6 +102,15 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
       newErrors.deadlineMode = 'Please select a deadline.'
     } else if (form.deadlineMode === 'Date' && !form.deadline) {
       newErrors.deadline = 'Please select a date.'
+    }
+    if (form.deadlineMode === 'Date' && form.deadline) {
+      const now = new Date()
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      const selected = new Date(form.deadline)
+      const selectedDate = new Date(selected.getFullYear(), selected.getMonth(), selected.getDate())
+      if (selectedDate < today) {
+        newErrors.deadline = 'Due date cannot be in the past.'
+      }
     }
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
@@ -171,6 +190,7 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
                 <input
                   type="datetime-local"
                   value={form.deadline}
+                  min={getMinDateTime()}
                   onChange={(e) => setForm({ ...form, deadline: e.target.value })}
                   className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:border-primary-500 focus:ring-primary-500"
                 />

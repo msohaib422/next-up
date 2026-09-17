@@ -112,15 +112,9 @@ export default function TasksPage() {
         const matchSubject = t.subject?.toLowerCase().startsWith(q)
         if (!matchTitle && !matchSubject) return false
       }
-      if (dateFilter) {
-        if (!t.createdAt) return false
-        const d = new Date(t.createdAt)
-        const created = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-        if (created !== dateFilter) return false
-      }
       return true
     })
-  }, [tasks, statusFilter, priorityFilter, subjectFilter, search, dateFilter])
+  }, [tasks, statusFilter, priorityFilter, subjectFilter, search])
 
   const activeTasks = useMemo(() =>
     filtered.filter(t => t.status !== 'Completed'),
@@ -143,6 +137,34 @@ export default function TasksPage() {
     })
     return groups
   }, [activeTasks])
+
+  const isDateFilterActive = !!dateFilter
+
+  const selectedDateItems = useMemo(() => {
+    if (!dateFilter) return []
+    return filtered.filter(t => {
+      if (!t.deadline) return false
+      return format(new Date(t.deadline), 'yyyy-MM-dd') === dateFilter
+    }).sort(sortByDeadline)
+  }, [filtered, dateFilter])
+
+  const ongoingItems = useMemo(() => {
+    if (!dateFilter) return []
+    return filtered.filter(t => {
+      if (t.status === 'Completed') return false
+      if (!t.deadline) return true
+      return format(new Date(t.deadline), 'yyyy-MM-dd') !== dateFilter
+    }).sort(sortByDeadline)
+  }, [filtered, dateFilter])
+
+  const dateFilteredCompletedItems = useMemo(() => {
+    if (!dateFilter) return []
+    return filtered.filter(t => {
+      if (t.status !== 'Completed') return false
+      if (!t.deadline) return true
+      return format(new Date(t.deadline), 'yyyy-MM-dd') !== dateFilter
+    }).sort(sortByDeadline)
+  }, [filtered, dateFilter])
 
   const getDeadlineBadge = (task) => {
     if (task.deadlineMode === 'Upcoming Lecture') return <Badge color="info" size="sm">Upcoming Lecture</Badge>
@@ -278,7 +300,7 @@ export default function TasksPage() {
             type="date"
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
-            title="Filter by exact added date"
+            title="Filter by due date"
             className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 pl-10 pr-3 py-2 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-colors"
           />
         </div>
@@ -337,6 +359,43 @@ export default function TasksPage() {
             <Button onClick={() => setShowModal(true)}><Plus className="w-4 h-4" /> Add Task</Button>
           }
         />
+      ) : isDateFilterActive ? (
+        <div className="space-y-8">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+              Selected Date
+            </h2>
+            {selectedDateItems.length === 0 ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400">No tasks found for this date.</p>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {selectedDateItems.map(renderTaskCard)}
+              </div>
+            )}
+          </div>
+
+          {ongoingItems.length > 0 && (
+            <div>
+              <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+                Ongoing
+              </h2>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {ongoingItems.map(renderTaskCard)}
+              </div>
+            </div>
+          )}
+
+          {dateFilteredCompletedItems.length > 0 && (
+            <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
+              <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+                Completed Tasks
+              </h2>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {dateFilteredCompletedItems.map(renderTaskCard)}
+              </div>
+            </div>
+          )}
+        </div>
       ) : (
         <div className="space-y-8">
           {PRIORITY_ORDER.map(priority => {
