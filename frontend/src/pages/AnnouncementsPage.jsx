@@ -321,7 +321,7 @@ export default function AnnouncementsPage() {
           }
         />
       ) : (
-        <div className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map(renderAnnouncementCard)}
         </div>
       )}
