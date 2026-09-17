@@ -124,12 +124,23 @@ export default function AnnouncementsPage() {
     }
   }
 
+  const handleToggleExpire = async (e, announcement) => {
+    e.stopPropagation()
+    try {
+      await api.put(`/announcements/${announcement._id}/expire`)
+      fetchAnnouncements()
+      toast.success(announcement.expired ? 'Announcement restored' : 'Announcement marked as expired')
+    } catch (err) {
+      toast.error('Failed to update expire status')
+    }
+  }
+
   const isSaved = (announcement) => {
     return announcement.savedBy?.some(id => id === user?._id)
   }
 
   const filtered = useMemo(() => {
-    let result = announcements.filter(a => {
+    return announcements.filter(a => {
       if (search) {
         const q = search.toLowerCase()
         const matchTitle = a.title?.toLowerCase().includes(q)
@@ -138,18 +149,35 @@ export default function AnnouncementsPage() {
       if (typeFilter !== 'all' && a.type !== typeFilter) return false
       if (dateFilter) {
         if (!a.date) return false
-        return format(new Date(a.date), 'yyyy-MM-dd') === dateFilter
+        if (format(new Date(a.date), 'yyyy-MM-dd') !== dateFilter) return false
       }
       if (savedFilter) {
         if (!isSaved(a)) return false
       }
       return true
     })
-
-    const pinned = result.filter(a => a.pinned)
-    const unpinned = result.filter(a => !a.pinned)
-    return [...pinned, ...unpinned]
   }, [announcements, search, typeFilter, dateFilter, savedFilter, user])
+
+  const sortByDateDesc = (a, b) => {
+    const dateA = a.date ? new Date(a.date).getTime() : 0
+    const dateB = b.date ? new Date(b.date).getTime() : 0
+    return dateB - dateA
+  }
+
+  const pinnedAnnouncements = useMemo(() =>
+    filtered.filter(a => a.pinned && !a.expired).sort(sortByDateDesc),
+    [filtered]
+  )
+
+  const recentAnnouncements = useMemo(() =>
+    filtered.filter(a => !a.pinned && !a.expired).sort(sortByDateDesc),
+    [filtered]
+  )
+
+  const expiredAnnouncements = useMemo(() =>
+    filtered.filter(a => a.expired).sort(sortByDateDesc),
+    [filtered]
+  )
 
   const handleAttachmentOpen = (attachment) => {
     if (!attachment?.url) return
@@ -239,8 +267,18 @@ export default function AnnouncementsPage() {
           </p>
         )}
         <button
+          onClick={(e) => { e.stopPropagation(); handleToggleExpire(e, ann) }}
+          className={`text-xs px-2 py-1 rounded ml-auto ${
+            ann.expired
+              ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50'
+              : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+          }`}
+        >
+          {ann.expired ? 'Expired' : 'Mark as Expire'}
+        </button>
+        <button
           onClick={(e) => { e.stopPropagation(); handleDelete(ann._id) }}
-          className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 ml-auto"
+          className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50"
         >
           Delete
         </button>
@@ -321,8 +359,39 @@ export default function AnnouncementsPage() {
           }
         />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map(renderAnnouncementCard)}
+        <div className="space-y-8">
+          {pinnedAnnouncements.length > 0 && (
+            <div>
+              <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+                Pinned
+              </h2>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {pinnedAnnouncements.map(renderAnnouncementCard)}
+              </div>
+            </div>
+          )}
+
+          {recentAnnouncements.length > 0 && (
+            <div>
+              <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+                Recent
+              </h2>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {recentAnnouncements.map(renderAnnouncementCard)}
+              </div>
+            </div>
+          )}
+
+          {expiredAnnouncements.length > 0 && (
+            <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
+              <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+                Expired
+              </h2>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {expiredAnnouncements.map(renderAnnouncementCard)}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

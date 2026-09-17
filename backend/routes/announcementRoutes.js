@@ -8,6 +8,7 @@ import {
   uploadAnnouncementFile,
   togglePin,
   toggleSave,
+  toggleExpire,
 } from '../controllers/announcementController.js';
 import { protect } from '../middleware/auth.js';
 
@@ -20,5 +21,6 @@ router.post('/upload', uploadAnnouncementFile);
 router.route('/:id').get(getAnnouncement).put(updateAnnouncement).delete(deleteAnnouncement);
 router.put('/:id/pin', togglePin);
 router.put('/:id/save', toggleSave);
+router.put('/:id/expire', toggleExpire);
 
 export default router;

@@ -251,3 +251,19 @@ export const toggleSave = async (req, res, next) => {
     next(error);
   }
 };
+
+export const toggleExpire = async (req, res, next) => {
+  try {
+    const announcement = await Announcement.findOne({ _id: req.params.id, user: req.user._id });
+    if (!announcement) {
+      return res.status(404).json({ success: false, message: 'Announcement not found' });
+    }
+
+    announcement.expired = !announcement.expired;
+    await announcement.save();
+
+    res.json({ success: true, data: announcement });
+  } catch (error) {
+    next(error);
+  }
+};

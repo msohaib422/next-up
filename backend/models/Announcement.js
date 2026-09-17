@@ -41,6 +41,10 @@ const announcementSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    expired: {
+      type: Boolean,
+      default: false,
+    },
     savedBy: [
       {
         type: mongoose.Schema.Types.ObjectId,
