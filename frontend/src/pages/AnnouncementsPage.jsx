@@ -128,7 +128,7 @@ export default function AnnouncementsPage() {
     e.stopPropagation()
     try {
       await api.put(`/announcements/${announcement._id}/expire`)
-      fetchAnnouncements()
+      await fetchAnnouncements()
       toast.success(announcement.expired ? 'Announcement restored' : 'Announcement marked as expired')
     } catch (err) {
       toast.error('Failed to update expire status')
@@ -363,7 +363,7 @@ export default function AnnouncementsPage() {
           {pinnedAnnouncements.length > 0 && (
             <div>
               <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-                Pinned
+                Pinned Announcements
               </h2>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {pinnedAnnouncements.map(renderAnnouncementCard)}
@@ -374,7 +374,7 @@ export default function AnnouncementsPage() {
           {recentAnnouncements.length > 0 && (
             <div>
               <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-                Recent
+                Recent Announcements
               </h2>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {recentAnnouncements.map(renderAnnouncementCard)}
@@ -385,7 +385,7 @@ export default function AnnouncementsPage() {
           {expiredAnnouncements.length > 0 && (
             <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
               <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-                Expired
+                Expired Announcements
               </h2>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {expiredAnnouncements.map(renderAnnouncementCard)}
