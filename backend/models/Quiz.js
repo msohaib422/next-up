@@ -23,11 +23,21 @@ const quizSchema = new mongoose.Schema(
     },
     date: {
       type: Date,
-      required: [true, 'Please provide a date'],
+      default: null,
     },
     time: {
       type: String,
       default: '',
+    },
+    deadlineMode: {
+      type: String,
+      required: [true, 'Please select a deadline'],
+      validate: {
+        validator: function (v) {
+          return ['Date', 'Upcoming Lecture', 'Surprise'].includes(v);
+        },
+        message: '{VALUE} is not a valid deadline mode',
+      },
     },
     priority: {
       type: String,
@@ -36,16 +46,25 @@ const quizSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['Upcoming', 'Completed'],
-      default: 'Upcoming',
+      enum: ['Pending', 'Postponed', 'Completed'],
+      default: 'Pending',
     },
     isSurprise: {
       type: Boolean,
       default: false,
     },
+    attachment: {
+      name: { type: String, default: '' },
+      url: { type: String, default: '' },
+      type: { type: String, default: '' },
+      publicId: { type: String, default: '' },
+      resourceType: { type: String, default: '' },
+    },
   },
   { timestamps: true }
 );
+
+quizSchema.index({ user: 1, status: 1, date: 1 });
 
 const Quiz = mongoose.model('Quiz', quizSchema);
 

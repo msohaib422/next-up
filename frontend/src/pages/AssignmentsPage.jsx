@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
 import { Plus, CheckSquare, Search, Calendar, X, Paperclip, Download } from 'lucide-react'
-import { parseISO, isPast, isToday } from 'date-fns'
+import { parseISO, isPast, isToday, format } from 'date-fns'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -112,15 +112,9 @@ export default function AssignmentsPage() {
         const matchSubject = a.subject?.toLowerCase().startsWith(q)
         if (!matchTitle && !matchSubject) return false
       }
-      if (dateFilter) {
-        if (!a.createdAt) return false
-        const d = new Date(a.createdAt)
-        const created = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-        if (created !== dateFilter) return false
-      }
       return true
     })
-  }, [assignments, statusFilter, priorityFilter, subjectFilter, search, dateFilter])
+  }, [assignments, statusFilter, priorityFilter, subjectFilter, search])
 
   const activeAssignments = useMemo(() =>
     filtered.filter(a => a.status !== 'Completed'),
@@ -144,18 +138,67 @@ export default function AssignmentsPage() {
     return groups
   }, [activeAssignments])
 
+  const isDateFilterActive = !!dateFilter
+
+  const selectedDateItems = useMemo(() => {
+    if (!dateFilter) return []
+    return filtered.filter(a => {
+      if (!a.deadline) return false
+      return format(new Date(a.deadline), 'yyyy-MM-dd') === dateFilter
+    }).sort(sortByDeadline)
+  }, [filtered, dateFilter])
+
+  const ongoingItems = useMemo(() => {
+    if (!dateFilter) return []
+    return filtered.filter(a => {
+      if (a.status === 'Completed') return false
+      if (!a.deadline) return true
+      return format(new Date(a.deadline), 'yyyy-MM-dd') !== dateFilter
+    }).sort(sortByDeadline)
+  }, [filtered, dateFilter])
+
+  const dateFilteredCompletedItems = useMemo(() => {
+    if (!dateFilter) return []
+    return filtered.filter(a => {
+      if (a.status !== 'Completed') return false
+      if (!a.deadline) return true
+      return format(new Date(a.deadline), 'yyyy-MM-dd') !== dateFilter
+    }).sort(sortByDeadline)
+  }, [filtered, dateFilter])
+
   const getDeadlineBadge = (assignment) => {
     if (assignment.deadlineMode === 'Upcoming Lecture') return <Badge color="info" size="sm">Upcoming Lecture</Badge>
     if (assignment.deadlineMode === 'As Possible') return <Badge color="warning" size="sm">As Possible</Badge>
     if (assignment.deadline) {
       const d = parseISO(assignment.deadline)
-      if (isPast(d) && !isToday(d)) return <Badge color="danger" size="sm">Overdue</Badge>
-      if (isToday(d)) return <Badge color="warning" size="sm">Due Today</Badge>
+      const dateStr = format(d, 'MMM d, yyyy')
+      if (isPast(d) && !isToday(d)) return <Badge bgColor="#FFE08A" size="sm">{dateStr}</Badge>
+      if (isToday(d)) return <Badge bgColor="#FFE08A" size="sm">Today</Badge>
+      return <Badge bgColor="#FFE08A" size="sm">{dateStr}</Badge>
     }
     return null
   }
 
-  const priorityColor = (p) => p === 'High' ? 'danger' : p === 'Medium' ? 'info' : 'success'
+  const priorityColor = (p) => {
+    if (p === 'High') return 'danger'
+    return undefined
+  }
+
+  const priorityBgColor = (p) => {
+    if (p === 'Medium') return '#FF9B7A'
+    if (p === 'Low') return '#D8BFD8'
+    return undefined
+  }
+
+  const statusBgColor = (s) => {
+    if (s === 'In Progress') return '#800080'
+    return undefined
+  }
+
+  const statusColor = (s) => {
+    if (s === 'Completed') return 'success'
+    return 'neutral'
+  }
 
   const handleAttachmentOpen = (attachment) => {
     if (!attachment?.url) return
@@ -183,8 +226,9 @@ export default function AssignmentsPage() {
 
   const renderAssignmentCard = (assignment) => (
     <Card key={assignment._id} className="p-4 flex flex-col h-full" onClick={() => { setEditingAssignment(assignment); setShowModal(true) }}>
-      <div className="flex items-start justify-between mb-2">
-        <Badge color={priorityColor(assignment.priority)} size="sm">{assignment.priority}</Badge>
+      <div className="flex items-center justify-between mb-2">
+        <Badge color={priorityColor(assignment.priority)} bgColor={priorityBgColor(assignment.priority)} size="sm">{assignment.priority}</Badge>
+        <Badge color={statusColor(assignment.status)} bgColor={statusBgColor(assignment.status)} size="sm">{assignment.status}</Badge>
         {getDeadlineBadge(assignment)}
       </div>
       <h3 className="text-[15px] text-gray-900 dark:text-white mb-1"><span className="font-bold">Title:</span> <span className="font-normal">{assignment.title}</span></h3>
@@ -256,7 +300,7 @@ export default function AssignmentsPage() {
             type="date"
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
-            title="Filter by exact added date"
+            title="Filter by due date"
             className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 pl-10 pr-3 py-2 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-colors"
           />
         </div>
@@ -315,6 +359,43 @@ export default function AssignmentsPage() {
             <Button onClick={() => setShowModal(true)}><Plus className="w-4 h-4" /> Add Assignment</Button>
           }
         />
+      ) : isDateFilterActive ? (
+        <div className="space-y-8">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+              Selected Date
+            </h2>
+            {selectedDateItems.length === 0 ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400">No assignments found for this date.</p>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {selectedDateItems.map(renderAssignmentCard)}
+              </div>
+            )}
+          </div>
+
+          {ongoingItems.length > 0 && (
+            <div>
+              <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+                Ongoing
+              </h2>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {ongoingItems.map(renderAssignmentCard)}
+              </div>
+            </div>
+          )}
+
+          {dateFilteredCompletedItems.length > 0 && (
+            <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
+              <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+                Completed Assignments
+              </h2>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {dateFilteredCompletedItems.map(renderAssignmentCard)}
+              </div>
+            </div>
+          )}
+        </div>
       ) : (
         <div className="space-y-8">
           {PRIORITY_ORDER.map(priority => {

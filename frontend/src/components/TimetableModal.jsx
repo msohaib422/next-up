@@ -1,17 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import Modal from './ui/Modal'
 import Input from './ui/Input'
-import Select from './ui/Select'
 import Button from './ui/Button'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
 import { Upload, X, FileText } from 'lucide-react'
-
-const TIMELINE_OPTIONS = [
-  { value: 'Weekly', label: 'Weekly' },
-  { value: 'Monthly', label: 'Monthly' },
-  { value: 'Continued till next change', label: 'Continued till next change' },
-]
 
 export default function TimetableModal({ isOpen, onClose, onSave, lecture }) {
   const [form, setForm] = useState({
@@ -32,7 +25,7 @@ export default function TimetableModal({ isOpen, onClose, onSave, lecture }) {
         notes: lecture.notes || '',
       })
       if (lecture.fileUrl) {
-        setAttachment({ name: lecture.fileName || 'Attachment', url: lecture.fileUrl, publicId: lecture.publicId, resourceType: lecture.resourceType })
+        setAttachment({ name: lecture.fileName || 'Attachment', url: lecture.fileUrl, publicId: lecture.publicId, resourceType: lecture.resourceType, type: lecture.fileType })
         setAttachmentPreview({ name: lecture.fileName || 'Attachment', url: lecture.fileUrl, type: lecture.fileType })
       } else {
         setAttachment(null)
@@ -121,12 +114,6 @@ export default function TimetableModal({ isOpen, onClose, onSave, lecture }) {
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input label="Course" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="e.g. Timetable" required />
-        <Select
-          label="Timeline"
-          value={form.timeline}
-          onChange={(e) => setForm({ ...form, timeline: e.target.value })}
-          options={TIMELINE_OPTIONS}
-        />
         <Input label="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Optional notes" />
 
         <div>

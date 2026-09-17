@@ -10,9 +10,9 @@ import { Paperclip, X } from 'lucide-react'
 const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp']
 const MAX_SIZE = 10 * 1024 * 1024
 
-export default function TaskModal({ isOpen, onClose, onSave, task }) {
+export default function QuizModal({ isOpen, onClose, onSave, quiz }) {
   const [form, setForm] = useState({
-    subject: '', title: '', description: '', deadline: '', deadlineMode: null, priority: 'Medium', status: 'Pending'
+    subject: '', title: '', description: '', date: '', deadlineMode: null, priority: 'Medium', status: 'Pending'
   })
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState({})
@@ -25,24 +25,24 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
     setErrors({})
     setFile(null)
     setAttachment(null)
-    if (task) {
-      const mode = task.deadlineMode || null
+    if (quiz) {
+      const mode = quiz.deadlineMode || null
       setForm({
-        subject: task.subject || '',
-        title: task.title || '',
-        description: task.description || '',
-        deadline: mode === 'Date' && task.deadline ? new Date(task.deadline).toISOString().slice(0, 16) : '',
+        subject: quiz.subject || '',
+        title: quiz.title || '',
+        description: quiz.description || '',
+        date: mode === 'Date' && quiz.date ? new Date(quiz.date).toISOString().slice(0, 16) : '',
         deadlineMode: mode,
-        priority: task.priority || 'Medium',
-        status: task.status || 'Pending',
+        priority: quiz.priority || 'Medium',
+        status: quiz.status || 'Pending',
       })
-      if (task.attachment?.name) {
-        setAttachment(task.attachment)
+      if (quiz.attachment?.name) {
+        setAttachment(quiz.attachment)
       }
     } else {
-      setForm({ subject: '', title: '', description: '', deadline: '', deadlineMode: null, priority: 'Medium', status: 'Pending' })
+      setForm({ subject: '', title: '', description: '', date: '', deadlineMode: null, priority: 'Medium', status: 'Pending' })
     }
-  }, [task, isOpen])
+  }, [quiz, isOpen])
 
   const handleDeadlineModeChange = (mode) => {
     setForm(prev => {
@@ -50,7 +50,7 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
       return {
         ...prev,
         deadlineMode: newMode,
-        deadline: newMode === 'Date' ? prev.deadline : '',
+        date: newMode === 'Date' ? prev.date : '',
       }
     })
   }
@@ -81,7 +81,7 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
     if (!file) return attachment
     const formData = new FormData()
     formData.append('file', file)
-    const res = await api.post('/tasks/upload', formData)
+    const res = await api.post('/quizzes/upload', formData)
     return res.data.data
   }
 
@@ -100,16 +100,16 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
     const newErrors = {}
     if (!form.deadlineMode) {
       newErrors.deadlineMode = 'Please select a deadline.'
-    } else if (form.deadlineMode === 'Date' && !form.deadline) {
-      newErrors.deadline = 'Please select a date.'
+    } else if (form.deadlineMode === 'Date' && !form.date) {
+      newErrors.date = 'Please select a date.'
     }
-    if (form.deadlineMode === 'Date' && form.deadline) {
+    if (form.deadlineMode === 'Date' && form.date) {
       const now = new Date()
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-      const selected = new Date(form.deadline)
+      const selected = new Date(form.date)
       const selectedDate = new Date(selected.getFullYear(), selected.getMonth(), selected.getDate())
       if (selectedDate < today) {
-        newErrors.deadline = 'Due date cannot be in the past.'
+        newErrors.date = 'Due date cannot be in the past.'
       }
     }
     if (Object.keys(newErrors).length > 0) {
@@ -139,17 +139,17 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={task ? 'Edit Task' : 'New Task'}
+      title={quiz ? 'Edit Quiz' : 'New Quiz'}
       actions={
         <>
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSubmit} loading={loading || uploading}>{task ? 'Update' : 'Create'}</Button>
+          <Button onClick={handleSubmit} loading={loading || uploading}>{quiz ? 'Update' : 'Create'}</Button>
         </>
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input label="Course" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="e.g. Mathematics" />
-        <Input label="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Task title" required />
+        <Input label="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Quiz title" required />
         <Input label="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Optional description" />
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Attachment</label>
@@ -189,12 +189,12 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
               <div className="pl-6 pb-1">
                 <input
                   type="datetime-local"
-                  value={form.deadline}
+                  value={form.date}
                   min={getMinDateTime()}
-                  onChange={(e) => setForm({ ...form, deadline: e.target.value })}
+                  onChange={(e) => setForm({ ...form, date: e.target.value })}
                   className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:border-primary-500 focus:ring-primary-500"
                 />
-                {errors.deadline && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.deadline}</p>}
+                {errors.date && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.date}</p>}
               </div>
             )}
             <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none w-fit">
@@ -209,11 +209,11 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
             <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none w-fit">
               <input
                 type="checkbox"
-                checked={form.deadlineMode === 'As Possible'}
-                onChange={() => handleDeadlineModeChange('As Possible')}
+                checked={form.deadlineMode === 'Surprise'}
+                onChange={() => handleDeadlineModeChange('Surprise')}
                 className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
               />
-              As Possible
+              Surprise
             </label>
           </div>
           {errors.deadlineMode && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.deadlineMode}</p>}
@@ -235,7 +235,7 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
             onChange={(e) => setForm({ ...form, status: e.target.value })}
             options={[
               { value: 'Pending', label: 'Pending' },
-              { value: 'In Progress', label: 'In Progress' },
+              { value: 'Postponed', label: 'Postponed' },
               { value: 'Completed', label: 'Completed' },
             ]}
           />
