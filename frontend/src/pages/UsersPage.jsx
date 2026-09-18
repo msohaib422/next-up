@@ -85,7 +85,7 @@ export default function UsersPage() {
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                   <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Name</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Email</th>
+                  <th className="text-center px-4 py-3 font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Email</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Action</th>
                 </tr>
               </thead>
@@ -93,7 +93,7 @@ export default function UsersPage() {
                 {users.map((user) => (
                   <tr key={user._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                     <td className="px-4 py-3 text-gray-900 dark:text-gray-100 font-medium">{user.name}</td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{user.email}</td>
+                    <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-400">{user.email}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button
