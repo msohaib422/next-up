@@ -14,6 +14,7 @@ import TimetablePage from './pages/TimetablePage'
 import AssignmentsPage from './pages/AssignmentsPage'
 import ProfilePage from './pages/ProfilePage'
 import SearchPage from './pages/SearchPage'
+import UsersPage from './pages/UsersPage'
 
 export default function App() {
   const { loading } = useAuth()
@@ -30,6 +31,7 @@ export default function App() {
       <Route path="/announcements" element={<ProtectedRoute><Layout><AnnouncementsPage /></Layout></ProtectedRoute>} />
       <Route path="/timetable" element={<ProtectedRoute><Layout><TimetablePage /></Layout></ProtectedRoute>} />
       <Route path="/assignments" element={<ProtectedRoute><Layout><AssignmentsPage /></Layout></ProtectedRoute>} />
+      <Route path="/users" element={<ProtectedRoute role="collaborator"><Layout><UsersPage /></Layout></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><Layout><ProfilePage /></Layout></ProtectedRoute>} />
       <Route path="/search" element={<ProtectedRoute><Layout><SearchPage /></Layout></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />

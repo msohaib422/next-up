@@ -80,3 +80,106 @@ export const changePassword = async (req, res, next) => {
     next(error);
   }
 };
+
+export const getAllUsers = async (req, res, next) => {
+  try {
+    const users = await User.find({ role: 'user' }).select('-password').sort({ createdAt: -1 });
+    res.json({ success: true, count: users.length, data: users });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createUser = async (req, res, next) => {
+  try {
+    const { name, email, password } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ success: false, message: 'Please provide all required fields' });
+    }
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ success: false, message: 'User with this email already exists' });
+    }
+
+    const user = await User.create({ name, email, password });
+
+    res.status(201).json({
+      success: true,
+      data: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateUser = async (req, res, next) => {
+  try {
+    const { name, email, password } = req.body;
+    const { id } = req.params;
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    if (user.role === 'collaborator') {
+      return res.status(403).json({ success: false, message: 'Cannot modify collaborator accounts' });
+    }
+
+    if (email && email !== user.email) {
+      const emailTaken = await User.findOne({ email, _id: { $ne: id } });
+      if (emailTaken) {
+        return res.status(400).json({ success: false, message: 'Email is already in use' });
+      }
+    }
+
+    user.name = name;
+    user.email = email;
+    if (password) {
+      user.password = password;
+    }
+    await user.save();
+
+    res.json({
+      success: true,
+      data: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteUser = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    if (user.role === 'collaborator') {
+      return res.status(403).json({ success: false, message: 'Cannot delete collaborator accounts' });
+    }
+
+    await User.findByIdAndDelete(id);
+
+    res.json({ success: true, message: 'User deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
