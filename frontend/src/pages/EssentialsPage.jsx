@@ -159,11 +159,7 @@ export default function EssentialsPage() {
       <h3 className="text-[15px] text-gray-900 dark:text-white mb-1"><span className="font-bold">Title:</span> <span className="font-normal">{ess.title}</span></h3>
       {ess.course && <p className="text-sm text-gray-700 dark:text-gray-300 mb-1"><span className="font-bold">Course:</span> <span className="font-normal">{ess.course}</span></p>}
       {ess.description?.trim() && <p className="text-sm text-gray-500 dark:text-gray-400 mb-1 line-clamp-2"><span className="font-normal">Description:</span> <span className="font-normal">{ess.description}</span></p>}
-      {ess.date && (
-        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-          <span className="font-normal">Date:</span> <span className="font-normal">{format(new Date(ess.date), 'MMM d, yyyy')}</span>
-        </p>
-      )}
+
       {ess.attachment?.name && (
         <div className="flex items-center gap-2 mt-2 pt-1">
           <button
