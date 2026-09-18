@@ -3,7 +3,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useTheme } from '../../hooks/useTheme'
 import {
   LayoutDashboard, CheckSquare, HelpCircle, Megaphone,
-  Clock, FileCheck, User, Users,
+  Clock, FileCheck, User, Users, BookOpen,
   LogOut, Sun, Moon, X, GraduationCap
 } from 'lucide-react'
 
@@ -12,6 +12,7 @@ const navItems = [
   { to: '/tasks', icon: CheckSquare, label: 'Tasks' },
   { to: '/quizzes', icon: HelpCircle, label: 'Quizzes' },
   { to: '/assignments', icon: FileCheck, label: 'Assignments' },
+  { to: '/essentials', icon: BookOpen, label: 'Essentials' },
   { to: '/announcements', icon: Megaphone, label: 'Announcements' },
   { to: '/timetable', icon: Clock, label: 'Timetable' },
   { to: '/users', icon: Users, label: 'Users', collaboratorOnly: true },
