@@ -3,7 +3,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useTheme } from '../../hooks/useTheme'
 import {
   LayoutDashboard, CheckSquare, HelpCircle, Megaphone,
-  Clock, FileCheck, User,
+  Clock, FileCheck, User, Users,
   LogOut, Sun, Moon, X, GraduationCap
 } from 'lucide-react'
 
@@ -14,6 +14,7 @@ const navItems = [
   { to: '/assignments', icon: FileCheck, label: 'Assignments' },
   { to: '/announcements', icon: Megaphone, label: 'Announcements' },
   { to: '/timetable', icon: Clock, label: 'Timetable' },
+  { to: '/users', icon: Users, label: 'Users', collaboratorOnly: true },
 ]
 
 export default function Sidebar({ isOpen, onClose }) {
@@ -43,7 +44,9 @@ export default function Sidebar({ isOpen, onClose }) {
         </div>
 
         <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-          {navItems.map(item => (
+          {navItems
+            .filter(item => !item.collaboratorOnly || user?.role === 'collaborator')
+            .map(item => (
             <NavLink
               key={item.to}
               to={item.to}
