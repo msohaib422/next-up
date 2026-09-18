@@ -15,6 +15,7 @@ export default function ProfilePage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
 
@@ -136,16 +137,26 @@ export default function ProfilePage() {
               </button>
             </div>
 
-            <Input
-              label="Confirm New Password"
-              type={showNewPassword ? 'text' : 'password'}
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              icon={Lock}
-              placeholder="Confirm new password"
-              error={errors.confirmPassword}
-              autoComplete="new-password"
-            />
+            <div className="relative">
+              <Input
+                label="Confirm New Password"
+                type={showConfirmPassword ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                icon={Lock}
+                placeholder="Confirm new password"
+                error={errors.confirmPassword}
+                autoComplete="new-password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-3 top-[38px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                tabIndex={-1}
+              >
+                {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
+            </div>
           </div>
         </Card>
 
