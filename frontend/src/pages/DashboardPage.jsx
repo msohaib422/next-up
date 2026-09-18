@@ -176,7 +176,12 @@ function UserDashboard() {
                         ? 'Overdue'
                         : formatDistanceToNow(parseISO(item.deadline), { addSuffix: true })}
                     </p>
-                    <Badge color={item.priority === 'High' ? 'danger' : item.priority === 'Medium' ? 'info' : 'success'} size="sm">
+                    <Badge
+                      color={item.priority === 'High' ? 'danger' : undefined}
+                      bgColor={item.priority === 'High' ? undefined : item.priority === 'Medium' ? '#F04438' : '#EAB308'}
+                      textColor={item.priority === 'Medium' ? '#FFFFFF' : item.priority === 'Low' ? '#0F172A' : undefined}
+                      size="sm"
+                    >
                       {item.priority}
                     </Badge>
                   </div>
@@ -202,7 +207,7 @@ function UserDashboard() {
                     <p className="text-xs text-gray-500 dark:text-gray-400">
                       {format(parseISO(quiz.date || quiz.quizDate), 'MMM d, h:mm a')}
                     </p>
-                    {quiz.isSurprise && <Badge color="warning" size="sm">Surprise</Badge>}
+                    {quiz.isSurprise && <Badge bgColor="#EC4899" textColor="#0F172A" size="sm">Surprise</Badge>}
                   </div>
                 </div>
               ))}
