@@ -167,14 +167,14 @@ export default function AssignmentsPage() {
   }, [filtered, dateFilter])
 
   const getDeadlineBadge = (assignment) => {
-    if (assignment.deadlineMode === 'Upcoming Lecture') return <Badge color="info" size="sm">Upcoming Lecture</Badge>
-    if (assignment.deadlineMode === 'As Possible') return <Badge color="warning" size="sm">As Possible</Badge>
+    if (assignment.deadlineMode === 'Upcoming Lecture') return <Badge bgColor="#2DD4BF" textColor="#0F172A" size="sm">Upcoming Lecture</Badge>
+    if (assignment.deadlineMode === 'As Possible') return <Badge bgColor="#8B5CF6" textColor="#FFFFFF" size="sm">As Possible</Badge>
     if (assignment.deadline) {
       const d = parseISO(assignment.deadline)
       const dateStr = format(d, 'MMM d, yyyy')
-      if (isPast(d) && !isToday(d)) return <Badge bgColor="#FFE08A" size="sm">{dateStr}</Badge>
-      if (isToday(d)) return <Badge bgColor="#FFE08A" size="sm">Today</Badge>
-      return <Badge bgColor="#FFE08A" size="sm">{dateStr}</Badge>
+      if (isPast(d) && !isToday(d)) return <Badge bgColor="#64748B" textColor="#FFFFFF" size="sm">{dateStr}</Badge>
+      if (isToday(d)) return <Badge bgColor="#64748B" textColor="#FFFFFF" size="sm">Today</Badge>
+      return <Badge bgColor="#64748B" textColor="#FFFFFF" size="sm">{dateStr}</Badge>
     }
     return null
   }
@@ -185,13 +185,26 @@ export default function AssignmentsPage() {
   }
 
   const priorityBgColor = (p) => {
-    if (p === 'Medium') return '#FF9B7A'
-    if (p === 'Low') return '#D8BFD8'
+    if (p === 'Medium') return '#F04438'
+    if (p === 'Low') return '#EAB308'
+    return undefined
+  }
+
+  const priorityTextColor = (p) => {
+    if (p === 'Medium') return '#FFFFFF'
+    if (p === 'Low') return '#0F172A'
     return undefined
   }
 
   const statusBgColor = (s) => {
+    if (s === 'Pending') return '#F59E0B'
     if (s === 'In Progress') return '#800080'
+    return undefined
+  }
+
+  const statusTextColor = (s) => {
+    if (s === 'Pending') return '#0F172A'
+    if (s === 'In Progress') return '#FFFFFF'
     return undefined
   }
 
@@ -227,13 +240,13 @@ export default function AssignmentsPage() {
   const renderAssignmentCard = (assignment) => (
     <Card key={assignment._id} className="p-4 flex flex-col h-full" onClick={() => { setEditingAssignment(assignment); setShowModal(true) }}>
       <div className="flex items-center justify-between mb-2">
-        <Badge color={priorityColor(assignment.priority)} bgColor={priorityBgColor(assignment.priority)} size="sm">{assignment.priority}</Badge>
-        <Badge color={statusColor(assignment.status)} bgColor={statusBgColor(assignment.status)} size="sm">{assignment.status}</Badge>
+        <Badge color={priorityColor(assignment.priority)} bgColor={priorityBgColor(assignment.priority)} textColor={priorityTextColor(assignment.priority)} size="sm">{assignment.priority}</Badge>
+        <Badge color={statusColor(assignment.status)} bgColor={statusBgColor(assignment.status)} textColor={statusTextColor(assignment.status)} size="sm">{assignment.status}</Badge>
         {getDeadlineBadge(assignment)}
       </div>
       <h3 className="text-[15px] text-gray-900 dark:text-white mb-1"><span className="font-bold">Title:</span> <span className="font-normal">{assignment.title}</span></h3>
       {assignment.subject && <p className="text-sm text-gray-700 dark:text-gray-300 mb-1"><span className="font-bold">Course:</span> <span className="font-normal">{assignment.subject}</span></p>}
-      {assignment.description?.trim() && <p className="text-sm text-gray-500 dark:text-gray-400 mb-1 line-clamp-2"><span className="font-bold">Description:</span> <span className="font-normal">{assignment.description}</span></p>}
+      {assignment.description?.trim() && <p className="text-sm text-gray-500 dark:text-gray-400 mb-1 line-clamp-2"><span className="font-normal">Description:</span> <span className="font-normal">{assignment.description}</span></p>}
       {assignment.attachment?.name && (
         <div className="flex items-center gap-2 mt-2 pt-1">
           <button

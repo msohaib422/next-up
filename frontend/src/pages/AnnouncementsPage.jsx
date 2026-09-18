@@ -34,13 +34,23 @@ const TYPE_COLOR = {
 }
 
 const TYPE_BG_COLOR = {
-  General: '#E5E7EB',
-  Academic: '#93C5FD',
-  Assignment: '#FFE08A',
-  Quiz: '#86EFAC',
-  Task: '#D8BFD8',
-  Exam: '#FCA5A5',
-  Event: '#A5B4FC',
+  General: '#7E22CE',
+  Academic: '#0D9488',
+  Assignment: '#EA580C',
+  Quiz: '#BE123C',
+  Task: '#CA8A04',
+  Exam: '#DC2626',
+  Event: '#DB2777',
+}
+
+const TYPE_TEXT_COLOR = {
+  General: '#FFFFFF',
+  Academic: '#FFFFFF',
+  Assignment: '#FFFFFF',
+  Quiz: '#FFFFFF',
+  Task: '#0F172A',
+  Exam: '#FFFFFF',
+  Event: '#FFFFFF',
 }
 
 export default function AnnouncementsPage() {
@@ -206,7 +216,7 @@ export default function AnnouncementsPage() {
   const renderAnnouncementCard = (ann) => (
     <Card key={ann._id} className="p-4 flex flex-col h-full" onClick={() => { setEditingAnnouncement(ann); setShowModal(true) }}>
       <div className="flex items-center justify-between mb-2">
-        <Badge color={TYPE_COLOR[ann.type]} bgColor={TYPE_BG_COLOR[ann.type]} size="sm">{ann.type}</Badge>
+        <Badge bgColor={TYPE_BG_COLOR[ann.type]} textColor={TYPE_TEXT_COLOR[ann.type]} size="sm">{ann.type}</Badge>
         <div className="flex items-center gap-1">
           <button
             onClick={(e) => handleTogglePin(e, ann)}
@@ -225,9 +235,9 @@ export default function AnnouncementsPage() {
         </div>
       </div>
       <h3 className="text-[15px] text-gray-900 dark:text-white mb-1"><span className="font-bold">Title:</span> <span className="font-normal">{ann.title}</span></h3>
-      {ann.description?.trim() && <p className="text-sm text-gray-500 dark:text-gray-400 mb-1 line-clamp-2"><span className="font-bold">Description:</span> <span className="font-normal">{ann.description}</span></p>}
+      {ann.description?.trim() && <p className="text-sm text-gray-500 dark:text-gray-400 mb-1 line-clamp-2"><span className="font-normal">Description:</span> <span className="font-normal">{ann.description}</span></p>}
       <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-        <span className="font-bold">Date:</span> <span className="font-normal">{format(new Date(ann.date), 'MMM d, yyyy')}</span>
+        <span className="font-normal">Date:</span> <span className="font-normal">{format(new Date(ann.date), 'MMM d, yyyy')}</span>
       </p>
       {ann.attachment?.name && (
         <div className="flex items-center gap-2 mt-2 pt-1">

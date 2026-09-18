@@ -15,13 +15,15 @@ const sizeMap = {
   md: 'px-2.5 py-1 text-sm',
 }
 
-export default function Badge({ children, color = 'neutral', size = 'md', className = '', bgColor }) {
+export default function Badge({ children, color = 'neutral', size = 'md', className = '', bgColor, textColor }) {
   const bgStyle = bgColor ? { backgroundColor: bgColor } : {}
+  const textStyle = textColor ? { color: textColor } : {}
+  const combinedStyle = { ...bgStyle, ...textStyle }
   const colorClass = bgColor ? '' : colorMap[color] || colorMap.neutral
   return (
     <span
-      className={`inline-flex items-center font-medium rounded-full ${colorClass} ${sizeMap[size]} ${className}`}
-      style={bgStyle}
+      className={`inline-flex items-center leading-none font-medium rounded-full ${colorClass} ${sizeMap[size]} ${className}`}
+      style={combinedStyle}
     >
       {children}
     </span>

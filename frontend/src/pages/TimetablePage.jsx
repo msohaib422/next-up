@@ -70,7 +70,7 @@ export default function TimetablePage() {
             {imageLecture ? imageLecture.subject : 'Timetable'}
           </h1>
           {imageLecture && (
-            <Badge color={timelineColor[imageLecture.timeline] || 'neutral'}>
+            <Badge bgColor="#0F766E" textColor="#FFFFFF">
               {imageLecture.timeline}
             </Badge>
           )}
