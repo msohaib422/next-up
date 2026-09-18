@@ -100,7 +100,7 @@ export const getEssential = async (req, res, next) => {
 
 export const createEssential = async (req, res, next) => {
   try {
-    const { course, title, description, date, tag, attachment } = req.body;
+    const { course, title, description, tag, attachment } = req.body;
 
     const trimmedCourse = typeof course === 'string' ? course.trim() : course;
     const trimmedTitle = typeof title === 'string' ? title.trim() : title;
@@ -111,17 +111,15 @@ export const createEssential = async (req, res, next) => {
     if (!trimmedTitle) {
       return res.status(400).json({ success: false, message: 'Please provide a title' });
     }
-    if (!date) {
-      return res.status(400).json({ success: false, message: 'Please provide a date' });
-    }
 
     const essentialData = {
       user: req.user._id,
       course: trimmedCourse,
       title: trimmedTitle,
       description: typeof description === 'string' ? description.trim() : (description || ''),
-      date,
+      date: new Date(),
       tag: tag || 'Topic',
+      createdBy: req.user.name,
       savedBy: [],
     };
 
@@ -153,6 +151,9 @@ export const updateEssential = async (req, res, next) => {
     }
 
     const { attachment: newAttachment, ...updateFields } = req.body;
+
+    delete updateFields.date;
+    delete updateFields.createdBy;
 
     if (updateFields.course !== undefined) {
       updateFields.course = typeof updateFields.course === 'string' ? updateFields.course.trim() : updateFields.course;

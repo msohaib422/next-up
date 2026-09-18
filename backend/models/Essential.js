@@ -23,7 +23,7 @@ const essentialSchema = new mongoose.Schema(
     },
     date: {
       type: Date,
-      required: [true, 'Please provide a date'],
+      default: Date.now,
     },
     tag: {
       type: String,
@@ -43,6 +43,10 @@ const essentialSchema = new mongoose.Schema(
         ref: 'User',
       },
     ],
+    createdBy: {
+      type: String,
+      default: '',
+    },
   },
   { timestamps: true }
 );

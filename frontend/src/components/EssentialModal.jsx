@@ -14,7 +14,6 @@ export default function EssentialModal({ isOpen, onClose, onSave, essential }) {
     course: '',
     title: '',
     description: '',
-    date: '',
   })
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState({})
@@ -22,14 +21,6 @@ export default function EssentialModal({ isOpen, onClose, onSave, essential }) {
   const [uploading, setUploading] = useState(false)
   const [attachment, setAttachment] = useState(null)
   const fileInputRef = useRef(null)
-
-  const getTodayDate = () => {
-    const now = new Date()
-    const y = now.getFullYear()
-    const m = String(now.getMonth() + 1).padStart(2, '0')
-    const d = String(now.getDate()).padStart(2, '0')
-    return `${y}-${m}-${d}`
-  }
 
   useEffect(() => {
     setErrors({})
@@ -40,13 +31,12 @@ export default function EssentialModal({ isOpen, onClose, onSave, essential }) {
         course: essential.course || '',
         title: essential.title || '',
         description: essential.description || '',
-        date: essential.date ? new Date(essential.date).toISOString().slice(0, 10) : getTodayDate(),
       })
       if (essential.attachment?.name) {
         setAttachment(essential.attachment)
       }
     } else {
-      setForm({ course: '', title: '', description: '', date: getTodayDate() })
+      setForm({ course: '', title: '', description: '' })
     }
   }, [essential, isOpen])
 
@@ -80,10 +70,6 @@ export default function EssentialModal({ isOpen, onClose, onSave, essential }) {
     return res.data.data
   }
 
-  const getMinDate = () => {
-    return getTodayDate()
-  }
-
   const handleSubmit = async (e) => {
     e.preventDefault()
     const newErrors = {}
@@ -92,17 +78,6 @@ export default function EssentialModal({ isOpen, onClose, onSave, essential }) {
     }
     if (!form.title.trim()) {
       newErrors.title = 'Title is required.'
-    }
-    if (!form.date) {
-      newErrors.date = 'Date is required.'
-    }
-    if (form.date) {
-      const today = new Date()
-      const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-      const selected = new Date(form.date + 'T00:00:00')
-      if (selected < todayDate) {
-        newErrors.date = 'Date cannot be in the past.'
-      }
     }
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
@@ -121,7 +96,6 @@ export default function EssentialModal({ isOpen, onClose, onSave, essential }) {
         course: form.course.trim(),
         title: form.title.trim(),
         description: form.description.trim(),
-        date: form.date,
         attachment: uploadedAttachment || null,
       })
     } catch (err) {
@@ -170,18 +144,6 @@ export default function EssentialModal({ isOpen, onClose, onSave, essential }) {
           onChange={(e) => setForm({ ...form, description: e.target.value })}
           placeholder="Optional description"
         />
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date</label>
-          <input
-            type="date"
-            value={form.date}
-            min={getMinDate()}
-            onChange={(e) => setForm({ ...form, date: e.target.value })}
-            className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:border-primary-500 focus:ring-primary-500"
-          />
-          {errors.date && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.date}</p>}
-        </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Attachment</label>
