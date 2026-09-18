@@ -7,11 +7,6 @@ const announcementSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
-    subject: {
-      type: String,
-      required: [true, 'Please provide a subject'],
-      trim: true,
-    },
     title: {
       type: String,
       required: [true, 'Please provide a title'],
@@ -21,10 +16,41 @@ const announcementSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    type: {
+      type: String,
+      required: [true, 'Please provide a type'],
+      enum: ['General', 'Academic', 'Assignment', 'Quiz', 'Task', 'Exam', 'Event'],
+      default: 'General',
+    },
     date: {
       type: Date,
-      default: Date.now,
+      required: [true, 'Please provide a date'],
     },
+    attachment: {
+      name: { type: String, default: '' },
+      url: { type: String, default: '' },
+      type: { type: String, default: '' },
+      publicId: { type: String, default: '' },
+      resourceType: { type: String, default: '' },
+    },
+    link: {
+      type: String,
+      default: '',
+    },
+    pinned: {
+      type: Boolean,
+      default: false,
+    },
+    expired: {
+      type: Boolean,
+      default: false,
+    },
+    savedBy: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
     createdBy: {
       type: String,
       default: '',
@@ -32,6 +58,9 @@ const announcementSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+announcementSchema.index({ user: 1, date: 1 });
+announcementSchema.index({ pinned: -1 });
 
 const Announcement = mongoose.model('Announcement', announcementSchema);
 
