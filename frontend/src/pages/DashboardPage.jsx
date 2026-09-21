@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import api from '../api/axios'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
@@ -36,13 +36,12 @@ function ListSkeleton({ rows = 4 }) {
     <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className="px-5 py-3.5">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="h-5 w-16 bg-gray-100 dark:bg-gray-700 rounded-full animate-pulse" />
-            <div className="h-5 w-10 bg-gray-100 dark:bg-gray-700 rounded-full animate-pulse" />
-          </div>
           <div className="h-4 w-3/4 bg-gray-100 dark:bg-gray-700 rounded-lg animate-pulse mb-1.5" />
           <div className="h-3 w-full bg-gray-100 dark:bg-gray-700 rounded-lg animate-pulse mb-2" />
-          <div className="h-3 w-1/3 bg-gray-100 dark:bg-gray-700 rounded-lg animate-pulse" />
+          <div className="flex items-center justify-between mt-2">
+            <div className="h-5 w-16 bg-gray-100 dark:bg-gray-700 rounded-full animate-pulse" />
+            <div className="h-6 w-12 bg-gray-100 dark:bg-gray-700 rounded-lg animate-pulse" />
+          </div>
         </div>
       ))}
     </div>
@@ -63,6 +62,106 @@ function CompletedActivitySkeleton() {
           <div className="h-3 w-16 bg-gray-200 dark:bg-gray-600 rounded-lg animate-pulse mt-2" />
         </div>
       ))}
+    </div>
+  )
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+function getItemRoute(item) {
+  switch (item._type) {
+    case 'Task': return '/tasks'
+    case 'Quiz': return '/quizzes'
+    case 'Assignment': return '/assignments'
+    case 'Announcement': return '/announcements'
+    default: return '/'
+  }
+}
+
+// ============================================================
+// SHARED ITEM CARD
+// ============================================================
+
+function DashboardItemCard({ item, showDeadline = true, showPriority = false }) {
+  const navigate = useNavigate()
+
+  const handleView = (e) => {
+    e.stopPropagation()
+    const route = getItemRoute(item)
+    navigate(`${route}?highlight=${item._id}`)
+  }
+
+  const typeBadgeProps = {
+    Task: { color: 'info' },
+    Quiz: { bgColor: '#8b5cf6', textColor: '#ffffff' },
+    Assignment: { color: 'warning' },
+    Announcement: { color: 'neutral' },
+  }
+
+  // Determine deadline based on item type
+  let deadlineDate = null
+  if (showDeadline && item._type !== 'Announcement') {
+    deadlineDate = item._type === 'Quiz' ? item.date : item.deadline
+  }
+
+  return (
+    <div className="px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+      {/* Title */}
+      <div className="flex items-center gap-2 mb-0.5">
+        {item._type === 'Announcement' && item.pinned && (
+          <Pin className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+        )}
+        <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
+          {item.title}
+        </h3>
+      </div>
+
+      {/* Description or Course */}
+      {item.description?.trim() ? (
+        <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mb-1">
+          {item.description}
+        </p>
+      ) : item.subject ? (
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+          {item.subject}
+        </p>
+      ) : item.date ? (
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+          {format(parseISO(item.date), 'MMM d, yyyy')}
+        </p>
+      ) : null}
+
+      {/* Deadline (if applicable) */}
+      {deadlineDate && (
+        <div className="flex items-center gap-1.5 mb-2">
+          <Calendar className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            {format(parseISO(deadlineDate), 'MMM d, yyyy')}
+          </span>
+        </div>
+      )}
+
+      {/* Bottom row: Type Label (centered) + View Button (right) */}
+      <div className="relative flex items-center mt-1">
+        <div className="absolute inset-0 flex items-center justify-center gap-1.5">
+          <Badge {...typeBadgeProps[item._type]} size="sm">
+            {item._type}
+          </Badge>
+          {showPriority && (
+            <Badge color="danger" size="sm">
+              High
+            </Badge>
+          )}
+        </div>
+        <button
+          onClick={handleView}
+          className="ml-auto text-xs font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 px-2.5 py-1 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+        >
+          View
+        </button>
+      </div>
     </div>
   )
 }
@@ -120,39 +219,52 @@ function AdminDashboard() {
   const totalAssignments = assignments.length
   const totalQuizzes = quizzes.length
 
-  // Recent announcements — newest first, max 5
-  const recentAnnouncements = [...announcements]
-    .sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt))
-    .slice(0, 5)
+  // Recent items — all types combined, newest first, max 8
+  const recentItems = useMemo(() => {
+    return [
+      ...tasks.map(t => ({ ...t, _type: 'Task' })),
+      ...quizzes.map(q => ({ ...q, _type: 'Quiz' })),
+      ...assignments.map(a => ({ ...a, _type: 'Assignment' })),
+      ...announcements.map(a => ({ ...a, _type: 'Announcement' })),
+    ]
+      .sort((a, b) => {
+        const dateA = new Date(a.createdAt || a.date || 0).getTime()
+        const dateB = new Date(b.createdAt || b.date || 0).getTime()
+        return dateB - dateA
+      })
+      .slice(0, 8)
+  }, [tasks, quizzes, assignments, announcements])
 
   // Near-deadline items — high priority, not completed, future deadline
   const now = new Date()
-  const nearDeadlineItems = [
-    ...tasks
-      .filter(t =>
-        t.priority === 'High' &&
-        t.status !== 'Completed' &&
-        t.deadline &&
-        new Date(t.deadline) > now
-      )
-      .map(t => ({ ...t, _type: 'Task', _deadline: t.deadline })),
-    ...assignments
-      .filter(a =>
-        a.priority === 'High' &&
-        a.status !== 'Completed' &&
-        a.deadline &&
-        new Date(a.deadline) > now
-      )
-      .map(a => ({ ...a, _type: 'Assignment', _deadline: a.deadline })),
-    ...quizzes
-      .filter(q =>
-        q.priority === 'High' &&
-        q.status !== 'Completed' &&
-        q.date &&
-        new Date(q.date) > now
-      )
-      .map(q => ({ ...q, _type: 'Quiz', _deadline: q.date })),
-  ].sort((a, b) => new Date(a._deadline) - new Date(b._deadline))
+  const nearDeadlineItems = useMemo(() => {
+    return [
+      ...tasks
+        .filter(t =>
+          t.priority === 'High' &&
+          t.status !== 'Completed' &&
+          t.deadline &&
+          new Date(t.deadline) > now
+        )
+        .map(t => ({ ...t, _type: 'Task', _deadline: t.deadline })),
+      ...assignments
+        .filter(a =>
+          a.priority === 'High' &&
+          a.status !== 'Completed' &&
+          a.deadline &&
+          new Date(a.deadline) > now
+        )
+        .map(a => ({ ...a, _type: 'Assignment', _deadline: a.deadline })),
+      ...quizzes
+        .filter(q =>
+          q.priority === 'High' &&
+          q.status !== 'Completed' &&
+          q.date &&
+          new Date(q.date) > now
+        )
+        .map(q => ({ ...q, _type: 'Quiz', _deadline: q.date })),
+    ].sort((a, b) => new Date(a._deadline) - new Date(b._deadline))
+  }, [tasks, assignments, quizzes])
 
   // ── Loading State ──────────────────────────────────────────
   if (loading) {
@@ -247,68 +359,32 @@ function AdminDashboard() {
         ))}
       </div>
 
-      {/* ── Two-Column: Announcements + Near Deadline ────────── */}
+      {/* ── Two-Column: Recent + Near Deadline ──────────────── */}
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* Recent Announcements */}
+        {/* Recent */}
         <Card className="overflow-hidden flex flex-col">
           <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/50 flex-shrink-0">
             <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-              Recent Announcements
+              Recent
             </h2>
           </div>
 
-          {recentAnnouncements.length === 0 ? (
+          {recentItems.length === 0 ? (
             <div className="flex-1 flex items-center justify-center">
               <EmptyState
-                icon={Megaphone}
-                title="No recent announcements"
-                description="Announcements will appear here once created."
+                icon={Clock}
+                title="No recent items"
+                description="Recent tasks, quizzes, assignments, and announcements will appear here."
               />
             </div>
           ) : (
             <div className="divide-y divide-gray-100 dark:divide-gray-700/50 flex-1">
-              {recentAnnouncements.map((ann) => (
-                <div
-                  key={ann._id}
-                  className="px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
-                >
-                  <div className="flex items-start justify-between gap-3 mb-1">
-                    <div className="flex items-center gap-2 min-w-0">
-                      {ann.pinned && (
-                        <Pin className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
-                      )}
-                      <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                        {ann.title}
-                      </h3>
-                    </div>
-                    <Badge color="info" size="sm" className="flex-shrink-0">
-                      {ann.type}
-                    </Badge>
-                  </div>
-
-                  {ann.description && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mb-1.5">
-                      {ann.description}
-                    </p>
-                  )}
-
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-gray-400 dark:text-gray-500">
-                      {format(parseISO(ann.date || ann.createdAt), 'MMM d, yyyy')}
-                    </span>
-                    {ann.attachment?.url && (
-                      <span className="inline-flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
-                        <Paperclip className="w-3 h-3" />
-                        Attachment
-                      </span>
-                    )}
-                    {ann.link && (
-                      <span className="text-xs text-primary-500 dark:text-primary-400">
-                        Has link
-                      </span>
-                    )}
-                  </div>
-                </div>
+              {recentItems.map((item) => (
+                <DashboardItemCard
+                  key={item._id}
+                  item={item}
+                  showDeadline={true}
+                />
               ))}
             </div>
           )}
@@ -335,61 +411,14 @@ function AdminDashboard() {
             </div>
           ) : (
             <div className="divide-y divide-gray-100 dark:divide-gray-700/50 flex-1">
-              {nearDeadlineItems.slice(0, 6).map((item) => {
-                const deadlineDate = parseISO(item._deadline)
-                const hoursLeft = differenceInHours(deadlineDate, now)
-                const isUrgent = hoursLeft >= 0 && hoursLeft < 24
-
-                const badgeProps = {
-                  Task: { color: 'info' },
-                  Assignment: { color: 'warning' },
-                  Quiz: { bgColor: '#8b5cf6', textColor: '#ffffff' },
-                }
-
-                return (
-                  <div
-                    key={item._id}
-                    className="px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
-                  >
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <Badge {...badgeProps[item._type]} size="sm">
-                        {item._type}
-                      </Badge>
-                      <Badge color="danger" size="sm">
-                        High
-                      </Badge>
-                    </div>
-
-                    <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-0.5">
-                      {item.title}
-                    </h3>
-
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">
-                      {item.subject}
-                    </p>
-
-                    <div className="flex items-center gap-1.5">
-                      <Calendar className={`w-3.5 h-3.5 flex-shrink-0 ${
-                        isUrgent
-                          ? 'text-red-500'
-                          : 'text-gray-400 dark:text-gray-500'
-                      }`} />
-                      <span className={`text-xs font-medium ${
-                        isUrgent
-                          ? 'text-red-600 dark:text-red-400'
-                          : 'text-gray-500 dark:text-gray-400'
-                      }`}>
-                        {format(deadlineDate, 'MMM d')} at {format(deadlineDate, 'h:mm a')}
-                        {isUrgent && (
-                          <span className="ml-1.5 text-red-500 dark:text-red-400">
-                            — Due soon
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                  </div>
-                )
-              })}
+              {nearDeadlineItems.slice(0, 6).map((item) => (
+                <DashboardItemCard
+                  key={item._id}
+                  item={item}
+                  showDeadline={true}
+                  showPriority={true}
+                />
+              ))}
             </div>
           )}
         </Card>

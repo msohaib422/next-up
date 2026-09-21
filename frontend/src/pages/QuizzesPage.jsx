@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
 import { Plus, HelpCircle, Search, Calendar, X, Paperclip, Download } from 'lucide-react'
 import { parseISO, isPast, isToday, format } from 'date-fns'
+import { useSearchParams } from 'react-router-dom'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -40,8 +41,33 @@ export default function QuizzesPage() {
   const [subjectFilter, setSubjectFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [dateFilter, setDateFilter] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const processedHighlight = useRef(null)
 
   useEffect(() => { fetchQuizzes() }, [])
+
+  // Highlight item from dashboard navigation
+  useEffect(() => {
+    if (!loading) {
+      const highlightId = searchParams.get('highlight')
+      if (highlightId && highlightId !== processedHighlight.current) {
+        processedHighlight.current = highlightId
+        const timer = setTimeout(() => {
+          const element = document.getElementById(`item-${highlightId}`)
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            element.classList.add('highlight-glow')
+            setTimeout(() => {
+              element.classList.remove('highlight-glow')
+            }, 3000)
+          }
+          searchParams.delete('highlight')
+          setSearchParams(searchParams, { replace: true })
+        }, 300)
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [loading, searchParams])
 
   const fetchQuizzes = async () => {
     try {
@@ -241,7 +267,7 @@ export default function QuizzesPage() {
   }
 
   const renderQuizCard = (quiz) => (
-    <Card key={quiz._id} className="p-4 flex flex-col h-full" onClick={() => { setEditingQuiz(quiz); setShowModal(true) }}>
+    <Card id={`item-${quiz._id}`} key={quiz._id} className="p-4 flex flex-col h-full" onClick={() => { setEditingQuiz(quiz); setShowModal(true) }}>
       <div className="flex items-center justify-between mb-2">
         <Badge color={priorityColor(quiz.priority)} bgColor={priorityBgColor(quiz.priority)} textColor={priorityTextColor(quiz.priority)} size="sm">{quiz.priority}</Badge>
         <Badge color={statusColor(quiz.status)} bgColor={statusBgColor(quiz.status)} textColor={statusTextColor(quiz.status)} size="sm">{quiz.status}</Badge>
