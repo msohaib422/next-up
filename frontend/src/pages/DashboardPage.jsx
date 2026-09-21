@@ -7,10 +7,473 @@ import Badge from '../components/ui/Badge'
 import EmptyState from '../components/ui/EmptyState'
 import {
   CheckSquare, Clock, HelpCircle, Megaphone,
-  Plus, AlertTriangle, CheckCircle2, PlayCircle
+  Plus, AlertTriangle, CheckCircle2, PlayCircle,
+  Users, FileCheck, Paperclip, Pin, Calendar
 } from 'lucide-react'
-import { format, formatDistanceToNow, isPast, isToday, addDays, parseISO } from 'date-fns'
+import { format, formatDistanceToNow, isPast, isToday, addDays, parseISO, differenceInHours } from 'date-fns'
 import { useNavigate } from 'react-router-dom'
+
+// ============================================================
+// SKELETON COMPONENTS
+// ============================================================
+
+function StatCardSkeleton() {
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+      <div className="flex items-center gap-4">
+        <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-700 animate-pulse" />
+        <div className="space-y-2">
+          <div className="h-8 w-16 bg-gray-100 dark:bg-gray-700 rounded-lg animate-pulse" />
+          <div className="h-4 w-28 bg-gray-100 dark:bg-gray-700 rounded-lg animate-pulse" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ListSkeleton({ rows = 4 }) {
+  return (
+    <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="px-5 py-3.5">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="h-5 w-16 bg-gray-100 dark:bg-gray-700 rounded-full animate-pulse" />
+            <div className="h-5 w-10 bg-gray-100 dark:bg-gray-700 rounded-full animate-pulse" />
+          </div>
+          <div className="h-4 w-3/4 bg-gray-100 dark:bg-gray-700 rounded-lg animate-pulse mb-1.5" />
+          <div className="h-3 w-full bg-gray-100 dark:bg-gray-700 rounded-lg animate-pulse mb-2" />
+          <div className="h-3 w-1/3 bg-gray-100 dark:bg-gray-700 rounded-lg animate-pulse" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function CompletedActivitySkeleton() {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {[1, 2, 3].map(i => (
+        <div key={i} className="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-4">
+          <div className="h-4 w-20 bg-gray-200 dark:bg-gray-600 rounded-lg animate-pulse mb-3" />
+          <div className="flex items-baseline gap-1.5 mb-3">
+            <div className="h-8 w-12 bg-gray-200 dark:bg-gray-600 rounded-lg animate-pulse" />
+            <div className="h-4 w-8 bg-gray-200 dark:bg-gray-600 rounded-lg animate-pulse" />
+          </div>
+          <div className="h-1.5 w-full bg-gray-200 dark:bg-gray-600 rounded-full animate-pulse" />
+          <div className="h-3 w-16 bg-gray-200 dark:bg-gray-600 rounded-lg animate-pulse mt-2" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ============================================================
+// ADMIN DASHBOARD
+// ============================================================
+
+function AdminDashboard() {
+  const [loading, setLoading] = useState(true)
+  const [users, setUsers] = useState([])
+  const [tasks, setTasks] = useState([])
+  const [assignments, setAssignments] = useState([])
+  const [quizzes, setQuizzes] = useState([])
+  const [announcements, setAnnouncements] = useState([])
+  const { user } = useAuth()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [usersRes, tasksRes, assignmentsRes, quizzesRes, annRes] = await Promise.all([
+          api.get('/users/admin/users').catch(() => ({ data: { data: [] } })),
+          api.get('/tasks').catch(() => ({ data: { data: [] } })),
+          api.get('/assignments/my').catch(() => ({ data: { data: [] } })),
+          api.get('/quizzes').catch(() => ({ data: { data: [] } })),
+          api.get('/announcements').catch(() => ({ data: { data: [] } })),
+        ])
+
+        const normalize = (res) => {
+          if (!res?.data) return []
+          return Array.isArray(res.data) ? res.data : (res.data.data || [])
+        }
+
+        setUsers(normalize(usersRes))
+        setTasks(normalize(tasksRes))
+        setAssignments(normalize(assignmentsRes))
+        setQuizzes(normalize(quizzesRes))
+        setAnnouncements(normalize(annRes))
+      } catch (err) {
+        console.error('Dashboard fetch error:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchData()
+  }, [])
+
+  // Computed statistics
+  const totalUsers = users.length
+  const completedTasks = tasks.filter(t => t.status === 'Completed').length
+  const completedAssignments = assignments.filter(a => a.status === 'Completed').length
+  const completedQuizzes = quizzes.filter(q => q.status === 'Completed').length
+  const totalTasks = tasks.length
+  const totalAssignments = assignments.length
+  const totalQuizzes = quizzes.length
+
+  // Recent announcements — newest first, max 5
+  const recentAnnouncements = [...announcements]
+    .sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt))
+    .slice(0, 5)
+
+  // Near-deadline items — high priority, not completed, future deadline
+  const now = new Date()
+  const nearDeadlineItems = [
+    ...tasks
+      .filter(t =>
+        t.priority === 'High' &&
+        t.status !== 'Completed' &&
+        t.deadline &&
+        new Date(t.deadline) > now
+      )
+      .map(t => ({ ...t, _type: 'Task', _deadline: t.deadline })),
+    ...assignments
+      .filter(a =>
+        a.priority === 'High' &&
+        a.status !== 'Completed' &&
+        a.deadline &&
+        new Date(a.deadline) > now
+      )
+      .map(a => ({ ...a, _type: 'Assignment', _deadline: a.deadline })),
+    ...quizzes
+      .filter(q =>
+        q.priority === 'High' &&
+        q.status !== 'Completed' &&
+        q.date &&
+        new Date(q.date) > now
+      )
+      .map(q => ({ ...q, _type: 'Quiz', _deadline: q.date })),
+  ].sort((a, b) => new Date(a._deadline) - new Date(b._deadline))
+
+  // ── Loading State ──────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <div className="h-8 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse mb-2" />
+          <div className="h-4 w-80 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(i => <StatCardSkeleton key={i} />)}
+        </div>
+        <div className="grid lg:grid-cols-2 gap-6">
+          <Card className="overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/50">
+              <div className="h-5 w-40 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+            </div>
+            <ListSkeleton rows={4} />
+          </Card>
+          <Card className="overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/50">
+              <div className="h-5 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse mb-1.5" />
+              <div className="h-3 w-56 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+            </div>
+            <ListSkeleton rows={4} />
+          </Card>
+        </div>
+        <Card className="p-5">
+          <div className="h-5 w-40 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse mb-4" />
+          <CompletedActivitySkeleton />
+        </Card>
+      </div>
+    )
+  }
+
+  // ── Render ─────────────────────────────────────────────────
+  return (
+    <div className="space-y-6">
+      {/* ── Header ──────────────────────────────────────────── */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          Dashboard
+        </h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          Overview of your NextUp activity and academic progress.
+        </p>
+      </div>
+
+      {/* ── Stats Cards ─────────────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          {
+            label: 'Total Users',
+            value: totalUsers,
+            icon: Users,
+            color: 'text-blue-600 bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400',
+          },
+          {
+            label: 'Completed Tasks',
+            value: completedTasks,
+            icon: CheckCircle2,
+            color: 'text-green-600 bg-green-100 dark:bg-green-900/30 dark:text-green-400',
+          },
+          {
+            label: 'Completed Assignments',
+            value: completedAssignments,
+            icon: FileCheck,
+            color: 'text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400',
+          },
+          {
+            label: 'Completed Quizzes',
+            value: completedQuizzes,
+            icon: HelpCircle,
+            color: 'text-violet-600 bg-violet-100 dark:bg-violet-900/30 dark:text-violet-400',
+          },
+        ].map((stat, i) => (
+          <Card key={i} className="p-5 hover:shadow-md transition-shadow duration-200">
+            <div className="flex items-center gap-4">
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${stat.color}`}>
+                <stat.icon className="w-6 h-6" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-2xl font-bold text-gray-900 dark:text-white leading-none mb-1">
+                  {stat.value}
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                  {stat.label}
+                </p>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {/* ── Two-Column: Announcements + Near Deadline ────────── */}
+      <div className="grid lg:grid-cols-2 gap-6">
+        {/* Recent Announcements */}
+        <Card className="overflow-hidden flex flex-col">
+          <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/50 flex-shrink-0">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+              Recent Announcements
+            </h2>
+          </div>
+
+          {recentAnnouncements.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center">
+              <EmptyState
+                icon={Megaphone}
+                title="No recent announcements"
+                description="Announcements will appear here once created."
+              />
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100 dark:divide-gray-700/50 flex-1">
+              {recentAnnouncements.map((ann) => (
+                <div
+                  key={ann._id}
+                  className="px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-3 mb-1">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {ann.pinned && (
+                        <Pin className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                      )}
+                      <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                        {ann.title}
+                      </h3>
+                    </div>
+                    <Badge color="info" size="sm" className="flex-shrink-0">
+                      {ann.type}
+                    </Badge>
+                  </div>
+
+                  {ann.description && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mb-1.5">
+                      {ann.description}
+                    </p>
+                  )}
+
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-gray-400 dark:text-gray-500">
+                      {format(parseISO(ann.date || ann.createdAt), 'MMM d, yyyy')}
+                    </span>
+                    {ann.attachment?.url && (
+                      <span className="inline-flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
+                        <Paperclip className="w-3 h-3" />
+                        Attachment
+                      </span>
+                    )}
+                    {ann.link && (
+                      <span className="text-xs text-primary-500 dark:text-primary-400">
+                        Has link
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        {/* Near Deadline */}
+        <Card className="overflow-hidden flex flex-col">
+          <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/50 flex-shrink-0">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+              Near Deadline
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              High-priority items approaching their deadline
+            </p>
+          </div>
+
+          {nearDeadlineItems.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center">
+              <EmptyState
+                icon={Clock}
+                title="No upcoming deadlines"
+                description="No high-priority items with approaching deadlines."
+              />
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100 dark:divide-gray-700/50 flex-1">
+              {nearDeadlineItems.slice(0, 6).map((item) => {
+                const deadlineDate = parseISO(item._deadline)
+                const hoursLeft = differenceInHours(deadlineDate, now)
+                const isUrgent = hoursLeft >= 0 && hoursLeft < 24
+
+                const badgeProps = {
+                  Task: { color: 'info' },
+                  Assignment: { color: 'warning' },
+                  Quiz: { bgColor: '#8b5cf6', textColor: '#ffffff' },
+                }
+
+                return (
+                  <div
+                    key={item._id}
+                    className="px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
+                  >
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <Badge {...badgeProps[item._type]} size="sm">
+                        {item._type}
+                      </Badge>
+                      <Badge color="danger" size="sm">
+                        High
+                      </Badge>
+                    </div>
+
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-0.5">
+                      {item.title}
+                    </h3>
+
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">
+                      {item.subject}
+                    </p>
+
+                    <div className="flex items-center gap-1.5">
+                      <Calendar className={`w-3.5 h-3.5 flex-shrink-0 ${
+                        isUrgent
+                          ? 'text-red-500'
+                          : 'text-gray-400 dark:text-gray-500'
+                      }`} />
+                      <span className={`text-xs font-medium ${
+                        isUrgent
+                          ? 'text-red-600 dark:text-red-400'
+                          : 'text-gray-500 dark:text-gray-400'
+                      }`}>
+                        {format(deadlineDate, 'MMM d')} at {format(deadlineDate, 'h:mm a')}
+                        {isUrgent && (
+                          <span className="ml-1.5 text-red-500 dark:text-red-400">
+                            — Due soon
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* ── Completed Activity ───────────────────────────────── */}
+      <Card className="p-5">
+        <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
+          Completed Activity
+        </h2>
+
+        {totalTasks === 0 && totalAssignments === 0 && totalQuizzes === 0 ? (
+          <EmptyState
+            icon={CheckCircle2}
+            title="No completed activity yet"
+            description="Complete tasks, assignments, and quizzes to see your progress here."
+          />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[
+              {
+                label: 'Tasks',
+                completed: completedTasks,
+                total: totalTasks,
+                barColor: 'bg-green-500',
+                bgColor: 'bg-green-50 dark:bg-green-900/10',
+              },
+              {
+                label: 'Assignments',
+                completed: completedAssignments,
+                total: totalAssignments,
+                barColor: 'bg-emerald-500',
+                bgColor: 'bg-emerald-50 dark:bg-emerald-900/10',
+              },
+              {
+                label: 'Quizzes',
+                completed: completedQuizzes,
+                total: totalQuizzes,
+                barColor: 'bg-violet-500',
+                bgColor: 'bg-violet-50 dark:bg-violet-900/10',
+              },
+            ].map((item, i) => {
+              const percentage = item.total > 0
+                ? Math.round((item.completed / item.total) * 100)
+                : 0
+
+              return (
+                <div
+                  key={i}
+                  className={`${item.bgColor} rounded-xl p-4`}
+                >
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+                    {item.label}
+                  </p>
+                  <div className="flex items-baseline gap-1.5 mb-3">
+                    <span className="text-2xl font-bold text-gray-900 dark:text-white leading-none">
+                      {item.completed}
+                    </span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      / {item.total}
+                    </span>
+                  </div>
+                  <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full ${item.barColor} rounded-full transition-all duration-500 ease-out`}
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    {percentage}% completed
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </Card>
+    </div>
+  )
+}
+
+// ============================================================
+// USER DASHBOARD (UNCHANGED)
+// ============================================================
 
 function UserDashboard() {
   const [stats, setStats] = useState(null)
@@ -253,118 +716,11 @@ function UserDashboard() {
   )
 }
 
-function CollaboratorDashboard() {
-  const [assignments, setAssignments] = useState([])
-  const [stats, setStats] = useState({ pending: 0, approvedWeek: 0, rejectedWeek: 0 })
-  const [loading, setLoading] = useState(true)
-  const { user } = useAuth()
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await api.get('/assignments/pending')
-        const data = Array.isArray(res.data) ? res.data : (res.data.data || [])
-        setAssignments(data)
-
-        const allRes = await api.get('/assignments/my').catch(() => ({ data: [] }))
-        const all = Array.isArray(allRes.data) ? allRes.data : (allRes.data.data || [])
-        const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7)
-        setStats({
-          pending: all.filter(a => a.approvalStatus === 'Pending').length,
-          approvedWeek: all.filter(a => a.approvalStatus === 'Approved' && new Date(a.reviewedAt || a.updatedAt) > weekAgo).length,
-          rejectedWeek: all.filter(a => a.approvalStatus === 'Rejected' && new Date(a.reviewedAt || a.updatedAt) > weekAgo).length,
-        })
-      } catch (err) {
-        console.error(err)
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchData()
-  }, [])
-
-  const handleApprove = async (id) => {
-    try {
-      await api.put(`/assignments/${id}/approve`)
-      setAssignments(prev => prev.filter(a => a._id !== id))
-      setStats(prev => ({ ...prev, pending: prev.pending - 1, approvedWeek: prev.approvedWeek + 1 }))
-    } catch (err) {
-      console.error(err)
-    }
-  }
-
-  const handleReject = async (id) => {
-    try {
-      await api.put(`/assignments/${id}/reject`, { rejectionReason: '' })
-      setAssignments(prev => prev.filter(a => a._id !== id))
-      setStats(prev => ({ ...prev, pending: prev.pending - 1, rejectedWeek: prev.rejectedWeek + 1 }))
-    } catch (err) {
-      console.error(err)
-    }
-  }
-
-  if (loading) return <LoadingSpinner />
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Collaborator Dashboard
-        </h1>
-        <p className="text-gray-500 dark:text-gray-400">Welcome, {user?.name}</p>
-      </div>
-
-      <div className="grid grid-cols-3 gap-4">
-        {[
-          { label: 'Pending', value: stats.pending, color: 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30' },
-          { label: 'Approved (Week)', value: stats.approvedWeek, color: 'text-green-600 bg-green-100 dark:bg-green-900/30' },
-          { label: 'Rejected (Week)', value: stats.rejectedWeek, color: 'text-red-600 bg-red-100 dark:bg-red-900/30' },
-        ].map((stat, i) => (
-          <Card key={i} className="p-4 text-center">
-            <p className={`text-3xl font-bold ${stat.color.split(' ')[0]}`}>{stat.value}</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400">{stat.label}</p>
-          </Card>
-        ))}
-      </div>
-
-      <Card className="p-4">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Pending Assignments</h2>
-        {assignments.length === 0 ? (
-          <EmptyState icon={CheckCircle2} title="No pending assignments" />
-        ) : (
-          <div className="space-y-3">
-            {assignments.map(assignment => (
-              <div key={assignment._id} className="flex items-center justify-between p-3 border rounded-lg">
-                <div>
-                  <p className="font-medium text-gray-900 dark:text-white">{assignment.title}</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {assignment.subject} · by {assignment.user?.name || 'Unknown'} · {format(parseISO(assignment.createdAt), 'MMM d')}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleApprove(assignment._id)}
-                    className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700"
-                  >
-                    Approve
-                  </button>
-                  <button
-                    onClick={() => handleReject(assignment._id)}
-                    className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700"
-                  >
-                    Reject
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-    </div>
-  )
-}
+// ============================================================
+// PAGE EXPORT
+// ============================================================
 
 export default function DashboardPage() {
   const { user } = useAuth()
-  return user?.role === 'collaborator' ? <CollaboratorDashboard /> : <UserDashboard />
+  return user?.role === 'collaborator' ? <AdminDashboard /> : <UserDashboard />
 }
