@@ -4,10 +4,10 @@ const colorMap = {
   danger: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
   info: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
   neutral: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
-  purple: 'text-white',
-  magenta: 'text-white',
-  teal: 'text-white',
-  gold: 'text-gray-900',
+  purple: 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400',
+  magenta: 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400',
+  teal: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400',
+  gold: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
 }
 
 const sizeMap = {

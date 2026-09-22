@@ -8,7 +8,8 @@ import EmptyState from '../components/ui/EmptyState'
 import {
   CheckSquare, Clock, HelpCircle, Megaphone,
   Plus, AlertTriangle, CheckCircle2, PlayCircle,
-  Users, FileCheck, Paperclip, Pin, Calendar
+  Users, FileCheck, Paperclip, Pin, Calendar,
+  Timer, BookOpen
 } from 'lucide-react'
 import { format, formatDistanceToNow, isPast, isToday, addDays, parseISO, differenceInHours } from 'date-fns'
 import { useNavigate } from 'react-router-dom'
@@ -76,12 +77,13 @@ function getItemRoute(item) {
     case 'Quiz': return '/quizzes'
     case 'Assignment': return '/assignments'
     case 'Announcement': return '/announcements'
+    case 'Essential': return '/essentials'
     default: return '/'
   }
 }
 
 // ============================================================
-// SHARED ITEM CARD
+// SHARED ITEM CARD — Recent items
 // ============================================================
 
 function DashboardItemCard({ item, showDeadline = true, showPriority = false }) {
@@ -95,57 +97,49 @@ function DashboardItemCard({ item, showDeadline = true, showPriority = false }) 
 
   const typeBadgeProps = {
     Task: { color: 'info' },
-    Quiz: { bgColor: '#8b5cf6', textColor: '#ffffff' },
+    Quiz: { color: 'purple' },
     Assignment: { color: 'warning' },
     Announcement: { color: 'neutral' },
+    Essential: { color: 'teal' },
   }
 
   // Determine deadline based on item type
   let deadlineDate = null
-  if (showDeadline && item._type !== 'Announcement') {
+  if (showDeadline && item._type !== 'Announcement' && item._type !== 'Essential') {
     deadlineDate = item._type === 'Quiz' ? item.date : item.deadline
   }
 
   return (
     <div className="px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-      {/* Title */}
-      <div className="flex items-center gap-2 mb-0.5">
-        {item._type === 'Announcement' && item.pinned && (
-          <Pin className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
-        )}
-        <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
-          {item.title}
-        </h3>
-      </div>
+      <div className="flex items-center gap-3">
+        {/* Left: Title + secondary info (multi-line block, centered as a whole) */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            {item._type === 'Announcement' && item.pinned && (
+              <Pin className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+            )}
+            <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
+              {item.title}
+            </h3>
+          </div>
 
-      {/* Description or Course */}
-      {item.description?.trim() ? (
-        <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mb-1">
-          {item.description}
-        </p>
-      ) : item.subject ? (
-        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-          {item.subject}
-        </p>
-      ) : item.date ? (
-        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-          {format(parseISO(item.date), 'MMM d, yyyy')}
-        </p>
-      ) : null}
-
-      {/* Deadline (if applicable) */}
-      {deadlineDate && (
-        <div className="flex items-center gap-1.5 mb-2">
-          <Calendar className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            {format(parseISO(deadlineDate), 'MMM d, yyyy')}
-          </span>
+          {item.description?.trim() ? (
+            <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1 mt-0.5">
+              {item.description}
+            </p>
+          ) : item.subject ? (
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              {item.subject}
+            </p>
+          ) : deadlineDate ? (
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              {format(parseISO(deadlineDate), 'MMM d, yyyy')}
+            </p>
+          ) : null}
         </div>
-      )}
 
-      {/* Bottom row: Type Label (centered) + View Button (right) */}
-      <div className="relative flex items-center mt-1">
-        <div className="absolute inset-0 flex items-center justify-center gap-1.5">
+        {/* Center: Type badge */}
+        <div className="flex-shrink-0 flex items-center gap-1.5">
           <Badge {...typeBadgeProps[item._type]} size="sm">
             {item._type}
           </Badge>
@@ -155,9 +149,102 @@ function DashboardItemCard({ item, showDeadline = true, showPriority = false }) 
             </Badge>
           )}
         </div>
+
+        {/* Right: Completed indicator + View button */}
+        <div className="flex-shrink-0 flex items-center gap-1">
+          {item.status === 'Completed' && (
+            <span className="text-green-500 dark:text-green-400" title="Completed">
+              <CheckCircle2 className="w-4 h-4" />
+            </span>
+          )}
+          <button
+            onClick={handleView}
+            className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 px-2.5 py-1 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+          >
+            View
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// DEADLINE ITEM CARD — Near Deadline items (compact)
+// ============================================================
+
+function DeadlineItemCard({ item }) {
+  const navigate = useNavigate()
+
+  const handleView = (e) => {
+    e.stopPropagation()
+    const route = getItemRoute(item)
+    navigate(`${route}?highlight=${item._id}`)
+  }
+
+  const typeBadgeProps = {
+    Task: { color: 'info' },
+    Quiz: { color: 'purple' },
+    Assignment: { color: 'warning' },
+    Announcement: { color: 'neutral' },
+    Essential: { color: 'teal' },
+  }
+
+  const priorityBadgeProps = {
+    High: { color: 'danger' },
+    Medium: { color: 'warning' },
+    Low: { color: 'success' },
+  }
+
+  const deadlineDate = item._deadline || item.deadline || item.date
+  const isUrgent = deadlineDate && differenceInHours(parseISO(deadlineDate), new Date()) < 24
+
+  return (
+    <div className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+      <div className="flex items-center gap-3">
+        {/* Left: Type icon */}
+        <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${
+          item._type === 'Task' ? 'bg-blue-100 dark:bg-blue-900/30' :
+          item._type === 'Quiz' ? 'bg-violet-100 dark:bg-violet-900/30' :
+          item._type === 'Assignment' ? 'bg-yellow-100 dark:bg-yellow-900/30' :
+          'bg-gray-100 dark:bg-gray-700'
+        }`}>
+          {item._type === 'Task' && <CheckSquare className="w-4 h-4 text-blue-600 dark:text-blue-400" />}
+          {item._type === 'Quiz' && <HelpCircle className="w-4 h-4 text-violet-600 dark:text-violet-400" />}
+          {item._type === 'Assignment' && <FileCheck className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />}
+          {item._type === 'Announcement' && <Megaphone className="w-4 h-4 text-gray-600 dark:text-gray-400" />}
+          {item._type === 'Essential' && <BookOpen className="w-4 h-4 text-teal-600 dark:text-teal-400" />}
+        </div>
+
+        {/* Center: Info */}
+        <div className="flex-1 min-w-0">
+          <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate">
+            {item.title}
+          </h4>
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            <Badge {...typeBadgeProps[item._type]} size="sm">
+              {item._type}
+            </Badge>
+            {item.priority && (
+              <Badge {...priorityBadgeProps[item.priority]} size="sm">
+                {item.priority}
+              </Badge>
+            )}
+            {deadlineDate && (
+              <span className={`text-xs ${isUrgent ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-500 dark:text-gray-400'}`}>
+                {isUrgent
+                  ? `Due in ${formatDistanceToNow(parseISO(deadlineDate))}`
+                  : format(parseISO(deadlineDate), 'MMM d, yyyy')
+                }
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Right: View button */}
         <button
           onClick={handleView}
-          className="ml-auto text-xs font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 px-2.5 py-1 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+          className="flex-shrink-0 text-xs font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 px-2.5 py-1 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
         >
           View
         </button>
@@ -235,13 +322,12 @@ function AdminDashboard() {
       .slice(0, 8)
   }, [tasks, quizzes, assignments, announcements])
 
-  // Near-deadline items — high priority, not completed, future deadline
+  // Near-deadline items — all non-completed items with future deadlines
   const now = new Date()
   const nearDeadlineItems = useMemo(() => {
     return [
       ...tasks
         .filter(t =>
-          t.priority === 'High' &&
           t.status !== 'Completed' &&
           t.deadline &&
           new Date(t.deadline) > now
@@ -249,7 +335,6 @@ function AdminDashboard() {
         .map(t => ({ ...t, _type: 'Task', _deadline: t.deadline })),
       ...assignments
         .filter(a =>
-          a.priority === 'High' &&
           a.status !== 'Completed' &&
           a.deadline &&
           new Date(a.deadline) > now
@@ -257,7 +342,6 @@ function AdminDashboard() {
         .map(a => ({ ...a, _type: 'Assignment', _deadline: a.deadline })),
       ...quizzes
         .filter(q =>
-          q.priority === 'High' &&
           q.status !== 'Completed' &&
           q.date &&
           new Date(q.date) > now
@@ -370,12 +454,14 @@ function AdminDashboard() {
           </div>
 
           {recentItems.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center">
-              <EmptyState
-                icon={Clock}
-                title="No recent items"
-                description="Recent tasks, quizzes, assignments, and announcements will appear here."
-              />
+            <div className="flex-1 flex items-center justify-center py-8">
+              <div className="text-center">
+                <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center mx-auto mb-3">
+                  <Clock className="w-5 h-5 text-gray-400" />
+                </div>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">No recent items</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Your recent activity will appear here.</p>
+              </div>
             </div>
           ) : (
             <div className="divide-y divide-gray-100 dark:divide-gray-700/50 flex-1">
@@ -393,30 +479,33 @@ function AdminDashboard() {
         {/* Near Deadline */}
         <Card className="overflow-hidden flex flex-col">
           <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/50 flex-shrink-0">
-            <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-              Near Deadline
-            </h2>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              High-priority items approaching their deadline
+            <div className="flex items-center gap-2">
+              <Timer className="w-4 h-4 text-orange-500 dark:text-orange-400" />
+              <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+                Near Deadline
+              </h2>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 ml-6">
+              Upcoming items sorted by deadline
             </p>
           </div>
 
           {nearDeadlineItems.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center">
-              <EmptyState
-                icon={Clock}
-                title="No upcoming deadlines"
-                description="No high-priority items with approaching deadlines."
-              />
+            <div className="flex-1 flex items-center justify-center py-8">
+              <div className="text-center">
+                <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center mx-auto mb-3">
+                  <Timer className="w-5 h-5 text-gray-400" />
+                </div>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">All clear</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">No upcoming deadlines right now.</p>
+              </div>
             </div>
           ) : (
             <div className="divide-y divide-gray-100 dark:divide-gray-700/50 flex-1">
               {nearDeadlineItems.slice(0, 6).map((item) => (
-                <DashboardItemCard
+                <DeadlineItemCard
                   key={item._id}
                   item={item}
-                  showDeadline={true}
-                  showPriority={true}
                 />
               ))}
             </div>
@@ -501,7 +590,7 @@ function AdminDashboard() {
 }
 
 // ============================================================
-// USER DASHBOARD (UNCHANGED)
+// USER DASHBOARD
 // ============================================================
 
 function UserDashboard() {
