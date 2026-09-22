@@ -86,7 +86,7 @@ function getItemRoute(item) {
 // SHARED ITEM CARD — Recent items
 // ============================================================
 
-function DashboardItemCard({ item, showDeadline = true, showPriority = false }) {
+function DashboardItemCard({ item }) {
   const navigate = useNavigate()
 
   const handleView = (e) => {
@@ -103,17 +103,14 @@ function DashboardItemCard({ item, showDeadline = true, showPriority = false }) 
     Essential: { color: 'teal' },
   }
 
-  // Determine deadline based on item type
-  let deadlineDate = null
-  if (showDeadline && item._type !== 'Announcement' && item._type !== 'Essential') {
-    deadlineDate = item._type === 'Quiz' ? item.date : item.deadline
-  }
+  // Course: use subject field from data, fallback to 'General'
+  const courseName = item.subject?.trim() || 'General'
 
   return (
     <div className="px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-      <div className="flex items-center gap-3">
-        {/* Left: Title + secondary info (multi-line block, centered as a whole) */}
-        <div className="flex-1 min-w-0">
+      <div className="flex items-center">
+        {/* Column 1 — Title + Course (flexible, takes remaining space) */}
+        <div className="flex-1 min-w-0 pr-4">
           <div className="flex items-center gap-2">
             {item._type === 'Announcement' && item.pinned && (
               <Pin className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
@@ -122,41 +119,29 @@ function DashboardItemCard({ item, showDeadline = true, showPriority = false }) 
               {item.title}
             </h3>
           </div>
-
-          {item.description?.trim() ? (
-            <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1 mt-0.5">
-              {item.description}
-            </p>
-          ) : item.subject ? (
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              {item.subject}
-            </p>
-          ) : deadlineDate ? (
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              {format(parseISO(deadlineDate), 'MMM d, yyyy')}
-            </p>
-          ) : null}
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
+            {courseName}
+          </p>
         </div>
 
-        {/* Center: Type badge */}
-        <div className="flex-shrink-0 flex items-center gap-1.5">
+        {/* Column 2 — Type Badge (fixed width, centered) */}
+        <div className="w-28 flex items-center justify-center flex-shrink-0">
           <Badge {...typeBadgeProps[item._type]} size="sm">
             {item._type}
           </Badge>
-          {showPriority && (
-            <Badge color="danger" size="sm">
-              High
-            </Badge>
-          )}
         </div>
 
-        {/* Right: Completed indicator + View button */}
-        <div className="flex-shrink-0 flex items-center gap-1">
+        {/* Column 3 — Status (same fixed width, centered — reserves space always) */}
+        <div className="w-28 flex items-center justify-center flex-shrink-0">
           {item.status === 'Completed' && (
             <span className="text-green-500 dark:text-green-400" title="Completed">
               <CheckCircle2 className="w-4 h-4" />
             </span>
           )}
+        </div>
+
+        {/* Column 4 — View Button (same fixed width, centered) */}
+        <div className="w-28 flex items-center justify-end flex-shrink-0">
           <button
             onClick={handleView}
             className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 px-2.5 py-1 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
