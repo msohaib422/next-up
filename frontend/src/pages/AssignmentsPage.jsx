@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
+import { useAuth } from '../hooks/useAuth'
 import { Plus, CheckSquare, Search, Calendar, X, Paperclip, Download } from 'lucide-react'
 import { parseISO, isPast, isToday, format } from 'date-fns'
 import { useSearchParams } from 'react-router-dom'
@@ -32,6 +33,8 @@ const sortByDeadline = (a, b) => {
 }
 
 export default function AssignmentsPage() {
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'collaborator'
   const [assignments, setAssignments] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -264,7 +267,7 @@ export default function AssignmentsPage() {
   }
 
   const renderAssignmentCard = (assignment) => (
-    <Card id={`item-${assignment._id}`} key={assignment._id} className="p-4 flex flex-col h-full" onClick={() => { setEditingAssignment(assignment); setShowModal(true) }}>
+    <Card id={`item-${assignment._id}`} key={assignment._id} className="p-4 flex flex-col h-full" onClick={isAdmin ? () => { setEditingAssignment(assignment); setShowModal(true) } : undefined}>
       <div className="flex items-center justify-between mb-2">
         <Badge color={priorityColor(assignment.priority)} bgColor={priorityBgColor(assignment.priority)} textColor={priorityTextColor(assignment.priority)} size="sm">{assignment.priority}</Badge>
         <Badge color={statusColor(assignment.status)} bgColor={statusBgColor(assignment.status)} textColor={statusTextColor(assignment.status)} size="sm">{assignment.status}</Badge>
@@ -293,24 +296,26 @@ export default function AssignmentsPage() {
         </div>
       )}
       <div className="flex-1" />
-      <div className="flex items-center gap-2 mt-3 pt-3 border-t dark:border-gray-700">
-        <button
-          onClick={(e) => { e.stopPropagation(); handleToggleComplete(assignment) }}
-          className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
-            assignment.status === 'Completed'
-              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-              : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
-          }`}
-        >
-          {assignment.status === 'Completed' ? '✓ Done' : 'Mark Done'}
-        </button>
-        <button
-          onClick={(e) => { e.stopPropagation(); handleDelete(assignment._id) }}
-          className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50"
-        >
-          Delete
-        </button>
-      </div>
+      {isAdmin && (
+        <div className="flex items-center gap-2 mt-3 pt-3 border-t dark:border-gray-700">
+          <button
+            onClick={(e) => { e.stopPropagation(); handleToggleComplete(assignment) }}
+            className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
+              assignment.status === 'Completed'
+                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+            }`}
+          >
+            {assignment.status === 'Completed' ? '✓ Done' : 'Mark Done'}
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleDelete(assignment._id) }}
+            className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50"
+          >
+            Delete
+          </button>
+        </div>
+      )}
     </Card>
   )
 
@@ -322,9 +327,11 @@ export default function AssignmentsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Assignments</h1>
-        <Button onClick={() => { setEditingAssignment(null); setShowModal(true) }}>
-          <Plus className="w-4 h-4" /> Add Assignment
-        </Button>
+        {isAdmin && (
+          <Button onClick={() => { setEditingAssignment(null); setShowModal(true) }}>
+            <Plus className="w-4 h-4" /> Add Assignment
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -395,7 +402,7 @@ export default function AssignmentsPage() {
             ? 'No assignments match your current filters. Try adjusting your search or filters.'
             : 'Create your first assignment to get started'}
           action={
-            <Button onClick={() => setShowModal(true)}><Plus className="w-4 h-4" /> Add Assignment</Button>
+            isAdmin ? <Button onClick={() => setShowModal(true)}><Plus className="w-4 h-4" /> Add Assignment</Button> : undefined
           }
         />
       ) : isDateFilterActive ? (

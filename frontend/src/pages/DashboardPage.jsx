@@ -782,7 +782,6 @@ function UserDashboard() {
 
       <div className="flex flex-wrap gap-3">
         {[
-          { label: 'Add Task', to: '/tasks', icon: CheckSquare },
           { label: 'Timetable', to: '/timetable', icon: Clock },
         ].map(action => (
           <button
