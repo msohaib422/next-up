@@ -407,8 +407,8 @@ function AdminDashboard() {
         ))}
       </div>
 
-      {/* ── Two-Column: Recent + Near Deadline ──────────────── */}
-      <div className="grid lg:grid-cols-2 gap-6">
+      {/* ── Two-Column: Recent + Coming Up ─────────────────── */}
+      <div className="grid lg:grid-cols-2 gap-6 items-start">
         {/* Recent */}
         <Card className="overflow-hidden flex flex-col">
           <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/50 flex-shrink-0">
@@ -428,7 +428,7 @@ function AdminDashboard() {
               </div>
             </div>
           ) : (
-            <div className="divide-y divide-gray-100 dark:divide-gray-700/50 flex-1">
+            <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
               {recentItems.map((item) => (
                 <DashboardItemCard
                   key={item._id}
@@ -459,7 +459,7 @@ function AdminDashboard() {
               </div>
             </div>
           ) : (
-            <div className="divide-y divide-gray-100 dark:divide-gray-700/50 flex-1 overflow-y-auto max-h-[440px]">
+            <div className="divide-y divide-gray-100 dark:divide-gray-700/50 overflow-y-auto">
               {comingUpItems.map((item) => (
                 <ComingUpItemCard
                   key={item._id}
