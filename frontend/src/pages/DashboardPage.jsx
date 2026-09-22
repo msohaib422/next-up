@@ -124,30 +124,28 @@ function DashboardItemCard({ item }) {
           </p>
         </div>
 
-        {/* Column 2 — Type Badge (fixed width, centered) */}
-        <div className="w-28 flex items-center justify-center flex-shrink-0">
-          <Badge {...typeBadgeProps[item._type]} size="sm">
-            {item._type}
-          </Badge>
-        </div>
-
-        {/* Column 3 — Status (same fixed width, centered — reserves space always) */}
-        <div className="w-28 flex items-center justify-center flex-shrink-0">
-          {item.status === 'Completed' && (
-            <span className="text-green-500 dark:text-green-400" title="Completed">
-              <CheckCircle2 className="w-4 h-4" />
-            </span>
-          )}
-        </div>
-
-        {/* Column 4 — View Button (same fixed width, centered) */}
-        <div className="w-28 flex items-center justify-end flex-shrink-0">
-          <button
-            onClick={handleView}
-            className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 px-2.5 py-1 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
-          >
-            View
-          </button>
+        {/* Right side — Type | Status | View with equal spacing */}
+        <div className="flex items-center gap-6 flex-shrink-0">
+          <div className="flex items-center justify-center w-24">
+            <Badge {...typeBadgeProps[item._type]} size="sm">
+              {item._type}
+            </Badge>
+          </div>
+          <div className="flex items-center justify-center w-24">
+            {item.status === 'Completed' && (
+              <span className="text-green-500 dark:text-green-400" title="Completed">
+                <CheckCircle2 className="w-4 h-4" />
+              </span>
+            )}
+          </div>
+          <div className="flex items-center justify-center w-24">
+            <button
+              onClick={handleView}
+              className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 px-2.5 py-1 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+            >
+              View
+            </button>
+          </div>
         </div>
       </div>
     </div>
