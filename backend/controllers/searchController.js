@@ -2,6 +2,7 @@ import Task from '../models/Task.js';
 import Quiz from '../models/Quiz.js';
 import Announcement from '../models/Announcement.js';
 import ImportantDate from '../models/ImportantDate.js';
+import { getVisibleUserIds } from '../utils/helpers.js';
 
 export const globalSearch = async (req, res, next) => {
   try {
@@ -28,12 +29,14 @@ export const globalSearch = async (req, res, next) => {
       textQuery.createdAt = dateFilter;
     }
 
+    const visibleUserIds = await getVisibleUserIds(req.user);
+
     const [tasks, quizzes, announcements, importantDates] =
       await Promise.all([
-        Task.find({ user: req.user._id, ...textQuery }).limit(10),
-        Quiz.find({ user: req.user._id, ...textQuery }).limit(10),
-        Announcement.find({ user: req.user._id, ...textQuery }).limit(10),
-        ImportantDate.find({ user: req.user._id, ...textQuery }).limit(10),
+        Task.find({ user: { $in: visibleUserIds }, ...textQuery }).limit(10),
+        Quiz.find({ user: { $in: visibleUserIds }, ...textQuery }).limit(10),
+        Announcement.find({ user: { $in: visibleUserIds }, ...textQuery }).limit(10),
+        ImportantDate.find({ user: { $in: visibleUserIds }, ...textQuery }).limit(10),
       ]);
 
     res.json({

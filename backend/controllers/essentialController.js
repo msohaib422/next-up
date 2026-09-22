@@ -1,5 +1,6 @@
 import Essential from '../models/Essential.js';
 import { createActivity } from './activityController.js';
+import { getVisibleUserIds } from '../utils/helpers.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
 
@@ -53,7 +54,7 @@ export const uploadEssentialFile = [
 export const getEssentials = async (req, res, next) => {
   try {
     const { search, date, course, saved, sort = '-createdAt' } = req.query;
-    const query = { user: req.user._id };
+    const query = { user: { $in: await getVisibleUserIds(req.user) } };
 
     if (search) {
       query.title = { $regex: search, $options: 'i' };
@@ -87,7 +88,7 @@ export const getEssentials = async (req, res, next) => {
 
 export const getEssential = async (req, res, next) => {
   try {
-    const essential = await Essential.findOne({ _id: req.params.id, user: req.user._id })
+    const essential = await Essential.findOne({ _id: req.params.id, user: { $in: await getVisibleUserIds(req.user) } })
       .populate('user', 'name email');
     if (!essential) {
       return res.status(404).json({ success: false, message: 'Essential not found' });

@@ -1,5 +1,6 @@
 import Announcement from '../models/Announcement.js';
 import { createActivity } from './activityController.js';
+import { getVisibleUserIds } from '../utils/helpers.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
 
@@ -53,7 +54,7 @@ export const uploadAnnouncementFile = [
 export const getAnnouncements = async (req, res, next) => {
   try {
     const { search, type, date, saved, sort = '-createdAt' } = req.query;
-    const query = { user: req.user._id };
+    const query = { user: { $in: await getVisibleUserIds(req.user) } };
 
     if (search) {
       query.title = { $regex: search, $options: 'i' };
@@ -87,7 +88,7 @@ export const getAnnouncements = async (req, res, next) => {
 
 export const getAnnouncement = async (req, res, next) => {
   try {
-    const announcement = await Announcement.findOne({ _id: req.params.id, user: req.user._id })
+    const announcement = await Announcement.findOne({ _id: req.params.id, user: { $in: await getVisibleUserIds(req.user) } })
       .populate('user', 'name email');
     if (!announcement) {
       return res.status(404).json({ success: false, message: 'Announcement not found' });

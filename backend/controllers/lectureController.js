@@ -1,5 +1,6 @@
 import Lecture from '../models/Lecture.js';
 import { createActivity } from './activityController.js';
+import { getVisibleUserIds } from '../utils/helpers.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
 
@@ -53,7 +54,7 @@ export const uploadLectureFile = [
 export const getLectures = async (req, res, next) => {
   try {
     const { search, sort = '-createdAt' } = req.query;
-    const query = { user: req.user._id };
+    const query = { user: { $in: await getVisibleUserIds(req.user) } };
 
     if (search) {
       query.$or = [
@@ -70,7 +71,7 @@ export const getLectures = async (req, res, next) => {
 
 export const getLecture = async (req, res, next) => {
   try {
-    const lecture = await Lecture.findOne({ _id: req.params.id, user: req.user._id });
+    const lecture = await Lecture.findOne({ _id: req.params.id, user: { $in: await getVisibleUserIds(req.user) } });
     if (!lecture) {
       return res.status(404).json({ success: false, message: 'Lecture not found' });
     }
