@@ -408,7 +408,9 @@ function AdminDashboard() {
       </div>
 
       {/* ── Two-Column: Recent + Coming Up ─────────────────── */}
-      <div className="grid lg:grid-cols-2 gap-6 items-start">
+      {/* Default stretch keeps both cards equal height; Recent defines
+          the row height and Coming Up scrolls internally when full. */}
+      <div className="grid lg:grid-cols-2 gap-6">
         {/* Recent */}
         <Card className="overflow-hidden flex flex-col">
           <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/50 flex-shrink-0">
@@ -459,13 +461,18 @@ function AdminDashboard() {
               </div>
             </div>
           ) : (
-            <div className="divide-y divide-gray-100 dark:divide-gray-700/50 overflow-y-auto">
-              {comingUpItems.map((item) => (
-                <ComingUpItemCard
-                  key={item._id}
-                  item={item}
-                />
-              ))}
+            <div className="relative flex-1 min-h-0">
+              {/* Below lg: in flow, card grows with content (no scroll).
+                  lg+: absolute fills the card's shared height and scrolls
+                  only when there are more items than Recent has room for. */}
+              <div className="divide-y divide-gray-100 dark:divide-gray-700/50 overflow-y-auto lg:absolute lg:inset-0">
+                {comingUpItems.map((item) => (
+                  <ComingUpItemCard
+                    key={item._id}
+                    item={item}
+                  />
+                ))}
+              </div>
             </div>
           )}
         </Card>
