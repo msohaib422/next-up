@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
 import { Plus, CheckSquare, Search, Calendar, X, Paperclip, Download } from 'lucide-react'
 import { parseISO, isPast, isToday, format } from 'date-fns'
+import { useSearchParams } from 'react-router-dom'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -40,8 +41,33 @@ export default function AssignmentsPage() {
   const [subjectFilter, setSubjectFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [dateFilter, setDateFilter] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const processedHighlight = useRef(null)
 
   useEffect(() => { fetchAssignments() }, [])
+
+  // Highlight item from dashboard navigation
+  useEffect(() => {
+    if (!loading) {
+      const highlightId = searchParams.get('highlight')
+      if (highlightId && highlightId !== processedHighlight.current) {
+        processedHighlight.current = highlightId
+        const timer = setTimeout(() => {
+          const element = document.getElementById(`item-${highlightId}`)
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            element.classList.add('highlight-glow')
+            setTimeout(() => {
+              element.classList.remove('highlight-glow')
+            }, 3000)
+          }
+          searchParams.delete('highlight')
+          setSearchParams(searchParams, { replace: true })
+        }, 300)
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [loading, searchParams])
 
   const fetchAssignments = async () => {
     try {
@@ -238,7 +264,7 @@ export default function AssignmentsPage() {
   }
 
   const renderAssignmentCard = (assignment) => (
-    <Card key={assignment._id} className="p-4 flex flex-col h-full" onClick={() => { setEditingAssignment(assignment); setShowModal(true) }}>
+    <Card id={`item-${assignment._id}`} key={assignment._id} className="p-4 flex flex-col h-full" onClick={() => { setEditingAssignment(assignment); setShowModal(true) }}>
       <div className="flex items-center justify-between mb-2">
         <Badge color={priorityColor(assignment.priority)} bgColor={priorityBgColor(assignment.priority)} textColor={priorityTextColor(assignment.priority)} size="sm">{assignment.priority}</Badge>
         <Badge color={statusColor(assignment.status)} bgColor={statusBgColor(assignment.status)} textColor={statusTextColor(assignment.status)} size="sm">{assignment.status}</Badge>

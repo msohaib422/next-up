@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
 import { useAuth } from '../hooks/useAuth'
 import { Plus, Megaphone, Search, Calendar, X, Paperclip, Download, Pin, Bookmark, ExternalLink } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
+import { useSearchParams } from 'react-router-dom'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -63,8 +64,33 @@ export default function AnnouncementsPage() {
   const [typeFilter, setTypeFilter] = useState('all')
   const [dateFilter, setDateFilter] = useState('')
   const [savedFilter, setSavedFilter] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const processedHighlight = useRef(null)
 
   useEffect(() => { fetchAnnouncements() }, [])
+
+  // Highlight item from dashboard navigation
+  useEffect(() => {
+    if (!loading) {
+      const highlightId = searchParams.get('highlight')
+      if (highlightId && highlightId !== processedHighlight.current) {
+        processedHighlight.current = highlightId
+        const timer = setTimeout(() => {
+          const element = document.getElementById(`item-${highlightId}`)
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            element.classList.add('highlight-glow')
+            setTimeout(() => {
+              element.classList.remove('highlight-glow')
+            }, 3000)
+          }
+          searchParams.delete('highlight')
+          setSearchParams(searchParams, { replace: true })
+        }, 300)
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [loading, searchParams])
 
   const fetchAnnouncements = async () => {
     try {
@@ -214,7 +240,7 @@ export default function AnnouncementsPage() {
   }
 
   const renderAnnouncementCard = (ann) => (
-    <Card key={ann._id} className="p-4 flex flex-col h-full" onClick={() => { setEditingAnnouncement(ann); setShowModal(true) }}>
+    <Card id={`item-${ann._id}`} key={ann._id} className="p-4 flex flex-col h-full" onClick={() => { setEditingAnnouncement(ann); setShowModal(true) }}>
       <div className="flex items-center justify-between mb-2">
         <Badge bgColor={TYPE_BG_COLOR[ann.type]} textColor={TYPE_TEXT_COLOR[ann.type]} size="sm">{ann.type}</Badge>
         <div className="flex items-center gap-1">
