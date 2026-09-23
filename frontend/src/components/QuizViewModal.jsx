@@ -100,6 +100,7 @@ export default function QuizViewModal({ isOpen, onClose, quiz }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <DetailField label="Priority Level" labelSize="text-[10px]">
             <Badge
+              size="sm"
               color={priorityColor(quiz.priority)}
               bgColor={priorityBgColor(quiz.priority)}
               textColor={priorityTextColor(quiz.priority)}
@@ -111,6 +112,7 @@ export default function QuizViewModal({ isOpen, onClose, quiz }) {
 
           <DetailField label="Status" labelSize="text-[10px]">
             <Badge
+              size="sm"
               color={statusColor(quiz.status)}
               bgColor={statusBgColor(quiz.status)}
               textColor={statusTextColor(quiz.status)}

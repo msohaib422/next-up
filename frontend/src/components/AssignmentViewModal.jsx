@@ -90,6 +90,7 @@ export default function AssignmentViewModal({ isOpen, onClose, assignment }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <DetailField label="Priority Level" labelSize="text-[10px]">
             <Badge
+              size="sm"
               color={priorityColor(assignment.priority)}
               bgColor={priorityBgColor(assignment.priority)}
               textColor={priorityTextColor(assignment.priority)}
@@ -101,6 +102,7 @@ export default function AssignmentViewModal({ isOpen, onClose, assignment }) {
 
           <DetailField label="Status" labelSize="text-[10px]">
             <Badge
+              size="sm"
               color={statusColor(assignment.status)}
               bgColor={statusBgColor(assignment.status)}
               textColor={statusTextColor(assignment.status)}

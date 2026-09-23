@@ -58,6 +58,7 @@ export default function AnnouncementViewModal({ isOpen, onClose, announcement })
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <DetailField label="Type" labelSize="text-[10px]">
             <Badge
+              size="sm"
               bgColor={TYPE_BG_COLOR[announcement.type]}
               textColor={TYPE_TEXT_COLOR[announcement.type]}
               className="uppercase tracking-wide"
@@ -90,10 +91,10 @@ export default function AnnouncementViewModal({ isOpen, onClose, announcement })
           <DetailField label="Status" labelSize="text-[10px]">
             <div className="flex items-center gap-2">
               {announcement.pinned && (
-                <Badge color="info" className="uppercase tracking-wide">Pinned</Badge>
+                <Badge size="sm" color="info" className="uppercase tracking-wide">Pinned</Badge>
               )}
               {announcement.expired && (
-                <Badge color="danger" className="uppercase tracking-wide">Expired</Badge>
+                <Badge size="sm" color="danger" className="uppercase tracking-wide">Expired</Badge>
               )}
             </div>
           </DetailField>

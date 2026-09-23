@@ -128,6 +128,7 @@ export default function TaskViewModal({ isOpen, onClose, task }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <DetailField label="Priority Level" labelSize="text-[10px]">
             <Badge
+              size="sm"
               color={priorityColor(task.priority)}
               bgColor={priorityBgColor(task.priority)}
               textColor={priorityTextColor(task.priority)}
@@ -139,6 +140,7 @@ export default function TaskViewModal({ isOpen, onClose, task }) {
 
           <DetailField label="Status" labelSize="text-[10px]">
             <Badge
+              size="sm"
               color={statusColor(task.status)}
               bgColor={statusBgColor(task.status)}
               textColor={statusTextColor(task.status)}

@@ -232,7 +232,10 @@ export const deleteEssential = async (req, res, next) => {
 
 export const toggleSave = async (req, res, next) => {
   try {
-    const essential = await Essential.findOne({ _id: req.params.id, user: req.user._id });
+    // Saving is per-user: any user who can SEE the essential may toggle their
+    // own entry in savedBy (same visibility scope as getEssential), not only
+    // the creator — otherwise regular users could never save admin-created items.
+    const essential = await Essential.findOne({ _id: req.params.id, user: { $in: await getVisibleUserIds(req.user) } });
     if (!essential) {
       return res.status(404).json({ success: false, message: 'Essential not found' });
     }
