@@ -13,6 +13,7 @@ import Select from '../components/ui/Select'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import TaskModal from '../components/TaskModal'
+import TaskViewModal from '../components/TaskViewModal'
 
 const PRIORITY_ORDER = ['High', 'Medium', 'Low']
 
@@ -39,6 +40,7 @@ export default function TasksPage() {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingTask, setEditingTask] = useState(null)
+  const [viewingTask, setViewingTask] = useState(null)
   const [statusFilter, setStatusFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState('all')
   const [subjectFilter, setSubjectFilter] = useState('all')
@@ -296,26 +298,34 @@ export default function TasksPage() {
         </div>
       )}
       <div className="flex-1" />
-      {isAdmin && (
-        <div className="flex items-center gap-2 mt-3 pt-3 border-t dark:border-gray-700">
-          <button
-            onClick={(e) => { e.stopPropagation(); handleToggleComplete(task) }}
-            className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
-              task.status === 'Completed'
-                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
-            }`}
-          >
-            {task.status === 'Completed' ? '✓ Done' : 'Mark Done'}
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); handleDelete(task._id) }}
-            className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50"
-          >
-            Delete
-          </button>
-        </div>
-      )}
+      <div className="flex items-center gap-2 mt-3 pt-3 border-t dark:border-gray-700">
+        {isAdmin && (
+          <>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleToggleComplete(task) }}
+              className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
+                task.status === 'Completed'
+                  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                  : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+              }`}
+            >
+              {task.status === 'Completed' ? '✓ Done' : 'Mark Done'}
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleDelete(task._id) }}
+              className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50"
+            >
+              Delete
+            </button>
+          </>
+        )}
+        <button
+          onClick={(e) => { e.stopPropagation(); setViewingTask(task) }}
+          className="ml-auto text-xs font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 px-2.5 py-1 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+        >
+          View
+        </button>
+      </div>
     </Card>
   )
 
@@ -473,6 +483,7 @@ export default function TasksPage() {
       )}
 
       <TaskModal isOpen={showModal} onClose={() => { setShowModal(false); setEditingTask(null) }} onSave={handleSave} task={editingTask} />
+      <TaskViewModal isOpen={!!viewingTask} onClose={() => setViewingTask(null)} task={viewingTask} />
     </div>
   )
 }
