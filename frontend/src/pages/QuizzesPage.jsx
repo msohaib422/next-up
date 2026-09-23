@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
+import { useAuth } from '../hooks/useAuth'
 import { Plus, HelpCircle, Search, Calendar, X, Paperclip, Download } from 'lucide-react'
 import { parseISO, isPast, isToday, format } from 'date-fns'
 import { useSearchParams } from 'react-router-dom'
@@ -32,6 +33,8 @@ const sortByDate = (a, b) => {
 }
 
 export default function QuizzesPage() {
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'collaborator'
   const [quizzes, setQuizzes] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -267,7 +270,7 @@ export default function QuizzesPage() {
   }
 
   const renderQuizCard = (quiz) => (
-    <Card id={`item-${quiz._id}`} key={quiz._id} className="p-4 flex flex-col h-full" onClick={() => { setEditingQuiz(quiz); setShowModal(true) }}>
+    <Card id={`item-${quiz._id}`} key={quiz._id} className="p-4 flex flex-col h-full" onClick={isAdmin ? () => { setEditingQuiz(quiz); setShowModal(true) } : undefined}>
       <div className="flex items-center justify-between mb-2">
         <Badge color={priorityColor(quiz.priority)} bgColor={priorityBgColor(quiz.priority)} textColor={priorityTextColor(quiz.priority)} size="sm">{quiz.priority}</Badge>
         <Badge color={statusColor(quiz.status)} bgColor={statusBgColor(quiz.status)} textColor={statusTextColor(quiz.status)} size="sm">{quiz.status}</Badge>
@@ -296,24 +299,26 @@ export default function QuizzesPage() {
         </div>
       )}
       <div className="flex-1" />
-      <div className="flex items-center gap-2 mt-3 pt-3 border-t dark:border-gray-700">
-        <button
-          onClick={(e) => { e.stopPropagation(); handleToggleComplete(quiz) }}
-          className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
-            quiz.status === 'Completed'
-              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-              : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
-          }`}
-        >
-          {quiz.status === 'Completed' ? '✓ Done' : 'Mark Done'}
-        </button>
-        <button
-          onClick={(e) => { e.stopPropagation(); handleDelete(quiz._id) }}
-          className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50"
-        >
-          Delete
-        </button>
-      </div>
+      {isAdmin && (
+        <div className="flex items-center gap-2 mt-3 pt-3 border-t dark:border-gray-700">
+          <button
+            onClick={(e) => { e.stopPropagation(); handleToggleComplete(quiz) }}
+            className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
+              quiz.status === 'Completed'
+                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+            }`}
+          >
+            {quiz.status === 'Completed' ? '✓ Done' : 'Mark Done'}
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleDelete(quiz._id) }}
+            className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50"
+          >
+            Delete
+          </button>
+        </div>
+      )}
     </Card>
   )
 
@@ -325,9 +330,11 @@ export default function QuizzesPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Quizzes</h1>
-        <Button onClick={() => { setEditingQuiz(null); setShowModal(true) }}>
-          <Plus className="w-4 h-4" /> Add Quiz
-        </Button>
+        {isAdmin && (
+          <Button onClick={() => { setEditingQuiz(null); setShowModal(true) }}>
+            <Plus className="w-4 h-4" /> Add Quiz
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -398,7 +405,7 @@ export default function QuizzesPage() {
             ? 'No quizzes match your current filters. Try adjusting your search or filters.'
             : 'Create your first quiz to get started'}
           action={
-            <Button onClick={() => setShowModal(true)}><Plus className="w-4 h-4" /> Add Quiz</Button>
+            isAdmin ? <Button onClick={() => setShowModal(true)}><Plus className="w-4 h-4" /> Add Quiz</Button> : undefined
           }
         />
       ) : isDateFilterActive ? (

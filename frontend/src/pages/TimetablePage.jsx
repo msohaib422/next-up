@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
+import { useAuth } from '../hooks/useAuth'
 import { Plus, Clock, Trash2, Edit, FileText, Upload } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -9,6 +10,8 @@ import LoadingSpinner from '../components/ui/LoadingSpinner'
 import TimetableModal from '../components/TimetableModal'
 
 export default function TimetablePage() {
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'collaborator'
   const [lectures, setLectures] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -76,7 +79,7 @@ export default function TimetablePage() {
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {imageLecture && (
+          {imageLecture && isAdmin && (
             <>
               <Button
                 variant="outline"
@@ -94,7 +97,7 @@ export default function TimetablePage() {
               </Button>
             </>
           )}
-          {!imageLecture && (
+          {!imageLecture && isAdmin && (
             <Button onClick={() => { setEditingLecture(null); setShowModal(true) }}>
               <Plus className="w-4 h-4" /> Add Timetable
             </Button>
@@ -118,9 +121,11 @@ export default function TimetablePage() {
               title="No timetable yet"
               description="Upload a timetable image to get started."
               action={
-                <Button onClick={() => setShowModal(true)}>
-                  <Upload className="w-4 h-4" /> Upload Timetable
-                </Button>
+                isAdmin ? (
+                  <Button onClick={() => setShowModal(true)}>
+                    <Upload className="w-4 h-4" /> Upload Timetable
+                  </Button>
+                ) : undefined
               }
             />
           </div>

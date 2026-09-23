@@ -1,5 +1,6 @@
 import Assignment from '../models/Assignment.js';
 import { createActivity } from './activityController.js';
+import { getVisibleUserIds } from '../utils/helpers.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
 
@@ -53,7 +54,7 @@ export const uploadAssignmentFile = [
 export const getAssignments = async (req, res, next) => {
   try {
     const { status, subject, search, sort = '-createdAt' } = req.query;
-    const query = { user: req.user._id, approvalStatus: 'Approved' };
+    const query = { user: { $in: await getVisibleUserIds(req.user) }, approvalStatus: 'Approved' };
 
     if (status) query.status = status;
     if (subject) query.subject = subject;
@@ -73,7 +74,7 @@ export const getAssignments = async (req, res, next) => {
 
 export const getAssignment = async (req, res, next) => {
   try {
-    const assignment = await Assignment.findOne({ _id: req.params.id, user: req.user._id });
+    const assignment = await Assignment.findOne({ _id: req.params.id, user: { $in: await getVisibleUserIds(req.user) } });
     if (!assignment) {
       return res.status(404).json({ success: false, message: 'Assignment not found' });
     }

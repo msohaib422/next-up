@@ -1,9 +1,22 @@
 import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
 
 export const generateToken = (userId) => {
   return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
     expiresIn: '30d',
   });
+};
+
+// Returns the list of user IDs whose records may be READ by the requester.
+// Records are stored under the creator's account, so admin (collaborator)-created
+// data must also be visible to normal users. Collaborators keep seeing only
+// their own records, exactly as before.
+export const getVisibleUserIds = async (user) => {
+  if (user.role === 'collaborator') {
+    return [user._id];
+  }
+  const collaborators = await User.find({ role: 'collaborator' }).select('_id');
+  return [user._id, ...collaborators.map((c) => c._id)];
 };
 
 export const formatDate = (date) => {

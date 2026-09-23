@@ -751,7 +751,7 @@ function UserDashboard() {
                   </div>
                   <div className="text-right">
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {format(parseISO(quiz.date || quiz.quizDate), 'MMM d, h:mm a')}
+                      {quiz.date || quiz.quizDate ? format(parseISO(quiz.date || quiz.quizDate), 'MMM d, h:mm a') : null}
                     </p>
                     {quiz.isSurprise && <Badge bgColor="#EC4899" textColor="#0F172A" size="sm">Surprise</Badge>}
                   </div>
@@ -782,7 +782,6 @@ function UserDashboard() {
 
       <div className="flex flex-wrap gap-3">
         {[
-          { label: 'Add Task', to: '/tasks', icon: CheckSquare },
           { label: 'Timetable', to: '/timetable', icon: Clock },
         ].map(action => (
           <button

@@ -15,6 +15,7 @@ import EssentialModal from '../components/EssentialModal'
 
 export default function EssentialsPage() {
   const { user } = useAuth()
+  const isAdmin = user?.role === 'collaborator'
   const [essentials, setEssentials] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -145,7 +146,7 @@ export default function EssentialsPage() {
   }
 
   const renderEssentialCard = (ess) => (
-    <Card key={ess._id} className="p-4 flex flex-col h-full" onClick={() => { setEditingEssential(ess); setShowModal(true) }}>
+    <Card key={ess._id} className="p-4 flex flex-col h-full" onClick={isAdmin ? () => { setEditingEssential(ess); setShowModal(true) } : undefined}>
       <div className="flex items-center justify-between mb-2">
         <Badge size="sm" className="!bg-purple-100 dark:!bg-purple-900/60 !text-purple-700 dark:!text-purple-300">{ess.tag || 'Topic'}</Badge>
         <button
@@ -186,12 +187,14 @@ export default function EssentialsPage() {
             Posted by: {ess.createdBy}
           </p>
         )}
-        <button
-          onClick={(e) => { e.stopPropagation(); handleDelete(ess._id) }}
-          className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 ml-auto"
-        >
-          Delete
-        </button>
+        {isAdmin && (
+          <button
+            onClick={(e) => { e.stopPropagation(); handleDelete(ess._id) }}
+            className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 ml-auto"
+          >
+            Delete
+          </button>
+        )}
       </div>
     </Card>
   )
@@ -205,9 +208,11 @@ export default function EssentialsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Essentials</h1>
-        <Button onClick={() => { setEditingEssential(null); setShowModal(true) }}>
-          <Plus className="w-4 h-4" /> Add Essential
-        </Button>
+        {isAdmin && (
+          <Button onClick={() => { setEditingEssential(null); setShowModal(true) }}>
+            <Plus className="w-4 h-4" /> Add Essential
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -265,7 +270,7 @@ export default function EssentialsPage() {
             ? 'No essentials match your current filters. Try adjusting your search or filters.'
             : 'Create your first essential to get started'}
           action={
-            <Button onClick={() => setShowModal(true)}><Plus className="w-4 h-4" /> Add Essential</Button>
+            isAdmin ? <Button onClick={() => setShowModal(true)}><Plus className="w-4 h-4" /> Add Essential</Button> : undefined
           }
         />
       ) : (

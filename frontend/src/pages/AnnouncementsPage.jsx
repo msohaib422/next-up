@@ -56,6 +56,7 @@ const TYPE_TEXT_COLOR = {
 
 export default function AnnouncementsPage() {
   const { user } = useAuth()
+  const isAdmin = user?.role === 'collaborator'
   const [announcements, setAnnouncements] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -240,17 +241,19 @@ export default function AnnouncementsPage() {
   }
 
   const renderAnnouncementCard = (ann) => (
-    <Card id={`item-${ann._id}`} key={ann._id} className="p-4 flex flex-col h-full" onClick={() => { setEditingAnnouncement(ann); setShowModal(true) }}>
+    <Card id={`item-${ann._id}`} key={ann._id} className="p-4 flex flex-col h-full" onClick={isAdmin ? () => { setEditingAnnouncement(ann); setShowModal(true) } : undefined}>
       <div className="flex items-center justify-between mb-2">
         <Badge bgColor={TYPE_BG_COLOR[ann.type]} textColor={TYPE_TEXT_COLOR[ann.type]} size="sm">{ann.type}</Badge>
         <div className="flex items-center gap-1">
-          <button
-            onClick={(e) => handleTogglePin(e, ann)}
-            className={`p-1 rounded transition-colors ${ann.pinned ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 hover:text-primary-600 dark:hover:text-primary-400'}`}
-            title={ann.pinned ? 'Unpin' : 'Pin'}
-          >
-            <Pin className="w-4 h-4" fill={ann.pinned ? 'currentColor' : 'none'} />
-          </button>
+          {isAdmin && (
+            <button
+              onClick={(e) => handleTogglePin(e, ann)}
+              className={`p-1 rounded transition-colors ${ann.pinned ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 hover:text-primary-600 dark:hover:text-primary-400'}`}
+              title={ann.pinned ? 'Unpin' : 'Pin'}
+            >
+              <Pin className="w-4 h-4" fill={ann.pinned ? 'currentColor' : 'none'} />
+            </button>
+          )}
           <button
             onClick={(e) => handleToggleSave(e, ann)}
             className={`p-1 rounded transition-colors ${isSaved(ann) ? 'text-yellow-500' : 'text-gray-400 hover:text-yellow-500'}`}
@@ -302,22 +305,26 @@ export default function AnnouncementsPage() {
             Posted by: {ann.createdBy}
           </p>
         )}
-        <button
-          onClick={(e) => { e.stopPropagation(); handleToggleExpire(e, ann) }}
-          className={`text-xs px-2 py-1 rounded ml-auto ${
-            ann.expired
-              ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50'
-              : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-          }`}
-        >
-          {ann.expired ? 'Expired' : 'Mark as Expire'}
-        </button>
-        <button
-          onClick={(e) => { e.stopPropagation(); handleDelete(ann._id) }}
-          className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50"
-        >
-          Delete
-        </button>
+        {isAdmin && (
+          <>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleToggleExpire(e, ann) }}
+              className={`text-xs px-2 py-1 rounded ml-auto ${
+                ann.expired
+                  ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50'
+                  : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              {ann.expired ? 'Expired' : 'Mark as Expire'}
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleDelete(ann._id) }}
+              className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50"
+            >
+              Delete
+            </button>
+          </>
+        )}
       </div>
     </Card>
   )
@@ -331,9 +338,11 @@ export default function AnnouncementsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Announcements</h1>
-        <Button onClick={() => { setEditingAnnouncement(null); setShowModal(true) }}>
-          <Plus className="w-4 h-4" /> Add Announcement
-        </Button>
+        {isAdmin && (
+          <Button onClick={() => { setEditingAnnouncement(null); setShowModal(true) }}>
+            <Plus className="w-4 h-4" /> Add Announcement
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -391,7 +400,7 @@ export default function AnnouncementsPage() {
             ? 'No announcements match your current filters. Try adjusting your search or filters.'
             : 'Create your first announcement to get started'}
           action={
-            <Button onClick={() => setShowModal(true)}><Plus className="w-4 h-4" /> Add Announcement</Button>
+            isAdmin ? <Button onClick={() => setShowModal(true)}><Plus className="w-4 h-4" /> Add Announcement</Button> : undefined
           }
         />
       ) : (

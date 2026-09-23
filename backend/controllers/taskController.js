@@ -1,5 +1,6 @@
 import Task from '../models/Task.js';
 import { createActivity } from './activityController.js';
+import { getVisibleUserIds } from '../utils/helpers.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
 
@@ -67,7 +68,7 @@ export const uploadTaskFile = [
 export const getTasks = async (req, res, next) => {
   try {
     const { status, priority, search, sort = '-createdAt' } = req.query;
-    const query = { user: req.user._id };
+    const query = { user: { $in: await getVisibleUserIds(req.user) } };
 
     if (status) query.status = status;
     if (priority) query.priority = priority;
@@ -87,7 +88,7 @@ export const getTasks = async (req, res, next) => {
 
 export const getTask = async (req, res, next) => {
   try {
-    const task = await Task.findOne({ _id: req.params.id, user: req.user._id });
+    const task = await Task.findOne({ _id: req.params.id, user: { $in: await getVisibleUserIds(req.user) } });
     if (!task) {
       return res.status(404).json({ success: false, message: 'Task not found' });
     }

@@ -1,10 +1,11 @@
 import ImportantDate from '../models/ImportantDate.js';
 import { createActivity } from './activityController.js';
+import { getVisibleUserIds } from '../utils/helpers.js';
 
 export const getImportantDates = async (req, res, next) => {
   try {
     const { type, priority, search, sort = '-createdAt' } = req.query;
-    const query = { user: req.user._id };
+    const query = { user: { $in: await getVisibleUserIds(req.user) } };
 
     if (type) query.type = type;
     if (priority) query.priority = priority;
@@ -24,7 +25,7 @@ export const getImportantDates = async (req, res, next) => {
 
 export const getImportantDate = async (req, res, next) => {
   try {
-    const date = await ImportantDate.findOne({ _id: req.params.id, user: req.user._id });
+    const date = await ImportantDate.findOne({ _id: req.params.id, user: { $in: await getVisibleUserIds(req.user) } });
     if (!date) {
       return res.status(404).json({ success: false, message: 'Important date not found' });
     }
