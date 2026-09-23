@@ -12,6 +12,7 @@ import Select from '../components/ui/Select'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import EssentialModal from '../components/EssentialModal'
+import EssentialViewModal from '../components/EssentialViewModal'
 
 export default function EssentialsPage() {
   const { user } = useAuth()
@@ -20,6 +21,7 @@ export default function EssentialsPage() {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingEssential, setEditingEssential] = useState(null)
+  const [viewingEssential, setViewingEssential] = useState(null)
   const [search, setSearch] = useState('')
   const [dateFilter, setDateFilter] = useState('')
   const [courseFilter, setCourseFilter] = useState('all')
@@ -146,7 +148,7 @@ export default function EssentialsPage() {
   }
 
   const renderEssentialCard = (ess) => (
-    <Card key={ess._id} className="p-4 flex flex-col h-full" onClick={isAdmin ? () => { setEditingEssential(ess); setShowModal(true) } : undefined}>
+    <Card key={ess._id} className="p-4 flex flex-col h-full" onClick={isAdmin ? () => { setEditingEssential(ess); setShowModal(true) } : () => setViewingEssential(ess)}>
       <div className="flex items-center justify-between mb-2">
         <Badge size="sm" className="!bg-purple-100 dark:!bg-purple-900/60 !text-purple-700 dark:!text-purple-300">{ess.tag || 'Topic'}</Badge>
         <button
@@ -280,6 +282,7 @@ export default function EssentialsPage() {
       )}
 
       <EssentialModal isOpen={showModal} onClose={() => { setShowModal(false); setEditingEssential(null) }} onSave={handleSave} essential={editingEssential} />
+      <EssentialViewModal isOpen={!!viewingEssential} onClose={() => setViewingEssential(null)} essential={viewingEssential} />
     </div>
   )
 }

@@ -13,6 +13,7 @@ import Select from '../components/ui/Select'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import AnnouncementModal from '../components/AnnouncementModal'
+import AnnouncementViewModal from '../components/AnnouncementViewModal'
 
 const ANNOUNCEMENT_TYPES = [
   { value: 'General', label: 'General' },
@@ -61,6 +62,7 @@ export default function AnnouncementsPage() {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingAnnouncement, setEditingAnnouncement] = useState(null)
+  const [viewingAnnouncement, setViewingAnnouncement] = useState(null)
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [dateFilter, setDateFilter] = useState('')
@@ -241,7 +243,7 @@ export default function AnnouncementsPage() {
   }
 
   const renderAnnouncementCard = (ann) => (
-    <Card id={`item-${ann._id}`} key={ann._id} className="p-4 flex flex-col h-full" onClick={isAdmin ? () => { setEditingAnnouncement(ann); setShowModal(true) } : undefined}>
+    <Card id={`item-${ann._id}`} key={ann._id} className="p-4 flex flex-col h-full" onClick={isAdmin ? () => { setEditingAnnouncement(ann); setShowModal(true) } : () => setViewingAnnouncement(ann)}>
       <div className="flex items-center justify-between mb-2">
         <Badge bgColor={TYPE_BG_COLOR[ann.type]} textColor={TYPE_TEXT_COLOR[ann.type]} size="sm">{ann.type}</Badge>
         <div className="flex items-center gap-1">
@@ -441,6 +443,7 @@ export default function AnnouncementsPage() {
       )}
 
       <AnnouncementModal isOpen={showModal} onClose={() => { setShowModal(false); setEditingAnnouncement(null) }} onSave={handleSave} announcement={editingAnnouncement} />
+      <AnnouncementViewModal isOpen={!!viewingAnnouncement} onClose={() => setViewingAnnouncement(null)} announcement={viewingAnnouncement} />
     </div>
   )
 }

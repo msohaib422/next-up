@@ -13,6 +13,7 @@ import Select from '../components/ui/Select'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import QuizModal from '../components/QuizModal'
+import QuizViewModal from '../components/QuizViewModal'
 
 const PRIORITY_ORDER = ['High', 'Medium', 'Low']
 
@@ -39,6 +40,7 @@ export default function QuizzesPage() {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingQuiz, setEditingQuiz] = useState(null)
+  const [viewingQuiz, setViewingQuiz] = useState(null)
   const [statusFilter, setStatusFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState('all')
   const [subjectFilter, setSubjectFilter] = useState('all')
@@ -270,7 +272,14 @@ export default function QuizzesPage() {
   }
 
   const renderQuizCard = (quiz) => (
-    <Card id={`item-${quiz._id}`} key={quiz._id} className="p-4 flex flex-col h-full" onClick={isAdmin ? () => { setEditingQuiz(quiz); setShowModal(true) } : undefined}>
+    <Card
+      id={`item-${quiz._id}`}
+      key={quiz._id}
+      className="p-4 flex flex-col h-full"
+      onClick={isAdmin
+        ? () => { setEditingQuiz(quiz); setShowModal(true) }
+        : () => setViewingQuiz(quiz)}
+    >
       <div className="flex items-center justify-between mb-2">
         <Badge color={priorityColor(quiz.priority)} bgColor={priorityBgColor(quiz.priority)} textColor={priorityTextColor(quiz.priority)} size="sm">{quiz.priority}</Badge>
         <Badge color={statusColor(quiz.status)} bgColor={statusBgColor(quiz.status)} textColor={statusTextColor(quiz.status)} size="sm">{quiz.status}</Badge>
@@ -476,6 +485,7 @@ export default function QuizzesPage() {
       )}
 
       <QuizModal isOpen={showModal} onClose={() => { setShowModal(false); setEditingQuiz(null) }} onSave={handleSave} quiz={editingQuiz} />
+      <QuizViewModal isOpen={!!viewingQuiz} onClose={() => setViewingQuiz(null)} quiz={viewingQuiz} />
     </div>
   )
 }

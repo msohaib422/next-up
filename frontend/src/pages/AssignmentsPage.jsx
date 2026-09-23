@@ -13,6 +13,7 @@ import Select from '../components/ui/Select'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import AssignmentModal from '../components/AssignmentModal'
+import AssignmentViewModal from '../components/AssignmentViewModal'
 
 const PRIORITY_ORDER = ['High', 'Medium', 'Low']
 
@@ -39,6 +40,7 @@ export default function AssignmentsPage() {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingAssignment, setEditingAssignment] = useState(null)
+  const [viewingAssignment, setViewingAssignment] = useState(null)
   const [statusFilter, setStatusFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState('all')
   const [subjectFilter, setSubjectFilter] = useState('all')
@@ -267,7 +269,14 @@ export default function AssignmentsPage() {
   }
 
   const renderAssignmentCard = (assignment) => (
-    <Card id={`item-${assignment._id}`} key={assignment._id} className="p-4 flex flex-col h-full" onClick={isAdmin ? () => { setEditingAssignment(assignment); setShowModal(true) } : undefined}>
+    <Card
+      id={`item-${assignment._id}`}
+      key={assignment._id}
+      className="p-4 flex flex-col h-full"
+      onClick={isAdmin
+        ? () => { setEditingAssignment(assignment); setShowModal(true) }
+        : () => setViewingAssignment(assignment)}
+    >
       <div className="flex items-center justify-between mb-2">
         <Badge color={priorityColor(assignment.priority)} bgColor={priorityBgColor(assignment.priority)} textColor={priorityTextColor(assignment.priority)} size="sm">{assignment.priority}</Badge>
         <Badge color={statusColor(assignment.status)} bgColor={statusBgColor(assignment.status)} textColor={statusTextColor(assignment.status)} size="sm">{assignment.status}</Badge>
@@ -473,6 +482,7 @@ export default function AssignmentsPage() {
       )}
 
       <AssignmentModal isOpen={showModal} onClose={() => { setShowModal(false); setEditingAssignment(null) }} onSave={handleSave} assignment={editingAssignment} />
+      <AssignmentViewModal isOpen={!!viewingAssignment} onClose={() => setViewingAssignment(null)} assignment={viewingAssignment} />
     </div>
   )
 }
