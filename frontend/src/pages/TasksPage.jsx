@@ -269,7 +269,14 @@ export default function TasksPage() {
   }
 
   const renderTaskCard = (task) => (
-    <Card id={`item-${task._id}`} key={task._id} className="p-4 flex flex-col h-full" onClick={isAdmin ? () => { setEditingTask(task); setShowModal(true) } : undefined}>
+    <Card
+      id={`item-${task._id}`}
+      key={task._id}
+      className="p-4 flex flex-col h-full"
+      onClick={isAdmin
+        ? () => { setEditingTask(task); setShowModal(true) }
+        : () => setViewingTask(task)}
+    >
       <div className="flex items-center justify-between mb-2">
         <Badge color={priorityColor(task.priority)} bgColor={priorityBgColor(task.priority)} textColor={priorityTextColor(task.priority)} size="sm">{task.priority}</Badge>
         <Badge color={statusColor(task.status)} bgColor={statusBgColor(task.status)} textColor={statusTextColor(task.status)} size="sm">{task.status}</Badge>
@@ -298,34 +305,26 @@ export default function TasksPage() {
         </div>
       )}
       <div className="flex-1" />
-      <div className="flex items-center gap-2 mt-3 pt-3 border-t dark:border-gray-700">
-        {isAdmin && (
-          <>
-            <button
-              onClick={(e) => { e.stopPropagation(); handleToggleComplete(task) }}
-              className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
-                task.status === 'Completed'
-                  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                  : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
-              }`}
-            >
-              {task.status === 'Completed' ? '✓ Done' : 'Mark Done'}
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); handleDelete(task._id) }}
-              className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50"
-            >
-              Delete
-            </button>
-          </>
-        )}
-        <button
-          onClick={(e) => { e.stopPropagation(); setViewingTask(task) }}
-          className="ml-auto text-xs font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 px-2.5 py-1 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
-        >
-          View
-        </button>
-      </div>
+      {isAdmin && (
+        <div className="flex items-center gap-2 mt-3 pt-3 border-t dark:border-gray-700">
+          <button
+            onClick={(e) => { e.stopPropagation(); handleToggleComplete(task) }}
+            className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
+              task.status === 'Completed'
+                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+            }`}
+          >
+            {task.status === 'Completed' ? '✓ Done' : 'Mark Done'}
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleDelete(task._id) }}
+            className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50"
+          >
+            Delete
+          </button>
+        </div>
+      )}
     </Card>
   )
 
