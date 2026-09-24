@@ -94,7 +94,9 @@ export const getContributionStats = async (req, res, next) => {
 export const getContribution = async (req, res, next) => {
   try {
     const query = req.user.role === 'collaborator' ? { _id: req.params.id } : { _id: req.params.id, user: req.user._id };
-    const contribution = await Contribution.findOne(query).populate('user', 'name email');
+    const contribution = await Contribution.findOne(query)
+      .populate('user', 'name email')
+      .populate('reviewedBy', 'name email');
     if (!contribution) return res.status(404).json({ success: false, message: 'Contribution not found.' });
     res.json({ success: true, data: contribution });
   } catch (error) { next(error); }
@@ -110,7 +112,10 @@ export const listContributions = async (req, res, next) => {
       query.$or = [{ title: search }, { 'user.name': search }];
     }
     const [data, rows] = await Promise.all([
-      Contribution.find(query).populate('user', 'name email').sort({ createdAt: -1 }),
+      Contribution.find(query)
+        .populate('user', 'name email')
+        .populate('reviewedBy', 'name email')
+        .sort({ createdAt: -1 }),
       Contribution.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
     ]);
     res.json({ success: true, data, stats: buildStats(rows) });
