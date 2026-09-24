@@ -1,17 +1,19 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import api from '../api/axios'
-import LoadingSpinner from '../components/ui/LoadingSpinner'
 import Card from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
 import EmptyState from '../components/ui/EmptyState'
 import {
   CheckSquare, Clock, HelpCircle, Megaphone,
-  Plus, AlertTriangle, CheckCircle2, PlayCircle,
-  Users, FileCheck, Paperclip, Pin, Calendar,
-  BookOpen
+  AlertTriangle, CheckCircle2, Users, FileCheck,
+  Pin, BookOpen, CalendarCheck, CalendarClock,
+  ChevronRight, ArrowRight
 } from 'lucide-react'
-import { format, formatDistanceToNow, isPast, isToday, addDays, parseISO } from 'date-fns'
+import {
+  format, formatDistanceToNow,
+  parseISO, differenceInCalendarDays
+} from 'date-fns'
 import { useNavigate } from 'react-router-dom'
 
 // ============================================================
@@ -558,14 +560,375 @@ function AdminDashboard() {
 // USER DASHBOARD
 // ============================================================
 
+const UPCOMING_LIMIT = 5
+const RECENT_LIMIT = 8
+// Needs-attention list scroll cap — the card never outgrows this;
+// extra overdue items live inside the scrollable area (header stays fixed)
+const ATTENTION_SCROLL_MAX = '16rem'
+
+// Type tag colors — shared with the admin dashboard lists
+const TYPE_BADGE_PROPS = {
+  Task: { color: 'info' },
+  Quiz: { color: 'purple' },
+  Assignment: { color: 'warning' },
+  Announcement: { color: 'neutral' },
+  Essential: { color: 'teal' },
+}
+
+// Priority tag colors — matches the Task/Assignment/Quiz cards
+const PRIORITY_BADGE_PROPS = {
+  High: { color: 'danger' },
+  Medium: { bgColor: '#F04438', textColor: '#FFFFFF' },
+  Low: { bgColor: '#EAB308', textColor: '#0F172A' },
+}
+
+// Announcement type tags — matches the Announcements page exactly
+const ANNOUNCEMENT_BADGE_PROPS = {
+  General: { bgColor: '#7E22CE', textColor: '#FFFFFF' },
+  Academic: { bgColor: '#0D9488', textColor: '#FFFFFF' },
+  Assignment: { bgColor: '#EA580C', textColor: '#FFFFFF' },
+  Quiz: { bgColor: '#BE123C', textColor: '#FFFFFF' },
+  Task: { bgColor: '#CA8A04', textColor: '#0F172A' },
+  Exam: { bgColor: '#DC2626', textColor: '#FFFFFF' },
+  Event: { bgColor: '#DB2777', textColor: '#FFFFFF' },
+}
+
+const KEY_DATE_BADGE_PROPS = {
+  Exam: { color: 'danger' },
+  Assignment: { color: 'warning' },
+  Quiz: { color: 'success' },
+  Presentation: { color: 'teal' },
+  Project: { color: 'info' },
+  Event: { color: 'purple' },
+  Other: { color: 'neutral' },
+}
+
+const TYPE_ICONS = {
+  Task: CheckSquare,
+  Assignment: FileCheck,
+  Quiz: HelpCircle,
+  Essential: BookOpen,
+  Announcement: Megaphone,
+}
+
+const TYPE_TILES = {
+  Task: 'text-blue-600 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-400',
+  Assignment: 'text-amber-600 bg-amber-50 dark:bg-amber-900/30 dark:text-amber-400',
+  Quiz: 'text-violet-600 bg-violet-50 dark:bg-violet-900/30 dark:text-violet-400',
+  Essential: 'text-teal-600 bg-teal-50 dark:bg-teal-900/30 dark:text-teal-400',
+  Announcement: 'text-gray-600 bg-gray-100 dark:bg-gray-700/60 dark:text-gray-300',
+}
+
+const normalizeList = (res) => {
+  if (!res?.data) return []
+  return Array.isArray(res.data) ? res.data : (res.data.data || [])
+}
+
+const hasValidDate = (value) => !!value && !Number.isNaN(new Date(value).getTime())
+
+// Calendar-day difference between an item's date and today (local time).
+// Day-level comparison is timezone-safe: a deadline stored for "today" never
+// counts as past just because the clock moved past its time-of-day.
+const daysUntil = (iso) => differenceInCalendarDays(parseISO(String(iso)), new Date())
+
+// An item only participates in Upcoming/Needs-attention while it is open.
+const isOpen = (item) => item.status !== 'Completed'
+
+// Past-and-uncompleted. Respects BOTH date and status:
+//  - a stored 'Overdue' status always wins, and
+//  - an open item whose date is before today is overdue.
+// Completed items can never be overdue.
+const isOverdueWork = (item) => {
+  if (!isOpen(item)) return false
+  if (item.status === 'Overdue') return true
+  return daysUntil(item._date) < 0
+}
+
+const getCourseLabel = (item) => {
+  if (item._type === 'Essential') return item.course?.trim() || 'General'
+  return item.subject?.trim() || 'General'
+}
+
+// "By <name>" — author label built from the item's actual createdBy value.
+// Never hardcoded; returns '' when the data carries no author.
+const formatAuthor = (name) => {
+  const n = String(name || '').trim()
+  return n ? `By ${n}` : ''
+}
+
+// Metadata line: context · By author · relative time
+const getRecentMeta = (item) => {
+  const parts = []
+  if (item._type === 'Announcement') {
+    if (item.type) parts.push(item.type)
+  } else {
+    parts.push(getCourseLabel(item))
+  }
+  const author = formatAuthor(item.createdBy)
+  if (author) parts.push(author)
+  const timestamp = item.updatedAt || item.createdAt || item.date
+  if (hasValidDate(timestamp)) {
+    parts.push(formatDistanceToNow(parseISO(String(timestamp)), { addSuffix: true }))
+  }
+  return parts.filter(Boolean).join(' · ')
+}
+
+// ============================================================
+// SHARED DASHBOARD PIECES
+// ============================================================
+
+function SectionHeader({ title, subtitle, action }) {
+  return (
+    <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/50 flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <h2 className="text-base font-semibold text-gray-900 dark:text-white">{title}</h2>
+        {subtitle && (
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{subtitle}</p>
+        )}
+      </div>
+      {action && <div className="shrink-0 pt-0.5">{action}</div>}
+    </div>
+  )
+}
+
+function CardEmpty({ icon: Icon, title, description, tone = 'text-gray-400' }) {
+  return (
+    <div className="flex flex-col items-center justify-center text-center px-5 py-10">
+      <div className="w-11 h-11 rounded-full bg-gray-100 dark:bg-gray-700/60 flex items-center justify-center mb-3">
+        <Icon className={`w-5 h-5 ${tone}`} />
+      </div>
+      <p className="text-sm font-medium text-gray-900 dark:text-white">{title}</p>
+      {description && (
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-[260px]">{description}</p>
+      )}
+    </div>
+  )
+}
+
+function UserStatCard({ label, value, caption, icon: Icon, tone, captionTone = 'text-gray-400 dark:text-gray-500' }) {
+  return (
+    <Card className="p-4 sm:p-5 h-full min-w-0">
+      <div className="flex items-center gap-3 sm:gap-4">
+        <div className={`w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${tone}`}>
+          <Icon className="w-5 h-5 sm:w-6 sm:h-6" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-2xl font-bold text-gray-900 dark:text-white leading-none">{value}</p>
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mt-1.5 truncate">{label}</p>
+          <p className={`hidden sm:block text-xs mt-1 truncate ${captionTone}`}>{caption}</p>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+// ============================================================
+// UPCOMING ROW — deadline / quiz / key-date timeline row
+// ============================================================
+
+function UpcomingRow({ item, onOpen }) {
+  const date = parseISO(String(item._date))
+  const days = daysUntil(item._date)
+  const overdue = isOverdueWork(item)
+  const today = !overdue && days === 0
+  const clickable = item._type !== 'KeyDate'
+  const Wrapper = clickable ? 'button' : 'div'
+
+  const badgeProps = item._type === 'KeyDate'
+    ? (KEY_DATE_BADGE_PROPS[item.type] || { color: 'neutral' })
+    : (TYPE_BADGE_PROPS[item._type] || { color: 'neutral' })
+  const badgeLabel = item._type === 'KeyDate' ? (item.type || 'Key date') : item._type
+
+  const metaText = item._type === 'KeyDate'
+    ? (item.description?.trim() || 'Important date')
+    : getCourseLabel(item)
+
+  const dateTone = overdue
+    ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+    : today
+    ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+    : 'bg-gray-100 text-gray-600 dark:bg-gray-700/60 dark:text-gray-300'
+
+  const dueTone = overdue
+    ? 'text-red-600 dark:text-red-400'
+    : today
+    ? 'text-amber-600 dark:text-amber-400'
+    : 'text-gray-500 dark:text-gray-400'
+
+  const dueText = overdue
+    ? days < 0
+      ? `${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'} overdue`
+      : 'Overdue'
+    : today
+    ? 'Due today'
+    : formatDistanceToNow(date, { addSuffix: true })
+
+  return (
+    <Wrapper
+      type={clickable ? 'button' : undefined}
+      onClick={clickable ? () => onOpen(item) : undefined}
+      className={`group w-full text-left flex items-center gap-3 sm:gap-4 px-5 py-3.5 transition-colors ${
+        clickable ? 'hover:bg-gray-50 dark:hover:bg-gray-700/30' : ''
+      }`}
+    >
+      <div className={`flex flex-col items-center justify-center w-12 py-1.5 rounded-lg flex-shrink-0 ${dateTone}`}>
+        <span className="text-[10px] font-semibold uppercase tracking-wider leading-none opacity-80">
+          {format(date, 'MMM')}
+        </span>
+        <span className="text-lg font-bold leading-none mt-1">{format(date, 'd')}</span>
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          {item._type === 'Announcement' && item.pinned && (
+            <Pin className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+          )}
+          <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.title}</h3>
+        </div>
+        <div className="flex items-center gap-2 mt-1 min-w-0">
+          <Badge {...badgeProps} size="sm" className="shrink-0">{badgeLabel}</Badge>
+          {item._type === 'Quiz' && (item.isSurprise || item.deadlineMode === 'Surprise') && (
+            <Badge bgColor="#EC4899" textColor="#0F172A" size="sm" className="shrink-0">Surprise</Badge>
+          )}
+          <span className="text-xs text-gray-500 dark:text-gray-400 truncate">{metaText}</span>
+        </div>
+      </div>
+
+      <div className="flex flex-col items-end gap-1 flex-shrink-0">
+        {item.priority && (
+          <Badge {...(PRIORITY_BADGE_PROPS[item.priority] || { color: 'neutral' })} size="sm" className="hidden sm:inline-flex">
+            {item.priority}
+          </Badge>
+        )}
+        <span className={`text-xs font-medium whitespace-nowrap ${dueTone}`}>{dueText}</span>
+      </div>
+      {clickable && (
+        <ChevronRight className="hidden sm:block w-4 h-4 text-gray-300 dark:text-gray-600 group-hover:text-primary-500 shrink-0" />
+      )}
+    </Wrapper>
+  )
+}
+
+// ============================================================
+// RECENT ROW — recently created / updated item
+// ============================================================
+
+function RecentRow({ item, onOpen }) {
+  const Icon = TYPE_ICONS[item._type] || Clock
+  const completed = item.status === 'Completed'
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(item)}
+      className="group w-full text-left flex items-center gap-3 sm:gap-4 px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
+    >
+      <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${TYPE_TILES[item._type] || TYPE_TILES.Announcement}`}>
+        <Icon className="w-4 h-4" />
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          {item._type === 'Announcement' && item.pinned && (
+            <Pin className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+          )}
+          <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.title}</h3>
+          {completed && (
+            <span className="text-green-500 dark:text-green-400 shrink-0" title="Completed">
+              <CheckCircle2 className="w-4 h-4" />
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-1">{getRecentMeta(item)}</p>
+      </div>
+
+      <Badge {...(TYPE_BADGE_PROPS[item._type] || { color: 'neutral' })} size="sm" className="shrink-0">
+        {item._type}
+      </Badge>
+      <ChevronRight className="hidden sm:block w-4 h-4 text-gray-300 dark:text-gray-600 group-hover:text-primary-500 shrink-0" />
+    </button>
+  )
+}
+
+// ============================================================
+// LOADING SKELETON
+// ============================================================
+
+function UserDashboardSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-2">
+          <div className="h-7 w-56 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+          <div className="h-4 w-72 max-w-full bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+        </div>
+        <div className="h-8 w-28 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse" />
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[1, 2, 3, 4].map(i => <StatCardSkeleton key={i} />)}
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-6 items-start">
+        <div className="lg:col-span-2 space-y-6">
+          <Card className="overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/50">
+              <div className="h-5 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+            </div>
+            <ListSkeleton rows={5} />
+          </Card>
+          <Card className="overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/50">
+              <div className="h-5 w-36 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+            </div>
+            <ListSkeleton rows={3} />
+          </Card>
+        </div>
+        <div className="space-y-6">
+          <Card className="overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/50">
+              <div className="h-5 w-36 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+            </div>
+            <ListSkeleton rows={3} />
+          </Card>
+          <Card className="p-5">
+            <div className="h-5 w-28 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse mb-4" />
+            <div className="grid grid-cols-2 gap-3">
+              {[1, 2, 3, 4, 5].map(i => (
+                <div key={i} className="rounded-xl border border-gray-200 dark:border-gray-700 p-3.5">
+                  <div className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-700 animate-pulse mb-2.5" />
+                  <div className="h-3.5 w-16 bg-gray-100 dark:bg-gray-700 rounded animate-pulse mb-1.5" />
+                  <div className="h-3 w-12 bg-gray-100 dark:bg-gray-700 rounded animate-pulse" />
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+        <Card className="overflow-hidden lg:col-span-3">
+          <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/50">
+            <div className="h-5 w-40 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+          </div>
+          <ListSkeleton rows={4} />
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// USER DASHBOARD
+// ============================================================
+
 function UserDashboard() {
-  const [stats, setStats] = useState(null)
-  const [schedule, setSchedule] = useState([])
-  const [deadlines, setDeadlines] = useState([])
+  const [tasks, setTasks] = useState([])
+  const [assignments, setAssignments] = useState([])
   const [quizzes, setQuizzes] = useState([])
   const [announcements, setAnnouncements] = useState([])
+  const [essentials, setEssentials] = useState([])
+  const [importantDates, setImportantDates] = useState([])
   const [currentTime, setCurrentTime] = useState(new Date())
   const [loading, setLoading] = useState(true)
+  const [showAllUpcoming, setShowAllUpcoming] = useState(false)
   const { user } = useAuth()
   const navigate = useNavigate()
 
@@ -577,46 +940,26 @@ function UserDashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [tasksRes, quizzesRes, annRes, timetableRes, assignmentsRes] = await Promise.all([
+        const [
+          tasksRes, assignmentsRes, quizzesRes, annRes,
+          essRes, datesRes,
+        ] = await Promise.all([
           api.get('/tasks').catch(() => ({ data: [] })),
+          api.get('/assignments').catch(() => ({ data: [] })),
           api.get('/quizzes').catch(() => ({ data: [] })),
           api.get('/announcements').catch(() => ({ data: [] })),
-          api.get('/lectures').catch(() => ({ data: [] })),
-          api.get('/assignments').catch(() => ({ data: [] })),
+          api.get('/essentials').catch(() => ({ data: [] })),
+          api.get('/important-dates').catch(() => ({ data: [] })),
         ])
 
-        const tasks = Array.isArray(tasksRes.data) ? 
-        tasksRes.data : (tasksRes.data.data || [])
-        const quizzesData = Array.isArray(quizzesRes.data) ? quizzesRes.data : (quizzesRes.data.data || [])
-        const annData = Array.isArray(annRes.data) ? annRes.data : (annRes.data.data || [])
-        const timetable = Array.isArray(timetableRes.data) ? timetableRes.data : (timetableRes.data.data || [])
-        const assignmentsData = Array.isArray(assignmentsRes.data) ? assignmentsRes.data : (assignmentsRes.data.data || [])
-
-        setStats({
-          totalTasks: tasks.length + assignmentsData.length,
-          pendingTasks: tasks.filter(t => t.status !== 'Completed').length + assignmentsData.filter(a => a.status !== 'Completed').length,
-          upcomingQuizzes: quizzesData.filter(q => !isPast(parseISO(q.date || q.quizDate))).length,
-        })
-
-        const todaySchedule = timetable.slice(0, 5)
-        setSchedule(todaySchedule)
-
-        const allDeadlines = [
-          ...tasks.filter(t => t.status !== 'Completed' && t.deadline).map(t => ({ ...t, _type: 'task' })),
-          ...assignmentsData.filter(a => a.status !== 'Completed' && a.deadline).map(a => ({ ...a, _type: 'assignment' })),
-        ].sort((a, b) => new Date(a.deadline) - new Date(b.deadline)).slice(0, 5)
-        setDeadlines(allDeadlines)
-
-        setQuizzes(
-          quizzesData
-            .filter(q => !isPast(parseISO(q.date || q.quizDate)))
-            .sort((a, b) => new Date(a.date || a.quizDate) - new Date(b.date || b.quizDate))
-            .slice(0, 3)
-        )
-
-        setAnnouncements(annData.slice(0, 3))
+        setTasks(normalizeList(tasksRes))
+        setAssignments(normalizeList(assignmentsRes))
+        setQuizzes(normalizeList(quizzesRes))
+        setAnnouncements(normalizeList(annRes))
+        setEssentials(normalizeList(essRes))
+        setImportantDates(normalizeList(datesRes))
       } catch (err) {
-        console.error(err)
+        console.error('Dashboard fetch error:', err)
       } finally {
         setLoading(false)
       }
@@ -624,175 +967,461 @@ function UserDashboard() {
     fetchData()
   }, [])
 
-  const getLectureStatus = () => {
-    return 'upcoming'
+  // ── Derived data ──────────────────────────────────────────
+  const openTaskList = useMemo(
+    () => tasks.filter(isOpen),
+    [tasks]
+  )
+  const openAssignmentList = useMemo(
+    () => assignments.filter(isOpen),
+    [assignments]
+  )
+  const openQuizList = useMemo(
+    () => quizzes.filter(isOpen),
+    [quizzes]
+  )
+
+  // Open tasks + assignments that carry a concrete deadline
+  const datedWork = useMemo(() => [
+    ...openTaskList
+      .filter(t => t.deadline && hasValidDate(t.deadline))
+      .map(t => ({ ...t, _type: 'Task', _date: t.deadline })),
+    ...openAssignmentList
+      .filter(a => a.deadline && hasValidDate(a.deadline))
+      .map(a => ({ ...a, _type: 'Assignment', _date: a.deadline })),
+  ], [openTaskList, openAssignmentList])
+
+  // Open quizzes with a concrete date — same shape as datedWork
+  const datedQuizzes = useMemo(() =>
+    openQuizList
+      .filter(q => q.date && hasValidDate(q.date))
+      .map(q => ({ ...q, _type: 'Quiz', _date: q.date })),
+    [openQuizList]
+  )
+
+  // Every open work item that has a real date to compare against
+  const datedOpenWork = useMemo(
+    () => [...datedWork, ...datedQuizzes],
+    [datedWork, datedQuizzes]
+  )
+
+  // OVERDUE = past (or flagged Overdue) AND still open — worst first
+  const overdueItems = useMemo(() =>
+    datedOpenWork
+      .filter(isOverdueWork)
+      .sort((a, b) => new Date(a._date) - new Date(b._date)),
+    [datedOpenWork]
+  )
+
+  // UPCOMING WORK = open, dated, not overdue → due today or later,
+  // sorted by nearest deadline
+  const futureWork = useMemo(() =>
+    datedOpenWork
+      .filter(w => !isOverdueWork(w))
+      .sort((a, b) => new Date(a._date) - new Date(b._date)),
+    [datedOpenWork]
+  )
+
+  const deadlineStats = useMemo(() => {
+    const dueSoon = futureWork.filter(w => daysUntil(w._date) <= 7)
+    return {
+      overdue: overdueItems,
+      dueSoon,
+      next: futureWork[0] || null,
+    }
+  }, [futureWork, overdueItems])
+
+  const upcomingQuizzes = useMemo(
+    () => futureWork.filter(w => w._type === 'Quiz'),
+    [futureWork]
+  )
+
+  // Unified timeline: today's and future deadlines, quizzes and key dates.
+  // Completed items and past dates can never enter this list.
+  const upcomingItems = useMemo(() => {
+    const keyDates = importantDates
+      .filter(d => d.date && hasValidDate(d.date))
+      .filter(d => daysUntil(d.date) >= 0)
+      .map(d => ({ ...d, _type: 'KeyDate', _date: d.date }))
+
+    return [...futureWork, ...keyDates].sort(
+      (a, b) => new Date(a._date) - new Date(b._date)
+    )
+  }, [futureWork, importantDates])
+
+  const completedCount = useMemo(() =>
+    [...tasks, ...assignments, ...quizzes].filter(x => x.status === 'Completed').length,
+    [tasks, assignments, quizzes]
+  )
+  const totalWorkItems = tasks.length + assignments.length + quizzes.length
+
+  // Recently created or updated items across all feature areas.
+  // Sorted newest → oldest by the item's own timestamp; invalid or missing
+  // timestamps sink to the bottom instead of corrupting the order.
+  const recentItems = useMemo(() => {
+    const tag = (arr, type) => arr.map(x => ({ ...x, _type: type }))
+    const ts = (x) => {
+      const raw = x.updatedAt || x.createdAt || x.date || 0
+      const time = new Date(raw).getTime()
+      return Number.isFinite(time) ? time : 0
+    }
+    return [
+      ...tag(tasks, 'Task'),
+      ...tag(assignments, 'Assignment'),
+      ...tag(quizzes, 'Quiz'),
+      ...tag(essentials, 'Essential'),
+      ...tag(announcements.filter(a => !a.expired), 'Announcement'),
+    ].sort((a, b) => ts(b) - ts(a))
+  }, [tasks, assignments, quizzes, essentials, announcements])
+
+  // Pinned announcements first, then most recent, expired excluded
+  const topAnnouncements = useMemo(() => {
+    const byDateDesc = (a, b) =>
+      new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0)
+    const live = announcements.filter(a => !a.expired)
+    return [
+      ...live.filter(a => a.pinned).sort(byDateDesc),
+      ...live.filter(a => !a.pinned).sort(byDateDesc),
+    ].slice(0, 4)
+  }, [announcements])
+
+  const visibleUpcoming = showAllUpcoming ? upcomingItems : upcomingItems.slice(0, UPCOMING_LIMIT)
+  // Strict cap: only the latest activities are shown, newest first — a new
+  // activity pushes the oldest displayed one out. No expansion.
+  const visibleRecent = recentItems.slice(0, RECENT_LIMIT)
+
+  const openItem = (item) => {
+    if (!item || item._type === 'KeyDate') return
+    navigate(`${getItemRoute(item)}?highlight=${item._id}`)
   }
 
-  if (loading) return <LoadingSpinner />
+  if (loading) return <UserDashboardSkeleton />
+
+  // ── Header, stats and quick access data ───────────────────
+  const hour = currentTime.getHours()
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  const firstName = user?.name?.split(' ')[0] || 'there'
+  const openWorkCount = openTaskList.length + openAssignmentList.length
+
+  let attentionPill
+  if (deadlineStats.overdue.length > 0) {
+    attentionPill = {
+      tone: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/60',
+      icon: AlertTriangle,
+      text: `${deadlineStats.overdue.length} overdue`,
+    }
+  } else if (deadlineStats.dueSoon.length > 0) {
+    attentionPill = {
+      tone: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-900/60',
+      icon: CalendarClock,
+      text: `${deadlineStats.dueSoon.length} due this week`,
+    }
+  } else if (upcomingItems.length > 0) {
+    attentionPill = {
+      tone: 'bg-primary-50 text-primary-700 border-primary-200 dark:bg-primary-900/20 dark:text-primary-400 dark:border-primary-900/40',
+      icon: CalendarCheck,
+      text: `${upcomingItems.length} upcoming`,
+    }
+  } else {
+    attentionPill = {
+      tone: 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-900/60',
+      icon: CheckCircle2,
+      text: 'All clear',
+    }
+  }
+  const PillIcon = attentionPill.icon
+
+  const statCards = [
+    {
+      label: 'To do',
+      value: openWorkCount,
+      icon: CheckSquare,
+      tone: 'text-blue-600 bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400',
+      caption: openWorkCount === 0
+        ? 'All caught up'
+        : `${openTaskList.length} task${openTaskList.length === 1 ? '' : 's'} · ${openAssignmentList.length} assignment${openAssignmentList.length === 1 ? '' : 's'}`,
+    },
+    {
+      label: 'Due soon',
+      value: deadlineStats.dueSoon.length,
+      icon: CalendarClock,
+      tone: 'text-amber-600 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400',
+      caption: deadlineStats.next
+        ? `Next ${format(parseISO(String(deadlineStats.next._date)), 'MMM d')}`
+        : 'No deadlines ahead',
+    },
+    {
+      label: 'Quizzes',
+      value: upcomingQuizzes.length,
+      icon: HelpCircle,
+      tone: 'text-violet-600 bg-violet-100 dark:bg-violet-900/30 dark:text-violet-400',
+      caption: upcomingQuizzes.length > 0
+        ? `Next ${format(parseISO(String(upcomingQuizzes[0].date)), 'MMM d')}`
+        : 'None scheduled',
+    },
+    {
+      label: 'Completed',
+      value: completedCount,
+      icon: CheckCircle2,
+      tone: 'text-green-600 bg-green-100 dark:bg-green-900/30 dark:text-green-400',
+      caption: totalWorkItems > 0
+        ? `${Math.round((completedCount / totalWorkItems) * 100)}% of ${totalWorkItems} items`
+        : 'Nothing completed yet',
+    },
+  ]
+
+  const quickTiles = [
+    {
+      label: 'Tasks', to: '/tasks', icon: CheckSquare,
+      tone: TYPE_TILES.Task,
+      caption: tasks.length === 0 ? 'Nothing yet' : `${openTaskList.length} open`,
+    },
+    {
+      label: 'Quizzes', to: '/quizzes', icon: HelpCircle,
+      tone: TYPE_TILES.Quiz,
+      caption: quizzes.length === 0 ? 'Nothing yet' : `${upcomingQuizzes.length} upcoming`,
+    },
+    {
+      label: 'Assignments', to: '/assignments', icon: FileCheck,
+      tone: TYPE_TILES.Assignment,
+      caption: assignments.length === 0 ? 'Nothing yet' : `${openAssignmentList.length} open`,
+    },
+    {
+      label: 'Essentials', to: '/essentials', icon: BookOpen,
+      tone: TYPE_TILES.Essential,
+      caption: essentials.length === 0 ? 'Nothing yet' : `${essentials.length} resources`,
+    },
+    {
+      label: 'Announcements', to: '/announcements', icon: Megaphone,
+      tone: TYPE_TILES.Announcement,
+      caption: announcements.filter(a => !a.expired).length === 0
+        ? 'Nothing yet'
+        : `${announcements.filter(a => !a.expired).length} posts`,
+    },
+  ]
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Welcome back, {user?.name?.split(' ')[0]} 👋
-        </h1>
-        <p className="text-gray-500 dark:text-gray-400 mt-1">
-          {format(currentTime, 'EEEE, MMMM d, yyyy')}
-        </p>
+    <div className="space-y-6 max-w-[1600px]">
+      {/* ── Welcome header ──────────────────────────────────── */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            {greeting}, {firstName}
+          </h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            {format(currentTime, 'EEEE, MMMM d, yyyy')}
+            <span className="mx-1.5 text-gray-300 dark:text-gray-600">·</span>
+            {openWorkCount > 0
+              ? `${openWorkCount} open item${openWorkCount === 1 ? '' : 's'}`
+              : 'Nothing pending'}
+          </p>
+        </div>
+        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border shrink-0 ${attentionPill.tone}`}>
+          <PillIcon className="w-3.5 h-3.5" />
+          {attentionPill.text}
+        </span>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        {[
-          { label: 'Total Tasks', value: stats?.totalTasks || 0, icon: CheckSquare, color: 'text-blue-600 bg-blue-100 dark:bg-blue-900/30' },
-          { label: 'Pending Tasks', value: stats?.pendingTasks || 0, icon: Clock, color: 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30' },
-          { label: 'Upcoming Quizzes', value: stats?.upcomingQuizzes || 0, icon: HelpCircle, color: 'text-purple-600 bg-purple-100 dark:bg-purple-900/30' },
-        ].map((stat, i) => (
-          <Card key={i} className="p-4">
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${stat.color}`}>
-                <stat.icon className="w-5 h-5" />
+      {/* ── Stat cards ─────────────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {statCards.map((stat, i) => (
+          <UserStatCard key={i} {...stat} />
+        ))}
+      </div>
+
+      {/* ── Main content ───────────────────────────────────── */}
+      <div className="grid lg:grid-cols-3 gap-6 items-start">
+        {/* Left column — Upcoming + Recent activity */}
+        <div className="min-w-0 lg:col-span-2 space-y-6">
+          <Card className="overflow-hidden">
+            <SectionHeader
+              title="Upcoming"
+              subtitle="Deadlines, quizzes & key dates due today or later"
+              action={upcomingItems.length > 0 && (
+                <span className="text-xs font-medium text-gray-400 dark:text-gray-500">
+                  {upcomingItems.length} item{upcomingItems.length === 1 ? '' : 's'}
+                </span>
+              )}
+            />
+            {upcomingItems.length === 0 ? (
+              <CardEmpty
+                icon={CalendarCheck}
+                tone="text-green-500"
+                title="Nothing scheduled ahead"
+                description="No deadlines, quizzes or key dates are due today or later."
+              />
+            ) : (
+              <>
+                <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
+                  {visibleUpcoming.map(item => (
+                    <UpcomingRow
+                      key={`${item._type}-${item._id}`}
+                      item={item}
+                      onOpen={openItem}
+                    />
+                  ))}
+                </div>
+                {upcomingItems.length > UPCOMING_LIMIT && (
+                  <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-700/50">
+                    <button
+                      type="button"
+                      onClick={() => setShowAllUpcoming(v => !v)}
+                      className="w-full text-xs font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
+                    >
+                      {showAllUpcoming
+                        ? 'Show fewer'
+                        : `Show ${upcomingItems.length - UPCOMING_LIMIT} more`}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </Card>
+
+          <Card className="overflow-hidden">
+            <SectionHeader
+              title="Announcements"
+              action={
+                <button
+                  type="button"
+                  onClick={() => navigate('/announcements')}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
+                >
+                  View all <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              }
+            />
+            {topAnnouncements.length === 0 ? (
+              <CardEmpty
+                icon={Megaphone}
+                title="No announcements"
+                description="Updates from your university will appear here."
+              />
+            ) : (
+              <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
+                {topAnnouncements.map(ann => (
+                  <button
+                    key={ann._id}
+                    type="button"
+                    onClick={() => openItem({ ...ann, _type: 'Announcement' })}
+                    className="group w-full text-left px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors flex items-center gap-3"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        {ann.pinned && <Pin className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+                        <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                          {ann.title}
+                        </h3>
+                      </div>
+                      <div className="mt-1.5">
+                        <Badge {...(ANNOUNCEMENT_BADGE_PROPS[ann.type] || {})} size="sm">
+                          {ann.type || 'General'}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-1.5">
+                        {[ann.date && hasValidDate(ann.date)
+                          ? format(parseISO(String(ann.date)), 'MMM d, yyyy')
+                          : '', formatAuthor(ann.createdBy)]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 group-hover:text-primary-500 shrink-0" />
+                  </button>
+                ))}
               </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{stat.label}</p>
+            )}
+          </Card>
+        </div>
+
+        {/* Right column — Needs attention + Quick access */}
+        <div className="min-w-0 space-y-6">
+          {/* Needs attention — header fixed, list scrolls when many items exist */}
+          <Card className={`overflow-hidden ${overdueItems.length > 0 ? 'border-red-200 dark:border-red-900/60' : ''}`}>
+            <SectionHeader
+              title="Needs attention"
+              subtitle={overdueItems.length > 0 ? 'Past their date and still open' : 'Nothing overdue right now'}
+              action={overdueItems.length > 0 && (
+                <span className="text-xs font-medium text-red-600 dark:text-red-400">
+                  {overdueItems.length} overdue
+                </span>
+              )}
+            />
+            {overdueItems.length === 0 ? (
+              <CardEmpty
+                icon={CheckCircle2}
+                tone="text-green-500"
+                title="All caught up"
+                description="Nothing is past its date right now."
+              />
+            ) : (
+              <div
+                className="overflow-y-auto overscroll-contain divide-y divide-gray-100 dark:divide-gray-700/50"
+                style={{ maxHeight: ATTENTION_SCROLL_MAX }}
+              >
+                {overdueItems.map(item => (
+                  <UpcomingRow
+                    key={`${item._type}-${item._id}`}
+                    item={item}
+                    onOpen={openItem}
+                  />
+                ))}
               </div>
+            )}
+          </Card>
+
+          <Card className="overflow-hidden">
+            <SectionHeader title="Quick access" />
+            <div className="p-4 sm:p-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 gap-3">
+              {quickTiles.map(tile => (
+                <button
+                  key={tile.to}
+                  type="button"
+                  onClick={() => navigate(tile.to)}
+                  className="flex flex-col items-start gap-2.5 rounded-xl border border-gray-200 dark:border-gray-700 p-3.5 text-left hover:border-primary-300 hover:bg-primary-50/60 dark:hover:border-primary-800 dark:hover:bg-primary-900/10 transition-colors"
+                >
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${tile.tone}`}>
+                    <tile.icon className="w-[18px] h-[18px]" />
+                  </div>
+                  <div className="min-w-0 w-full">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                      {tile.label}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
+                      {tile.caption}
+                    </p>
+                  </div>
+                </button>
+              ))}
             </div>
           </Card>
-        ))}
-      </div>
 
-      {schedule.length > 0 && (
-        <Card className="p-4">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Today's Schedule</h2>
-            <span className="text-sm text-gray-500 dark:text-gray-400">
-              {format(currentTime, 'h:mm a')}
-            </span>
-          </div>
-          <div className="space-y-3">
-            {schedule.map((lecture, i) => {
-              const status = getLectureStatus(lecture)
-              return (
-                <div key={i} className={`flex items-center gap-3 p-3 rounded-lg border ${
-                  status === 'ongoing'
-                    ? 'border-green-500 bg-green-50 dark:bg-green-900/10'
-                    : status === 'completed'
-                    ? 'border-gray-200 dark:border-gray-700 opacity-60'
-                    : 'border-gray-200 dark:border-gray-700'
-                }`}>
-                  {status === 'ongoing' && <PlayCircle className="w-5 h-5 text-green-600 animate-pulse" />}
-                  {status === 'completed' && <CheckCircle2 className="w-5 h-5 text-gray-400" />}
-                  {status === 'upcoming' && <Clock className="w-5 h-5 text-primary-600" />}
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900 dark:text-white">{lecture.subject}</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {lecture.timeline}{lecture.notes ? ` · ${lecture.notes}` : ''}
-                    </p>
-                  </div>
-                  <Badge color={status === 'ongoing' ? 'success' : status === 'completed' ? 'neutral' : 'info'} size="sm">
-                    {status.charAt(0).toUpperCase() + status.slice(1)}
-                  </Badge>
-                </div>
-              )
-            })}
-          </div>
-        </Card>
-      )}
+        </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        <Card className="p-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Upcoming Deadlines</h2>
-          {deadlines.length === 0 ? (
-            <EmptyState icon={CheckSquare} title="No pending deadlines" description="All caught up!" />
+        {/* Full-width bottom — Recent activity feed */}
+        <Card className="overflow-hidden lg:col-span-3">
+          <SectionHeader
+            title="Recent activity"
+            subtitle="Latest changes across your workspace, newest first"
+          />
+          {visibleRecent.length === 0 ? (
+            <CardEmpty
+              icon={Clock}
+              title="No recent activity"
+              description="Tasks, assignments, quizzes and announcements appear here as they change."
+            />
           ) : (
-            <div className="space-y-2">
-              {deadlines.map(item => (
-                <div key={item._id} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-white text-sm">{item.title}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{item.subject}{item._type === 'assignment' ? ' · Assignment' : ''}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className={`text-xs font-medium ${
-                      isPast(parseISO(item.deadline)) ? 'text-red-600' : 'text-gray-500 dark:text-gray-400'
-                    }`}>
-                      {isToday(parseISO(item.deadline))
-                        ? 'Due Today'
-                        : isPast(parseISO(item.deadline))
-                        ? 'Overdue'
-                        : formatDistanceToNow(parseISO(item.deadline), { addSuffix: true })}
-                    </p>
-                    <Badge
-                      color={item.priority === 'High' ? 'danger' : undefined}
-                      bgColor={item.priority === 'High' ? undefined : item.priority === 'Medium' ? '#F04438' : '#EAB308'}
-                      textColor={item.priority === 'Medium' ? '#FFFFFF' : item.priority === 'Low' ? '#0F172A' : undefined}
-                      size="sm"
-                    >
-                      {item.priority}
-                    </Badge>
-                  </div>
-                </div>
+            <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
+              {visibleRecent.map(item => (
+                <RecentRow
+                  key={`${item._type}-${item._id}`}
+                  item={item}
+                  onOpen={openItem}
+                />
               ))}
             </div>
           )}
         </Card>
-
-        <Card className="p-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Upcoming Quizzes</h2>
-          {quizzes.length === 0 ? (
-            <EmptyState icon={HelpCircle} title="No upcoming quizzes" />
-          ) : (
-            <div className="space-y-2">
-              {quizzes.map(quiz => (
-                <div key={quiz._id} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-white text-sm">{quiz.title}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{quiz.subject}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {quiz.date || quiz.quizDate ? format(parseISO(quiz.date || quiz.quizDate), 'MMM d, h:mm a') : null}
-                    </p>
-                    {quiz.isSurprise && <Badge bgColor="#EC4899" textColor="#0F172A" size="sm">Surprise</Badge>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-
-        <Card className="p-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recent Announcements</h2>
-          {announcements.length === 0 ? (
-            <EmptyState icon={Megaphone} title="No announcements" />
-          ) : (
-            <div className="space-y-2">
-              {announcements.map(ann => (
-                <div key={ann._id} className="p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                  <p className="font-medium text-gray-900 dark:text-white text-sm">{ann.title}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {ann.subject} · {format(parseISO(ann.createdAt), 'MMM d')}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      </div>
-
-      <div className="flex flex-wrap gap-3">
-        {[
-          { label: 'Timetable', to: '/timetable', icon: Clock },
-        ].map(action => (
-          <button
-            key={action.to}
-            onClick={() => navigate(action.to)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
-          >
-            <Plus className="w-4 h-4" />
-            {action.label}
-          </button>
-        ))}
       </div>
     </div>
   )
