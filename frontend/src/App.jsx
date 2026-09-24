@@ -16,6 +16,8 @@ import EssentialsPage from './pages/EssentialsPage'
 import ProfilePage from './pages/ProfilePage'
 import SearchPage from './pages/SearchPage'
 import UsersPage from './pages/UsersPage'
+import ContributePage from './pages/ContributePage'
+import ApprovalsPage from './pages/ApprovalsPage'
 
 export default function App() {
   const { loading } = useAuth()
@@ -34,6 +36,8 @@ export default function App() {
       <Route path="/timetable" element={<ProtectedRoute><Layout><TimetablePage /></Layout></ProtectedRoute>} />
       <Route path="/assignments" element={<ProtectedRoute><Layout><AssignmentsPage /></Layout></ProtectedRoute>} />
       <Route path="/users" element={<ProtectedRoute role="collaborator"><Layout><UsersPage /></Layout></ProtectedRoute>} />
+      <Route path="/contribute" element={<ProtectedRoute role="user"><Layout><ContributePage /></Layout></ProtectedRoute>} />
+      <Route path="/approvals" element={<ProtectedRoute role="collaborator"><Layout><ApprovalsPage /></Layout></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><Layout><ProfilePage /></Layout></ProtectedRoute>} />
       <Route path="/search" element={<ProtectedRoute><Layout><SearchPage /></Layout></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
