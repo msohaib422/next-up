@@ -137,9 +137,20 @@ export const approveContribution = async (req, res, next) => {
     delete data.reviewedBy;
     delete data.reviewedAt;
     delete data.rejectionReason;
-    const entity = await MODELS[contribution.type].create({ ...data, user: req.user._id });
+    if (contribution.type === 'Quiz') {
+      data.isSurprise = data.deadlineMode === 'Surprise';
+    }
+    if (contribution.type === 'Assignment') {
+      data.approvalStatus = 'Approved';
+    }
+    const entity = await MODELS[contribution.type].create({
+      ...data,
+      user: req.user._id,
+      contributor: contribution.user,
+    });
     contribution.finalEntity = entity._id;
     await contribution.save();
+    await contribution.populate('user', 'name email');
     res.json({ success: true, data: contribution, message: 'Contribution approved and published.' });
   } catch (error) {
     if (contribution) {

@@ -7,6 +7,11 @@ const announcementSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
+    contributor: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
     title: {
       type: String,
       required: [true, 'Please provide a title'],

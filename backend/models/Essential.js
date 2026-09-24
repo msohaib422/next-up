@@ -7,6 +7,11 @@ const essentialSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
+    contributor: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
     course: {
       type: String,
       required: [true, 'Please provide a course'],

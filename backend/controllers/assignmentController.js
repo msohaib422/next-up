@@ -65,7 +65,7 @@ export const getAssignments = async (req, res, next) => {
       ];
     }
 
-    const assignments = await Assignment.find(query).sort(sort);
+    const assignments = await Assignment.find(query).populate('contributor', 'name').sort(sort);
     res.json({ success: true, count: assignments.length, data: assignments });
   } catch (error) {
     next(error);
@@ -74,7 +74,8 @@ export const getAssignments = async (req, res, next) => {
 
 export const getAssignment = async (req, res, next) => {
   try {
-    const assignment = await Assignment.findOne({ _id: req.params.id, user: { $in: await getVisibleUserIds(req.user) } });
+    const assignment = await Assignment.findOne({ _id: req.params.id, user: { $in: await getVisibleUserIds(req.user) } })
+      .populate('contributor', 'name');
     if (!assignment) {
       return res.status(404).json({ success: false, message: 'Assignment not found' });
     }

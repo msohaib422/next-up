@@ -1,9 +1,11 @@
 import express from 'express';
 import { protect, authorize } from '../middleware/auth.js';
 import { createContribution, getMyContributions, getContributionStats, getContribution, listContributions, approveContribution, rejectContribution } from '../controllers/contributionController.js';
+import { uploadTaskFile } from '../controllers/taskController.js';
 const router = express.Router();
 router.use(protect);
 router.route('/').post(createContribution).get(getMyContributions);
+router.post('/upload', ...uploadTaskFile);
 router.get('/stats', getContributionStats);
 router.get('/:id', getContribution);
 export default router;

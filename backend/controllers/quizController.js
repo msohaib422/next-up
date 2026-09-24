@@ -66,7 +66,7 @@ export const getQuizzes = async (req, res, next) => {
       ];
     }
 
-    const quizzes = await Quiz.find(query).sort(sort);
+    const quizzes = await Quiz.find(query).populate('contributor', 'name').sort(sort);
     res.json({ success: true, count: quizzes.length, data: quizzes });
   } catch (error) {
     next(error);
@@ -75,7 +75,8 @@ export const getQuizzes = async (req, res, next) => {
 
 export const getQuiz = async (req, res, next) => {
   try {
-    const quiz = await Quiz.findOne({ _id: req.params.id, user: { $in: await getVisibleUserIds(req.user) } });
+    const quiz = await Quiz.findOne({ _id: req.params.id, user: { $in: await getVisibleUserIds(req.user) } })
+      .populate('contributor', 'name');
     if (!quiz) {
       return res.status(404).json({ success: false, message: 'Quiz not found' });
     }

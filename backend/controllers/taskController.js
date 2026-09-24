@@ -79,7 +79,7 @@ export const getTasks = async (req, res, next) => {
       ];
     }
 
-    const tasks = await Task.find(query).sort(sort);
+    const tasks = await Task.find(query).populate('contributor', 'name').sort(sort);
     res.json({ success: true, count: tasks.length, data: tasks });
   } catch (error) {
     next(error);
@@ -88,7 +88,8 @@ export const getTasks = async (req, res, next) => {
 
 export const getTask = async (req, res, next) => {
   try {
-    const task = await Task.findOne({ _id: req.params.id, user: { $in: await getVisibleUserIds(req.user) } });
+    const task = await Task.findOne({ _id: req.params.id, user: { $in: await getVisibleUserIds(req.user) } })
+      .populate('contributor', 'name');
     if (!task) {
       return res.status(404).json({ success: false, message: 'Task not found' });
     }
