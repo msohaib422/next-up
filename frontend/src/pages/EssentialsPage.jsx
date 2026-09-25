@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
 import { useAuth } from '../hooks/useAuth'
+import { useSearchParams } from 'react-router-dom'
 import { Plus, BookOpen, Search, Calendar, X, Paperclip, Download, Bookmark } from 'lucide-react'
 import { format } from 'date-fns'
 import Card from '../components/ui/Card'
@@ -26,8 +27,33 @@ export default function EssentialsPage() {
   const [dateFilter, setDateFilter] = useState('')
   const [courseFilter, setCourseFilter] = useState('all')
   const [savedFilter, setSavedFilter] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const processedHighlight = useRef(null)
 
   useEffect(() => { fetchEssentials() }, [])
+
+  // Highlight item from dashboard navigation
+  useEffect(() => {
+    if (!loading) {
+      const highlightId = searchParams.get('highlight')
+      if (highlightId && highlightId !== processedHighlight.current) {
+        processedHighlight.current = highlightId
+        const timer = setTimeout(() => {
+          const element = document.getElementById(`item-${highlightId}`)
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            element.classList.add('highlight-glow')
+            setTimeout(() => {
+              element.classList.remove('highlight-glow')
+            }, 3000)
+          }
+          searchParams.delete('highlight')
+          setSearchParams(searchParams, { replace: true })
+        }, 300)
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [loading, searchParams])
 
   const fetchEssentials = async () => {
     try {
@@ -148,7 +174,7 @@ export default function EssentialsPage() {
   }
 
   const renderEssentialCard = (ess) => (
-    <Card key={ess._id} className="p-4 flex flex-col h-full" onClick={isAdmin ? () => { setEditingEssential(ess); setShowModal(true) } : () => setViewingEssential(ess)}>
+    <Card id={`item-${ess._id}`} key={ess._id} className="p-4 flex flex-col h-full" onClick={isAdmin ? () => { setEditingEssential(ess); setShowModal(true) } : () => setViewingEssential(ess)}>
       <div className="flex items-center justify-between mb-2">
         <Badge size="sm" className="!bg-purple-100 dark:!bg-purple-900/60 !text-purple-700 dark:!text-purple-300">{ess.tag || 'Topic'}</Badge>
         <button
