@@ -1007,6 +1007,20 @@ function UserDashboard() {
     [openQuizList]
   )
 
+  // Open work using a non-date schedule mode (Upcoming Lecture, As Possible,
+  // or Surprise). These items are still upcoming, but have no sortable date.
+  const undatedOpenWork = useMemo(() => [
+    ...openTaskList
+      .filter(t => ['Upcoming Lecture', 'As Possible'].includes(t.deadlineMode) && !hasValidDate(t.deadline))
+      .map(t => ({ ...t, _type: 'Task', _date: null })),
+    ...openAssignmentList
+      .filter(a => ['Upcoming Lecture', 'As Possible'].includes(a.deadlineMode) && !hasValidDate(a.deadline))
+      .map(a => ({ ...a, _type: 'Assignment', _date: null })),
+    ...openQuizList
+      .filter(q => ['Upcoming Lecture', 'Surprise'].includes(q.deadlineMode) && !hasValidDate(q.date))
+      .map(q => ({ ...q, _type: 'Quiz', _date: null })),
+  ], [openTaskList, openAssignmentList, openQuizList])
+
   // Every open work item that has a real date to compare against
   const datedOpenWork = useMemo(
     () => [...datedWork, ...datedQuizzes],
@@ -1043,18 +1057,21 @@ function UserDashboard() {
     [futureWork]
   )
 
-  // Unified timeline: today's and future deadlines, quizzes and key dates.
-  // Completed items and past dates can never enter this list.
+  // Unified upcoming list: newest additions first across dated items, key
+  // dates, and work using a non-date schedule mode. Completed items never enter it.
   const upcomingItems = useMemo(() => {
     const keyDates = importantDates
       .filter(d => d.date && hasValidDate(d.date))
       .filter(d => daysUntil(d.date) >= 0)
       .map(d => ({ ...d, _type: 'KeyDate', _date: d.date }))
 
-    return [...futureWork, ...keyDates].sort(
-      (a, b) => new Date(a._date) - new Date(b._date)
-    )
-  }, [futureWork, importantDates])
+    return [...futureWork, ...keyDates, ...undatedOpenWork].sort((a, b) => {
+      const createdAtA = new Date(a.createdAt || 0).getTime()
+      const createdAtB = new Date(b.createdAt || 0).getTime()
+      return (Number.isFinite(createdAtB) ? createdAtB : 0) -
+        (Number.isFinite(createdAtA) ? createdAtA : 0)
+    })
+  }, [futureWork, importantDates, undatedOpenWork])
 
   const completedItems = useMemo(() => [
     ...tasks.map(x => ({ ...x, _type: 'Task' })),
