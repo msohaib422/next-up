@@ -560,10 +560,11 @@ function AdminDashboard() {
 // USER DASHBOARD
 // ============================================================
 
-const UPCOMING_LIMIT = 5
 const RECENT_LIMIT = 8
-// Needs-attention list scroll cap — the card never outgrows this;
-// extra overdue items live inside the scrollable area (header stays fixed)
+// Dashboard lists keep their headers visible and scroll only their own rows.
+const UPCOMING_SCROLL_MAX = '20rem'
+const ANNOUNCEMENT_SCROLL_MAX = '16.25rem'
+const RECENT_SCROLL_MAX = '14rem'
 const ATTENTION_SCROLL_MAX = '16rem'
 
 // Type tag colors — shared with the admin dashboard lists
@@ -617,6 +618,7 @@ const TYPE_TILES = {
   Quiz: 'text-violet-600 bg-violet-50 dark:bg-violet-900/30 dark:text-violet-400',
   Essential: 'text-teal-600 bg-teal-50 dark:bg-teal-900/30 dark:text-teal-400',
   Announcement: 'text-gray-600 bg-gray-100 dark:bg-gray-700/60 dark:text-gray-300',
+  Timetable: 'text-primary-600 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-400',
 }
 
 const normalizeList = (res) => {
@@ -865,8 +867,8 @@ function UserDashboardSkeleton() {
         <div className="h-8 w-28 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse" />
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[1, 2, 3, 4].map(i => <StatCardSkeleton key={i} />)}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        {[1, 2, 3].map(i => <StatCardSkeleton key={i} />)}
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6 items-start">
@@ -891,10 +893,10 @@ function UserDashboardSkeleton() {
             </div>
             <ListSkeleton rows={3} />
           </Card>
-          <Card className="p-5">
+          <Card className="p-4">
             <div className="h-5 w-28 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse mb-4" />
             <div className="grid grid-cols-2 gap-3">
-              {[1, 2, 3, 4, 5].map(i => (
+              {[1, 2, 3, 4, 5, 6].map(i => (
                 <div key={i} className="rounded-xl border border-gray-200 dark:border-gray-700 p-3.5">
                   <div className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-700 animate-pulse mb-2.5" />
                   <div className="h-3.5 w-16 bg-gray-100 dark:bg-gray-700 rounded animate-pulse mb-1.5" />
@@ -904,13 +906,14 @@ function UserDashboardSkeleton() {
             </div>
           </Card>
         </div>
-        <Card className="overflow-hidden lg:col-span-3">
-          <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/50">
-            <div className="h-5 w-40 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
-          </div>
-          <ListSkeleton rows={4} />
-        </Card>
       </div>
+
+      <Card className="overflow-hidden w-full">
+        <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/50">
+          <div className="h-5 w-40 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+        </div>
+        <ListSkeleton rows={3} />
+      </Card>
     </div>
   )
 }
@@ -928,7 +931,6 @@ function UserDashboard() {
   const [importantDates, setImportantDates] = useState([])
   const [currentTime, setCurrentTime] = useState(new Date())
   const [loading, setLoading] = useState(true)
-  const [showAllUpcoming, setShowAllUpcoming] = useState(false)
   const { user } = useAuth()
   const navigate = useNavigate()
 
@@ -1027,7 +1029,6 @@ function UserDashboard() {
     return {
       overdue: overdueItems,
       dueSoon,
-      next: futureWork[0] || null,
     }
   }, [futureWork, overdueItems])
 
@@ -1049,11 +1050,13 @@ function UserDashboard() {
     )
   }, [futureWork, importantDates])
 
-  const completedCount = useMemo(() =>
-    [...tasks, ...assignments, ...quizzes].filter(x => x.status === 'Completed').length,
-    [tasks, assignments, quizzes]
-  )
-  const totalWorkItems = tasks.length + assignments.length + quizzes.length
+  const completedItems = useMemo(() => [
+    ...tasks.map(x => ({ ...x, _type: 'Task' })),
+    ...assignments.map(x => ({ ...x, _type: 'Assignment' })),
+    ...quizzes.map(x => ({ ...x, _type: 'Quiz' })),
+  ].filter(x => x.status === 'Completed'), [tasks, assignments, quizzes])
+
+  const completedCount = completedItems.length
 
   // Recently created or updated items across all feature areas.
   // Sorted newest → oldest by the item's own timestamp; invalid or missing
@@ -1082,10 +1085,9 @@ function UserDashboard() {
     return [
       ...live.filter(a => a.pinned).sort(byDateDesc),
       ...live.filter(a => !a.pinned).sort(byDateDesc),
-    ].slice(0, 4)
+    ]
   }, [announcements])
 
-  const visibleUpcoming = showAllUpcoming ? upcomingItems : upcomingItems.slice(0, UPCOMING_LIMIT)
   // Strict cap: only the latest activities are shown, newest first — a new
   // activity pushes the oldest displayed one out. No expansion.
   const visibleRecent = recentItems.slice(0, RECENT_LIMIT)
@@ -1133,22 +1135,22 @@ function UserDashboard() {
 
   const statCards = [
     {
-      label: 'To do',
-      value: openWorkCount,
+      label: 'Tasks',
+      value: openTaskList.length,
       icon: CheckSquare,
       tone: 'text-blue-600 bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400',
-      caption: openWorkCount === 0
+      caption: openTaskList.length === 0
         ? 'All caught up'
-        : `${openTaskList.length} task${openTaskList.length === 1 ? '' : 's'} · ${openAssignmentList.length} assignment${openAssignmentList.length === 1 ? '' : 's'}`,
+        : `${openTaskList.length} task${openTaskList.length === 1 ? '' : 's'}`,
     },
     {
-      label: 'Due soon',
-      value: deadlineStats.dueSoon.length,
-      icon: CalendarClock,
-      tone: 'text-amber-600 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400',
-      caption: deadlineStats.next
-        ? `Next ${format(parseISO(String(deadlineStats.next._date)), 'MMM d')}`
-        : 'No deadlines ahead',
+      label: 'Assignment',
+      value: openAssignmentList.length,
+      icon: FileCheck,
+      tone: TYPE_TILES.Assignment,
+      caption: openAssignmentList.length === 0
+        ? 'No open assignments'
+        : `${openAssignmentList.length} open assignment${openAssignmentList.length === 1 ? '' : 's'}`,
     },
     {
       label: 'Quizzes',
@@ -1158,15 +1160,6 @@ function UserDashboard() {
       caption: upcomingQuizzes.length > 0
         ? `Next ${format(parseISO(String(upcomingQuizzes[0].date)), 'MMM d')}`
         : 'None scheduled',
-    },
-    {
-      label: 'Completed',
-      value: completedCount,
-      icon: CheckCircle2,
-      tone: 'text-green-600 bg-green-100 dark:bg-green-900/30 dark:text-green-400',
-      caption: totalWorkItems > 0
-        ? `${Math.round((completedCount / totalWorkItems) * 100)}% of ${totalWorkItems} items`
-        : 'Nothing completed yet',
     },
   ]
 
@@ -1198,6 +1191,11 @@ function UserDashboard() {
         ? 'Nothing yet'
         : `${announcements.filter(a => !a.expired).length} posts`,
     },
+    {
+      label: 'Timetable', to: '/timetable', icon: Clock,
+      tone: TYPE_TILES.Timetable,
+      caption: 'View timetable',
+    },
   ]
 
   return (
@@ -1223,7 +1221,7 @@ function UserDashboard() {
       </div>
 
       {/* ── Stat cards ─────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         {statCards.map((stat, i) => (
           <UserStatCard key={i} {...stat} />
         ))}
@@ -1231,7 +1229,7 @@ function UserDashboard() {
 
       {/* ── Main content ───────────────────────────────────── */}
       <div className="grid lg:grid-cols-3 gap-6 items-start">
-        {/* Left column — Upcoming + Recent activity */}
+        {/* Left column — Upcoming + Announcements */}
         <div className="min-w-0 lg:col-span-2 space-y-6">
           <Card className="overflow-hidden">
             <SectionHeader
@@ -1251,30 +1249,18 @@ function UserDashboard() {
                 description="No deadlines, quizzes or key dates are due today or later."
               />
             ) : (
-              <>
-                <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
-                  {visibleUpcoming.map(item => (
-                    <UpcomingRow
-                      key={`${item._type}-${item._id}`}
-                      item={item}
-                      onOpen={openItem}
-                    />
-                  ))}
-                </div>
-                {upcomingItems.length > UPCOMING_LIMIT && (
-                  <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-700/50">
-                    <button
-                      type="button"
-                      onClick={() => setShowAllUpcoming(v => !v)}
-                      className="w-full text-xs font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
-                    >
-                      {showAllUpcoming
-                        ? 'Show fewer'
-                        : `Show ${upcomingItems.length - UPCOMING_LIMIT} more`}
-                    </button>
-                  </div>
-                )}
-              </>
+              <div
+                className="h-[20rem] overflow-y-auto overscroll-contain divide-y divide-gray-100 dark:divide-gray-700/50"
+                style={{ height: UPCOMING_SCROLL_MAX }}
+              >
+                {upcomingItems.map(item => (
+                  <UpcomingRow
+                    key={`${item._type}-${item._id}`}
+                    item={item}
+                    onOpen={openItem}
+                  />
+                ))}
+              </div>
             )}
           </Card>
 
@@ -1298,7 +1284,10 @@ function UserDashboard() {
                 description="Updates from your university will appear here."
               />
             ) : (
-              <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
+              <div
+                className="h-[16.25rem] overflow-y-auto overscroll-contain divide-y divide-gray-100 dark:divide-gray-700/50"
+                style={{ height: ANNOUNCEMENT_SCROLL_MAX }}
+              >
                 {topAnnouncements.map(ann => (
                   <button
                     key={ann._id}
@@ -1307,14 +1296,12 @@ function UserDashboard() {
                     className="group w-full text-left px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors flex items-center gap-3"
                   >
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-2 min-w-0">
                         {ann.pinned && <Pin className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
                         <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
                           {ann.title}
                         </h3>
-                      </div>
-                      <div className="mt-1.5">
-                        <Badge {...(ANNOUNCEMENT_BADGE_PROPS[ann.type] || {})} size="sm">
+                        <Badge {...(ANNOUNCEMENT_BADGE_PROPS[ann.type] || {})} size="sm" className="shrink-0">
                           {ann.type || 'General'}
                         </Badge>
                       </div>
@@ -1332,14 +1319,15 @@ function UserDashboard() {
               </div>
             )}
           </Card>
+
         </div>
 
-        {/* Right column — Needs attention + Quick access */}
+        {/* Right column — Overdue status + Quick access */}
         <div className="min-w-0 space-y-6">
-          {/* Needs attention — header fixed, list scrolls when many items exist */}
+          {/* Overdue status — header fixed, list scrolls when many items exist */}
           <Card className={`overflow-hidden ${overdueItems.length > 0 ? 'border-red-200 dark:border-red-900/60' : ''}`}>
             <SectionHeader
-              title="Needs attention"
+              title="Overdue Status"
               subtitle={overdueItems.length > 0 ? 'Past their date and still open' : 'Nothing overdue right now'}
               action={overdueItems.length > 0 && (
                 <span className="text-xs font-medium text-red-600 dark:text-red-400">
@@ -1357,7 +1345,7 @@ function UserDashboard() {
             ) : (
               <div
                 className="overflow-y-auto overscroll-contain divide-y divide-gray-100 dark:divide-gray-700/50"
-                style={{ maxHeight: ATTENTION_SCROLL_MAX }}
+                style={{ height: ATTENTION_SCROLL_MAX }}
               >
                 {overdueItems.map(item => (
                   <UpcomingRow
@@ -1372,7 +1360,7 @@ function UserDashboard() {
 
           <Card className="overflow-hidden">
             <SectionHeader title="Quick access" />
-            <div className="p-4 sm:p-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 gap-3">
+            <div className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 gap-3">
               {quickTiles.map(tile => (
                 <button
                   key={tile.to}
@@ -1397,31 +1385,70 @@ function UserDashboard() {
           </Card>
 
         </div>
+      </div>
 
-        {/* Full-width bottom — Recent activity feed */}
-        <Card className="overflow-hidden lg:col-span-3">
-          <SectionHeader
-            title="Recent activity"
-            subtitle="Latest changes across your workspace, newest first"
+      <div className="grid lg:grid-cols-2 gap-6 items-start">
+        {/* ── Recent activity ───────────────────────────────── */}
+        <Card className="overflow-hidden w-full">
+        <SectionHeader
+          title="Recent activity"
+          subtitle="Latest changes across your workspace, newest first"
+        />
+        {visibleRecent.length === 0 ? (
+          <CardEmpty
+            icon={Clock}
+            title="No recent activity"
+            description="Tasks, assignments, quizzes and announcements appear here as they change."
           />
-          {visibleRecent.length === 0 ? (
-            <CardEmpty
-              icon={Clock}
-              title="No recent activity"
-              description="Tasks, assignments, quizzes and announcements appear here as they change."
-            />
-          ) : (
-            <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
-              {visibleRecent.map(item => (
-                <RecentRow
-                  key={`${item._type}-${item._id}`}
-                  item={item}
-                  onOpen={openItem}
-                />
-              ))}
-            </div>
+        ) : (
+          <div
+            className="overflow-y-auto overscroll-contain divide-y divide-gray-100 dark:divide-gray-700/50"
+            style={{ maxHeight: RECENT_SCROLL_MAX }}
+          >
+            {visibleRecent.map(item => (
+              <RecentRow
+                key={`${item._type}-${item._id}`}
+                item={item}
+                onOpen={openItem}
+              />
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* ── Completed — moved from the top summary cards ────── */}
+      <Card className="overflow-hidden">
+        <SectionHeader
+          title="Completed"
+          subtitle="Tasks, assignments and quizzes you have finished"
+          action={completedCount > 0 && (
+            <span className="text-xs font-medium text-green-600 dark:text-green-400">
+              {completedCount} item{completedCount === 1 ? '' : 's'}
+            </span>
           )}
-        </Card>
+        />
+        {completedItems.length === 0 ? (
+          <CardEmpty
+            icon={CheckCircle2}
+            tone="text-green-500"
+            title="Nothing completed yet"
+            description="Completed tasks, assignments, and quizzes will appear here."
+          />
+        ) : (
+          <div
+            className="overflow-y-auto overscroll-contain divide-y divide-gray-100 dark:divide-gray-700/50"
+            style={{ maxHeight: RECENT_SCROLL_MAX }}
+          >
+            {completedItems.map(item => (
+              <RecentRow
+                key={`${item._type}-${item._id}`}
+                item={item}
+                onOpen={openItem}
+              />
+            ))}
+          </div>
+        )}
+      </Card>
       </div>
     </div>
   )
