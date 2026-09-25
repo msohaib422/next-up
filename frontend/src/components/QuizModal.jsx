@@ -6,6 +6,7 @@ import Button from './ui/Button'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
 import { Paperclip, X } from 'lucide-react'
+import ContributorAttribution from './ui/ContributorAttribution'
 
 const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp']
 const MAX_SIZE = 10 * 1024 * 1024
@@ -148,6 +149,7 @@ export default function QuizModal({ isOpen, onClose, onSave, quiz }) {
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
+        <ContributorAttribution contributor={quiz?.contributor} />
         <Input label="Course" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="e.g. Mathematics" />
         <Input label="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Quiz title" required />
         <div>

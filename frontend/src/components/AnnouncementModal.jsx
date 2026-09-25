@@ -6,6 +6,7 @@ import Button from './ui/Button'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
 import { Paperclip, X } from 'lucide-react'
+import ContributorAttribution from './ui/ContributorAttribution'
 
 const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp']
 const MAX_SIZE = 10 * 1024 * 1024
@@ -153,6 +154,7 @@ export default function AnnouncementModal({ isOpen, onClose, onSave, announcemen
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
+        <ContributorAttribution contributor={announcement?.contributor} />
         <Input
           label="Title"
           value={form.title}
