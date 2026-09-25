@@ -561,8 +561,6 @@ function AdminDashboard() {
 // ============================================================
 
 const RECENT_LIMIT = 8
-// Dashboard lists keep their headers visible and scroll only their own rows.
-const UPCOMING_SCROLL_MAX = '16rem'
 const ANNOUNCEMENT_SCROLL_MAX = '24rem'
 const RECENT_SCROLL_MAX = '14rem'
 
@@ -573,13 +571,6 @@ const TYPE_BADGE_PROPS = {
   Assignment: { color: 'warning' },
   Announcement: { color: 'neutral' },
   Essential: { color: 'teal' },
-}
-
-// Priority tag colors — matches the Task/Assignment/Quiz cards
-const PRIORITY_BADGE_PROPS = {
-  High: { color: 'danger' },
-  Medium: { bgColor: '#F04438', textColor: '#FFFFFF' },
-  Low: { bgColor: '#EAB308', textColor: '#0F172A' },
 }
 
 // Announcement type tags — matches the Announcements page exactly
@@ -724,14 +715,10 @@ function UserStatCard({ label, value, caption, icon: Icon, tone, captionTone = '
 }
 
 // ============================================================
-// UPCOMING ROW — deadline / quiz / key-date timeline row
+// UPCOMING ROW — admin-style list row with whole-row navigation
 // ============================================================
 
-function UpcomingRow({ item, onOpen, centerTags = false }) {
-  const date = parseISO(String(item._date))
-  const days = daysUntil(item._date)
-  const overdue = isOverdueWork(item)
-  const today = !overdue && days === 0
+function UpcomingRow({ item, onOpen }) {
   const clickable = item._type !== 'KeyDate'
   const Wrapper = clickable ? 'button' : 'div'
 
@@ -739,86 +726,53 @@ function UpcomingRow({ item, onOpen, centerTags = false }) {
     ? (KEY_DATE_BADGE_PROPS[item.type] || { color: 'neutral' })
     : (TYPE_BADGE_PROPS[item._type] || { color: 'neutral' })
   const badgeLabel = item._type === 'KeyDate' ? (item.type || 'Key date') : item._type
-
-  const metaText = item._type === 'KeyDate'
+  const courseLabel = item._type === 'KeyDate'
     ? (item.description?.trim() || 'Important date')
     : getCourseLabel(item)
-
-  const dateTone = overdue
-    ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400'
-    : today
-    ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-    : 'bg-gray-100 text-gray-600 dark:bg-gray-700/60 dark:text-gray-300'
-
-  const dueTone = overdue
-    ? 'text-red-600 dark:text-red-400'
-    : today
-    ? 'text-amber-600 dark:text-amber-400'
-    : 'text-gray-500 dark:text-gray-400'
-
-  const dueText = overdue
-    ? days < 0
-      ? `${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'} overdue`
-      : 'Overdue'
-    : today
-    ? 'Due today'
-    : formatDistanceToNow(date, { addSuffix: true })
+  const priorityBadgeProps = {
+    High: { color: 'danger' },
+    Medium: { color: 'warning' },
+    Low: { color: 'success' },
+  }
 
   return (
     <Wrapper
       type={clickable ? 'button' : undefined}
       onClick={clickable ? () => onOpen(item) : undefined}
-      className={`group w-full text-left flex items-center gap-3 sm:gap-4 px-5 py-3.5 transition-colors ${
+      className={`group w-full text-left px-5 py-3.5 transition-colors ${
         clickable ? 'hover:bg-gray-50 dark:hover:bg-gray-700/30' : ''
       }`}
     >
-      <div className={`flex flex-col items-center justify-center w-12 py-1.5 rounded-lg flex-shrink-0 ${dateTone}`}>
-        <span className="text-[10px] font-semibold uppercase tracking-wider leading-none opacity-80">
-          {format(date, 'MMM')}
-        </span>
-        <span className="text-lg font-bold leading-none mt-1">{format(date, 'd')}</span>
-      </div>
-
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          {item._type === 'Announcement' && item.pinned && (
-            <Pin className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-          )}
-          <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.title}</h3>
+      <div className="grid grid-cols-[minmax(0,1fr)_5rem_5rem_1rem] sm:grid-cols-[minmax(0,1fr)_6rem_6rem_1rem] items-center gap-2 sm:gap-4">
+        <div className="min-w-0">
+          <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
+            {item.title}
+          </h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
+            {courseLabel}
+          </p>
         </div>
-        {centerTags ? (
-          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 mt-1 min-w-0">
-            <span className="text-xs text-gray-500 dark:text-gray-400 truncate">{metaText}</span>
-            <div className="flex items-center justify-center gap-1.5 min-w-0">
-              <Badge {...badgeProps} size="sm" className="shrink-0">{badgeLabel}</Badge>
-              {item._type === 'Quiz' && (item.isSurprise || item.deadlineMode === 'Surprise') && (
-                <Badge bgColor="#EC4899" textColor="#0F172A" size="sm" className="shrink-0">Surprise</Badge>
-              )}
-            </div>
-            <span aria-hidden="true" />
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 mt-1 min-w-0">
-            <Badge {...badgeProps} size="sm" className="shrink-0">{badgeLabel}</Badge>
-            {item._type === 'Quiz' && (item.isSurprise || item.deadlineMode === 'Surprise') && (
-              <Badge bgColor="#EC4899" textColor="#0F172A" size="sm" className="shrink-0">Surprise</Badge>
-            )}
-            <span className="text-xs text-gray-500 dark:text-gray-400 truncate">{metaText}</span>
-          </div>
-        )}
-      </div>
 
-      <div className="flex flex-col items-end gap-1 flex-shrink-0">
-        {item.priority && (
-          <Badge {...(PRIORITY_BADGE_PROPS[item.priority] || { color: 'neutral' })} size="sm" className="hidden sm:inline-flex">
-            {item.priority}
+        <div className="flex min-w-0 justify-center">
+          <Badge {...badgeProps} size="sm" className="shrink-0 whitespace-nowrap">
+            {badgeLabel}
           </Badge>
-        )}
-        <span className={`text-xs font-medium whitespace-nowrap ${dueTone}`}>{dueText}</span>
+        </div>
+
+        <div className="flex min-w-0 justify-center">
+          {item.priority && (
+            <Badge {...(priorityBadgeProps[item.priority] || { color: 'neutral' })} size="sm" className="shrink-0 whitespace-nowrap">
+              {item.priority}
+            </Badge>
+          )}
+        </div>
+
+        <div className="flex justify-center">
+          {clickable && (
+            <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 group-hover:text-primary-500 shrink-0" />
+          )}
+        </div>
       </div>
-      {clickable && (
-        <ChevronRight className="hidden sm:block w-4 h-4 text-gray-300 dark:text-gray-600 group-hover:text-primary-500 shrink-0" />
-      )}
     </Wrapper>
   )
 }
@@ -1309,24 +1263,22 @@ function UserDashboard() {
       <div className="grid lg:grid-cols-3 gap-6 items-start">
         {/* Left column — Upcoming + Announcements */}
         <div className="min-w-0 lg:col-span-2 space-y-6">
-          <Card className="overflow-hidden">
+          <Card className="overflow-hidden flex flex-col h-80">
             <SectionHeader title="Upcoming" />
-            {futureWork.length === 0 ? (
+            {upcomingItems.length === 0 ? (
               <CardEmpty
                 icon={CalendarCheck}
                 tone="text-green-500"
                 title="Nothing scheduled ahead"
-                description="No tasks, assignments, or quizzes are due today or later."
+                description="No upcoming items are scheduled for today or later."
               />
             ) : (
-              <div
-                className="h-[16rem] overflow-y-auto overscroll-contain divide-y divide-gray-100 dark:divide-gray-700/50"
-                style={{ height: UPCOMING_SCROLL_MAX }}
-              >
-                {futureWork.map(item => (
-                  <ComingUpItemCard
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain divide-y divide-gray-100 dark:divide-gray-700/50">
+                {upcomingItems.map(item => (
+                  <UpcomingRow
                     key={`${item._type}-${item._id}`}
                     item={item}
+                    onOpen={openItem}
                   />
                 ))}
               </div>
@@ -1398,11 +1350,11 @@ function UserDashboard() {
 
         {/* Right column — Completed activity + Quick access */}
         <div className="min-w-0 space-y-6">
-          <Card className="p-5">
-            <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
+          <Card className="p-5 flex flex-col h-80">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-4 flex-shrink-0">
               Completed Activity
             </h2>
-            <div className="grid grid-cols-1 gap-3">
+            <div className="grid flex-1 min-h-0 grid-rows-3 gap-3">
               {completionActivity.map(item => {
                 const percentage = item.total > 0
                   ? Math.round((item.completed / item.total) * 100)
@@ -1411,26 +1363,28 @@ function UserDashboard() {
                 return (
                   <div
                     key={item.label}
-                    className={`${item.bgColor} rounded-xl p-4`}
+                    className={`${item.bgColor} rounded-xl px-3 py-2 flex flex-col justify-center min-h-0`}
                   >
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-                      {item.label}
-                    </p>
-                    <div className="flex items-baseline gap-1.5 mb-3">
-                      <span className="text-2xl font-bold text-gray-900 dark:text-white leading-none">
-                        {item.completed}
-                      </span>
-                      <span className="text-sm text-gray-500 dark:text-gray-400">
-                        / {item.total}
-                      </span>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400 truncate">
+                        {item.label}
+                      </p>
+                      <div className="flex items-baseline gap-1.5 flex-shrink-0">
+                        <span className="text-2xl font-bold text-gray-900 dark:text-white leading-none">
+                          {item.completed}
+                        </span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          / {item.total}
+                        </span>
+                      </div>
                     </div>
-                    <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden mt-1.5">
                       <div
                         className={`h-full ${item.barColor} rounded-full transition-all duration-500 ease-out`}
                         style={{ width: `${percentage}%` }}
                       />
                     </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    <p className="text-[11px] leading-none text-gray-500 dark:text-gray-400 mt-1">
                       {percentage}% completed
                     </p>
                   </div>
