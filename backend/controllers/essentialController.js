@@ -78,6 +78,7 @@ export const getEssentials = async (req, res, next) => {
 
     const essentials = await Essential.find(query)
       .populate('user', 'name email')
+      .populate('contributor', 'name')
       .sort(sort);
 
     res.json({ success: true, count: essentials.length, data: essentials });
@@ -89,7 +90,8 @@ export const getEssentials = async (req, res, next) => {
 export const getEssential = async (req, res, next) => {
   try {
     const essential = await Essential.findOne({ _id: req.params.id, user: { $in: await getVisibleUserIds(req.user) } })
-      .populate('user', 'name email');
+      .populate('user', 'name email')
+      .populate('contributor', 'name');
     if (!essential) {
       return res.status(404).json({ success: false, message: 'Essential not found' });
     }

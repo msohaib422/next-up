@@ -3,6 +3,7 @@ import Button from './ui/Button'
 import Badge from './ui/Badge'
 import DetailField from './ui/DetailField'
 import AttachmentField from './ui/AttachmentField'
+import ContributorAttribution from './ui/ContributorAttribution'
 import { Calendar, Clock } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 
@@ -70,6 +71,7 @@ export default function QuizViewModal({ isOpen, onClose, quiz }) {
       actions={<Button variant="ghost" onClick={onClose}>Close</Button>}
     >
       <div className="space-y-5">
+        <ContributorAttribution contributor={quiz.contributor} />
         {/* Title — prominent by size only; value is never bold.
             break-words: long unbroken titles stay inside the modal */}
         <DetailField label="Title">

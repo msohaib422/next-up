@@ -4,7 +4,7 @@ import { useTheme } from '../../hooks/useTheme'
 import {
   LayoutDashboard, CheckSquare, HelpCircle, Megaphone,
   Clock, FileCheck, User, Users, BookOpen,
-  LogOut, Sun, Moon, X, GraduationCap
+  LogOut, Sun, Moon, X, GraduationCap, Send, ClipboardCheck
 } from 'lucide-react'
 
 const navItems = [
@@ -15,6 +15,8 @@ const navItems = [
   { to: '/essentials', icon: BookOpen, label: 'Essentials' },
   { to: '/announcements', icon: Megaphone, label: 'Announcements' },
   { to: '/timetable', icon: Clock, label: 'Timetable' },
+  { to: '/contribute', icon: Send, label: 'Contribute', userOnly: true },
+  { to: '/approvals', icon: ClipboardCheck, label: 'Approvals', collaboratorOnly: true },
   { to: '/users', icon: Users, label: 'Users', collaboratorOnly: true },
 ]
 
@@ -46,7 +48,7 @@ export default function Sidebar({ isOpen, onClose }) {
 
         <nav className="flex-1 overflow-y-auto p-3 space-y-1">
           {navItems
-            .filter(item => !item.collaboratorOnly || user?.role === 'collaborator')
+            .filter(item => (!item.collaboratorOnly || user?.role === 'collaborator') && (!item.userOnly || user?.role === 'user'))
             .map(item => (
             <NavLink
               key={item.to}

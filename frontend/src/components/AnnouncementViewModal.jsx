@@ -3,6 +3,7 @@ import Button from './ui/Button'
 import Badge from './ui/Badge'
 import DetailField from './ui/DetailField'
 import AttachmentField from './ui/AttachmentField'
+import ContributorAttribution from './ui/ContributorAttribution'
 import { Calendar, User, ExternalLink } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 
@@ -47,6 +48,7 @@ export default function AnnouncementViewModal({ isOpen, onClose, announcement })
       actions={<Button variant="ghost" onClick={onClose}>Close</Button>}
     >
       <div className="space-y-5">
+        <ContributorAttribution contributor={announcement.contributor} />
         {/* Title — prominent by size only; value is never bold */}
         <DetailField label="Title">
           <p className="text-[19px] font-medium leading-snug text-gray-900 dark:text-white">

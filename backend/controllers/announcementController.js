@@ -78,6 +78,7 @@ export const getAnnouncements = async (req, res, next) => {
 
     const announcements = await Announcement.find(query)
       .populate('user', 'name email')
+      .populate('contributor', 'name')
       .sort(sort);
 
     res.json({ success: true, count: announcements.length, data: announcements });
@@ -89,7 +90,8 @@ export const getAnnouncements = async (req, res, next) => {
 export const getAnnouncement = async (req, res, next) => {
   try {
     const announcement = await Announcement.findOne({ _id: req.params.id, user: { $in: await getVisibleUserIds(req.user) } })
-      .populate('user', 'name email');
+      .populate('user', 'name email')
+      .populate('contributor', 'name');
     if (!announcement) {
       return res.status(404).json({ success: false, message: 'Announcement not found' });
     }

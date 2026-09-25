@@ -1,6 +1,7 @@
 import Modal from './ui/Modal'
 import Button from './ui/Button'
 import Badge from './ui/Badge'
+import ContributorAttribution from './ui/ContributorAttribution'
 import { Calendar, Paperclip, Download } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import toast from 'react-hot-toast'
@@ -101,6 +102,7 @@ export default function TaskViewModal({ isOpen, onClose, task }) {
       actions={<Button variant="ghost" onClick={onClose}>Close</Button>}
     >
       <div className="space-y-5">
+        <ContributorAttribution contributor={task.contributor} />
         {/* Title — prominent by size only; value is never bold */}
         <DetailField label="Title">
           <p className="text-[19px] font-medium leading-snug text-gray-900 dark:text-white">

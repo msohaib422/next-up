@@ -7,6 +7,11 @@ const assignmentSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
+    contributor: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
     subject: {
       type: String,
       required: [true, 'Please provide a subject'],
