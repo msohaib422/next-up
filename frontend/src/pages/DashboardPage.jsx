@@ -565,7 +565,6 @@ const RECENT_LIMIT = 8
 const UPCOMING_SCROLL_MAX = '16rem'
 const ANNOUNCEMENT_SCROLL_MAX = '24rem'
 const RECENT_SCROLL_MAX = '14rem'
-const ATTENTION_SCROLL_MAX = '16rem'
 
 // Type tag colors — shared with the admin dashboard lists
 const TYPE_BADGE_PROPS = {
@@ -1110,6 +1109,32 @@ function UserDashboard() {
   ].filter(x => x.status === 'Completed'), [tasks, assignments, quizzes])
 
   const completedCount = completedItems.length
+  const completedTasks = tasks.filter(task => task.status === 'Completed').length
+  const completedAssignments = assignments.filter(assignment => assignment.status === 'Completed').length
+  const completedQuizzes = quizzes.filter(quiz => quiz.status === 'Completed').length
+  const completionActivity = [
+    {
+      label: 'Tasks',
+      completed: completedTasks,
+      total: tasks.length,
+      barColor: 'bg-green-500',
+      bgColor: 'bg-green-50 dark:bg-green-900/10',
+    },
+    {
+      label: 'Assignments',
+      completed: completedAssignments,
+      total: assignments.length,
+      barColor: 'bg-emerald-500',
+      bgColor: 'bg-emerald-50 dark:bg-emerald-900/10',
+    },
+    {
+      label: 'Quizzes',
+      completed: completedQuizzes,
+      total: quizzes.length,
+      barColor: 'bg-violet-500',
+      bgColor: 'bg-violet-50 dark:bg-violet-900/10',
+    },
+  ]
 
   // Recently created or updated items across all feature areas.
   // Sorted newest → oldest by the item's own timestamp; invalid or missing
@@ -1285,33 +1310,23 @@ function UserDashboard() {
         {/* Left column — Upcoming + Announcements */}
         <div className="min-w-0 lg:col-span-2 space-y-6">
           <Card className="overflow-hidden">
-            <SectionHeader
-              title="Upcoming"
-              subtitle="Deadlines, quizzes & key dates due today or later"
-              action={upcomingItems.length > 0 && (
-                <span className="text-xs font-medium text-gray-400 dark:text-gray-500">
-                  {upcomingItems.length} item{upcomingItems.length === 1 ? '' : 's'}
-                </span>
-              )}
-            />
-            {upcomingItems.length === 0 ? (
+            <SectionHeader title="Upcoming" />
+            {futureWork.length === 0 ? (
               <CardEmpty
                 icon={CalendarCheck}
                 tone="text-green-500"
                 title="Nothing scheduled ahead"
-                description="No deadlines, quizzes or key dates are due today or later."
+                description="No tasks, assignments, or quizzes are due today or later."
               />
             ) : (
               <div
                 className="h-[16rem] overflow-y-auto overscroll-contain divide-y divide-gray-100 dark:divide-gray-700/50"
                 style={{ height: UPCOMING_SCROLL_MAX }}
               >
-                {upcomingItems.map(item => (
-                  <UpcomingRow
+                {futureWork.map(item => (
+                  <ComingUpItemCard
                     key={`${item._type}-${item._id}`}
                     item={item}
-                    onOpen={openItem}
-                    centerTags
                   />
                 ))}
               </div>
@@ -1381,40 +1396,47 @@ function UserDashboard() {
 
         </div>
 
-        {/* Right column — Overdue status + Quick access */}
+        {/* Right column — Completed activity + Quick access */}
         <div className="min-w-0 space-y-6">
-          {/* Overdue status — header fixed, list scrolls when many items exist */}
-          <Card className={`overflow-hidden ${overdueItems.length > 0 ? 'border-red-200 dark:border-red-900/60' : ''}`}>
-            <SectionHeader
-              title="Overdue Status"
-              subtitle={overdueItems.length > 0 ? 'Past their date and still open' : 'Nothing overdue right now'}
-              action={overdueItems.length > 0 && (
-                <span className="text-xs font-medium text-red-600 dark:text-red-400">
-                  {overdueItems.length} overdue
-                </span>
-              )}
-            />
-            {overdueItems.length === 0 ? (
-              <CardEmpty
-                icon={CheckCircle2}
-                tone="text-green-500"
-                title="All caught up"
-                description="Nothing is past its date right now."
-              />
-            ) : (
-              <div
-                className="overflow-y-auto overscroll-contain divide-y divide-gray-100 dark:divide-gray-700/50"
-                style={{ height: ATTENTION_SCROLL_MAX }}
-              >
-                {overdueItems.map(item => (
-                  <UpcomingRow
-                    key={`${item._type}-${item._id}`}
-                    item={item}
-                    onOpen={openItem}
-                  />
-                ))}
-              </div>
-            )}
+          <Card className="p-5">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
+              Completed Activity
+            </h2>
+            <div className="grid grid-cols-1 gap-3">
+              {completionActivity.map(item => {
+                const percentage = item.total > 0
+                  ? Math.round((item.completed / item.total) * 100)
+                  : 0
+
+                return (
+                  <div
+                    key={item.label}
+                    className={`${item.bgColor} rounded-xl p-4`}
+                  >
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+                      {item.label}
+                    </p>
+                    <div className="flex items-baseline gap-1.5 mb-3">
+                      <span className="text-2xl font-bold text-gray-900 dark:text-white leading-none">
+                        {item.completed}
+                      </span>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        / {item.total}
+                      </span>
+                    </div>
+                    <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full ${item.barColor} rounded-full transition-all duration-500 ease-out`}
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                      {percentage}% completed
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
           </Card>
 
           <Card className="overflow-hidden">
