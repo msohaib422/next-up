@@ -562,8 +562,8 @@ function AdminDashboard() {
 
 const RECENT_LIMIT = 8
 // Dashboard lists keep their headers visible and scroll only their own rows.
-const UPCOMING_SCROLL_MAX = '20rem'
-const ANNOUNCEMENT_SCROLL_MAX = '20.75rem'
+const UPCOMING_SCROLL_MAX = '16rem'
+const ANNOUNCEMENT_SCROLL_MAX = '24rem'
 const RECENT_SCROLL_MAX = '14rem'
 const ATTENTION_SCROLL_MAX = '16rem'
 
@@ -1250,7 +1250,7 @@ function UserDashboard() {
               />
             ) : (
               <div
-                className="h-[20rem] overflow-y-auto overscroll-contain divide-y divide-gray-100 dark:divide-gray-700/50"
+                className="h-[16rem] overflow-y-auto overscroll-contain divide-y divide-gray-100 dark:divide-gray-700/50"
                 style={{ height: UPCOMING_SCROLL_MAX }}
               >
                 {upcomingItems.map(item => (
@@ -1285,7 +1285,7 @@ function UserDashboard() {
               />
             ) : (
               <div
-                className="h-[20.75rem] overflow-y-auto overscroll-contain divide-y divide-gray-100 dark:divide-gray-700/50"
+                className="h-[24rem] overflow-y-auto overscroll-contain divide-y divide-gray-100 dark:divide-gray-700/50"
                 style={{ height: ANNOUNCEMENT_SCROLL_MAX }}
               >
                 {topAnnouncements.map(ann => (
@@ -1360,7 +1360,7 @@ function UserDashboard() {
 
           <Card className="overflow-hidden">
             <SectionHeader title="Quick access" />
-            <div className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 gap-3">
+            <div className="p-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 gap-3">
               {quickTiles.map(tile => (
                 <button
                   key={tile.to}
