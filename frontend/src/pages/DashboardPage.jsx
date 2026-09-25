@@ -728,7 +728,7 @@ function UserStatCard({ label, value, caption, icon: Icon, tone, captionTone = '
 // UPCOMING ROW — deadline / quiz / key-date timeline row
 // ============================================================
 
-function UpcomingRow({ item, onOpen }) {
+function UpcomingRow({ item, onOpen, centerTags = false }) {
   const date = parseISO(String(item._date))
   const days = daysUntil(item._date)
   const overdue = isOverdueWork(item)
@@ -787,13 +787,26 @@ function UpcomingRow({ item, onOpen }) {
           )}
           <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.title}</h3>
         </div>
-        <div className="flex items-center gap-2 mt-1 min-w-0">
-          <Badge {...badgeProps} size="sm" className="shrink-0">{badgeLabel}</Badge>
-          {item._type === 'Quiz' && (item.isSurprise || item.deadlineMode === 'Surprise') && (
-            <Badge bgColor="#EC4899" textColor="#0F172A" size="sm" className="shrink-0">Surprise</Badge>
-          )}
-          <span className="text-xs text-gray-500 dark:text-gray-400 truncate">{metaText}</span>
-        </div>
+        {centerTags ? (
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 mt-1 min-w-0">
+            <span className="text-xs text-gray-500 dark:text-gray-400 truncate">{metaText}</span>
+            <div className="flex items-center justify-center gap-1.5 min-w-0">
+              <Badge {...badgeProps} size="sm" className="shrink-0">{badgeLabel}</Badge>
+              {item._type === 'Quiz' && (item.isSurprise || item.deadlineMode === 'Surprise') && (
+                <Badge bgColor="#EC4899" textColor="#0F172A" size="sm" className="shrink-0">Surprise</Badge>
+              )}
+            </div>
+            <span aria-hidden="true" />
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 mt-1 min-w-0">
+            <Badge {...badgeProps} size="sm" className="shrink-0">{badgeLabel}</Badge>
+            {item._type === 'Quiz' && (item.isSurprise || item.deadlineMode === 'Surprise') && (
+              <Badge bgColor="#EC4899" textColor="#0F172A" size="sm" className="shrink-0">Surprise</Badge>
+            )}
+            <span className="text-xs text-gray-500 dark:text-gray-400 truncate">{metaText}</span>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col items-end gap-1 flex-shrink-0">
@@ -815,39 +828,79 @@ function UpcomingRow({ item, onOpen }) {
 // RECENT ROW — recently created / updated item
 // ============================================================
 
-function RecentRow({ item, onOpen }) {
+function RecentRow({ item, onOpen, centerCompletion = false }) {
   const Icon = TYPE_ICONS[item._type] || Clock
   const completed = item.status === 'Completed'
+
+  const icon = (
+    <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${TYPE_TILES[item._type] || TYPE_TILES.Announcement}`}>
+      <Icon className="w-4 h-4" />
+    </div>
+  )
+
+  const typeBadge = (
+    <Badge {...(TYPE_BADGE_PROPS[item._type] || { color: 'neutral' })} size="sm" className="shrink-0">
+      {item._type}
+    </Badge>
+  )
+
+  const chevron = (
+    <ChevronRight className="hidden sm:block w-4 h-4 text-gray-300 dark:text-gray-600 group-hover:text-primary-500 shrink-0" />
+  )
 
   return (
     <button
       type="button"
       onClick={() => onOpen(item)}
-      className="group w-full text-left flex items-center gap-3 sm:gap-4 px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
+      className={`group w-full text-left gap-3 sm:gap-4 px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors ${centerCompletion ? 'grid grid-cols-[minmax(0,1fr)_1.5rem_minmax(0,1fr)] items-center' : 'flex items-center'}`}
     >
-      <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${TYPE_TILES[item._type] || TYPE_TILES.Announcement}`}>
-        <Icon className="w-4 h-4" />
-      </div>
-
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          {item._type === 'Announcement' && item.pinned && (
-            <Pin className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-          )}
-          <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.title}</h3>
-          {completed && (
-            <span className="text-green-500 dark:text-green-400 shrink-0" title="Completed">
-              <CheckCircle2 className="w-4 h-4" />
-            </span>
-          )}
-        </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-1">{getRecentMeta(item)}</p>
-      </div>
-
-      <Badge {...(TYPE_BADGE_PROPS[item._type] || { color: 'neutral' })} size="sm" className="shrink-0">
-        {item._type}
-      </Badge>
-      <ChevronRight className="hidden sm:block w-4 h-4 text-gray-300 dark:text-gray-600 group-hover:text-primary-500 shrink-0" />
+      {centerCompletion ? (
+        <>
+          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+            {icon}
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 items-center gap-1.5">
+                {item._type === 'Announcement' && item.pinned && (
+                  <Pin className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                )}
+                <h3 className="min-w-0 text-sm font-medium text-gray-900 dark:text-white truncate">{item.title}</h3>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-1">{getRecentMeta(item)}</p>
+            </div>
+          </div>
+          <div className="flex min-w-0 items-center justify-center">
+            {completed && (
+              <span className="text-green-500 dark:text-green-400 shrink-0" title="Completed">
+                <CheckCircle2 className="w-4 h-4" />
+              </span>
+            )}
+          </div>
+          <div className="flex min-w-0 items-center justify-end gap-3 sm:gap-4">
+            {typeBadge}
+            {chevron}
+          </div>
+        </>
+      ) : (
+        <>
+          {icon}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              {item._type === 'Announcement' && item.pinned && (
+                <Pin className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              )}
+              <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.title}</h3>
+              {completed && (
+                <span className="text-green-500 dark:text-green-400 shrink-0" title="Completed">
+                  <CheckCircle2 className="w-4 h-4" />
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-1">{getRecentMeta(item)}</p>
+          </div>
+          {typeBadge}
+          {chevron}
+        </>
+      )}
     </button>
   )
 }
@@ -1258,6 +1311,7 @@ function UserDashboard() {
                     key={`${item._type}-${item._id}`}
                     item={item}
                     onOpen={openItem}
+                    centerTags
                   />
                 ))}
               </div>
@@ -1295,23 +1349,28 @@ function UserDashboard() {
                     onClick={() => openItem({ ...ann, _type: 'Announcement' })}
                     className="group w-full text-left px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors flex items-center gap-3"
                   >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 min-w-0">
-                        {ann.pinned && <Pin className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
-                        <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                          {ann.title}
-                        </h3>
+                    <div className="flex-1 min-w-0 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          {ann.pinned && <Pin className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+                          <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                            {ann.title}
+                          </h3>
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-1.5">
+                          {[ann.date && hasValidDate(ann.date)
+                            ? format(parseISO(String(ann.date)), 'MMM d, yyyy')
+                            : '', formatAuthor(ann.createdBy)]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </p>
+                      </div>
+                      <div className="flex justify-center min-w-0">
                         <Badge {...(ANNOUNCEMENT_BADGE_PROPS[ann.type] || {})} size="sm" className="shrink-0">
                           {ann.type || 'General'}
                         </Badge>
                       </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-1.5">
-                        {[ann.date && hasValidDate(ann.date)
-                          ? format(parseISO(String(ann.date)), 'MMM d, yyyy')
-                          : '', formatAuthor(ann.createdBy)]
-                          .filter(Boolean)
-                          .join(' · ')}
-                      </p>
+                      <div aria-hidden="true" />
                     </div>
                     <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 group-hover:text-primary-500 shrink-0" />
                   </button>
@@ -1444,6 +1503,7 @@ function UserDashboard() {
                 key={`${item._type}-${item._id}`}
                 item={item}
                 onOpen={openItem}
+                centerCompletion
               />
             ))}
           </div>
