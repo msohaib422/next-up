@@ -28,7 +28,7 @@ import LoadingSpinner from '../components/ui/LoadingSpinner'
 import AttachmentField from '../components/ui/AttachmentField'
 import ContributorAttribution from '../components/ui/ContributorAttribution'
 
-const statusColor = { Pending: 'warning', Approved: 'success', Rejected: 'danger' }
+const statusColor = { Pending: 'warning', Approved: 'success', Rejected: 'danger', Deleted: 'neutral' }
 const TYPES = ['Task', 'Quiz', 'Assignment', 'Essential', 'Announcement']
 const typeIcon = { Task: CheckSquare, Quiz: HelpCircle, Assignment: FileCheck, Essential: BookOpen, Announcement: Megaphone }
 
@@ -191,7 +191,7 @@ export default function ApprovalsPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-8">
       <section aria-labelledby="approval-summary-heading">
-        <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-end"><div><h2 id="approval-summary-heading" className="text-xl font-semibold text-gray-900 dark:text-white">Contribution overview</h2><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">A live view of all community submissions.</p></div><span className="text-sm text-gray-400">Updates after each review</span></div>
+        <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-end"><div><h2 id="approval-summary-heading" className="text-xl font-semibold text-gray-900 dark:text-white">Contribution overview</h2><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">A live view of all community submissions.</p></div></div>
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"><StatCard label="Total contributions" value={stats.total} icon={Layers} tone="bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-300" /><StatCard label="Pending review" value={stats.Pending} icon={Clock} tone="bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-300" /><StatCard label="Approved" value={stats.Approved} icon={CheckCircle2} tone="bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-300" /><StatCard label="Rejected" value={stats.Rejected} icon={XCircle} tone="bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-300" /></div>
       </section>
 
