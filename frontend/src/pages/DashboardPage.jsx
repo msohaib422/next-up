@@ -563,7 +563,7 @@ function AdminDashboard() {
 const RECENT_LIMIT = 8
 // Dashboard lists keep their headers visible and scroll only their own rows.
 const UPCOMING_SCROLL_MAX = '20rem'
-const ANNOUNCEMENT_SCROLL_MAX = '16.25rem'
+const ANNOUNCEMENT_SCROLL_MAX = '20.75rem'
 const RECENT_SCROLL_MAX = '14rem'
 const ATTENTION_SCROLL_MAX = '16rem'
 
@@ -1285,7 +1285,7 @@ function UserDashboard() {
               />
             ) : (
               <div
-                className="h-[16.25rem] overflow-y-auto overscroll-contain divide-y divide-gray-100 dark:divide-gray-700/50"
+                className="h-[20.75rem] overflow-y-auto overscroll-contain divide-y divide-gray-100 dark:divide-gray-700/50"
                 style={{ height: ANNOUNCEMENT_SCROLL_MAX }}
               >
                 {topAnnouncements.map(ann => (
