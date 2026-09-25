@@ -1053,11 +1053,6 @@ function UserDashboard() {
     }
   }, [futureWork, overdueItems])
 
-  const upcomingQuizzes = useMemo(
-    () => futureWork.filter(w => w._type === 'Quiz'),
-    [futureWork]
-  )
-
   // Unified upcoming list: newest additions first across dated items, key
   // dates, and work using a non-date schedule mode. Completed items never enter it.
   const upcomingItems = useMemo(() => {
@@ -1204,12 +1199,12 @@ function UserDashboard() {
     },
     {
       label: 'Quizzes',
-      value: upcomingQuizzes.length,
+      value: openQuizList.length,
       icon: HelpCircle,
       tone: 'text-violet-600 bg-violet-100 dark:bg-violet-900/30 dark:text-violet-400',
-      caption: upcomingQuizzes.length > 0
-        ? `Next ${format(parseISO(String(upcomingQuizzes[0].date)), 'MMM d')}`
-        : 'None scheduled',
+      caption: openQuizList.length === 0
+        ? 'No open quizzes'
+        : `${openQuizList.length} open quiz${openQuizList.length === 1 ? '' : 'zes'}`,
     },
   ]
 
@@ -1222,7 +1217,7 @@ function UserDashboard() {
     {
       label: 'Quizzes', to: '/quizzes', icon: HelpCircle,
       tone: TYPE_TILES.Quiz,
-      caption: quizzes.length === 0 ? 'Nothing yet' : `${upcomingQuizzes.length} upcoming`,
+      caption: quizzes.length === 0 ? 'Nothing yet' : `${openQuizList.length} open`,
     },
     {
       label: 'Assignments', to: '/assignments', icon: FileCheck,
