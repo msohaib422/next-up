@@ -171,7 +171,6 @@ export const approveContribution = async (req, res, next) => {
 export const rejectContribution = async (req, res, next) => {
   try {
     const reason = text(req.body?.rejectionReason, 2000);
-    if (!reason) return res.status(400).json({ success: false, message: 'A rejection reason is required.' });
     const contribution = await Contribution.findOneAndUpdate(
       { _id: req.params.id, status: 'Pending' },
       { $set: { status: 'Rejected', rejectionReason: reason, reviewedBy: req.user._id, reviewedAt: new Date() } },

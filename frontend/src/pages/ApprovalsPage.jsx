@@ -26,6 +26,7 @@ import Modal from '../components/ui/Modal'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import AttachmentField from '../components/ui/AttachmentField'
+import ContributorAttribution from '../components/ui/ContributorAttribution'
 
 const statusColor = { Pending: 'warning', Approved: 'success', Rejected: 'danger' }
 const TYPES = ['Task', 'Quiz', 'Assignment', 'Essential', 'Announcement']
@@ -47,7 +48,6 @@ function ReviewModal({ item, onClose, onDone, initialReject = false }) {
   const [busy, setBusy] = useState('')
   const [showReject, setShowReject] = useState(initialReject)
   const [reason, setReason] = useState('')
-  const [reasonError, setReasonError] = useState('')
   if (!item) return null
 
   const content = item.content || {}
@@ -70,10 +70,6 @@ function ReviewModal({ item, onClose, onDone, initialReject = false }) {
   }
 
   const reject = async () => {
-    if (!reason.trim()) {
-      setReasonError('A rejection reason is required.')
-      return
-    }
     if (busy) return
     setBusy('reject')
     try {
@@ -103,8 +99,9 @@ function ReviewModal({ item, onClose, onDone, initialReject = false }) {
         </>}
       >
         <div className="space-y-5">
+          {item.status === 'Approved' && <ContributorAttribution contributor={item.user} />}
           <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-            <div><p className="text-gray-500 dark:text-gray-400">Contributor</p><p className="mt-1 font-medium text-gray-900 dark:text-white">{item.user?.name || 'Unknown contributor'}{item.user?.email && <span className="block font-normal text-gray-500 dark:text-gray-400">{item.user.email}</span>}</p></div>
+            {item.status !== 'Approved' && <div><p className="text-gray-500 dark:text-gray-400">Contributor</p><p className="mt-1 font-medium text-gray-900 dark:text-white">{item.user?.name || 'Unknown contributor'}</p></div>}
             <div><p className="text-gray-500 dark:text-gray-400">Status</p><div className="mt-1"><Badge color={statusColor[item.status]}>{item.status}</Badge></div></div>
             <div><p className="text-gray-500 dark:text-gray-400">Type</p><p className="mt-1 font-medium text-gray-900 dark:text-white">{item.type}</p></div>
             <div><p className="text-gray-500 dark:text-gray-400">Submitted</p><p className="mt-1 font-medium text-gray-900 dark:text-white">{formatDateTime(item.submittedAt || item.createdAt)}</p></div>
@@ -134,8 +131,8 @@ function ReviewModal({ item, onClose, onDone, initialReject = false }) {
         actions={<><Button variant="ghost" onClick={() => setShowReject(false)}>Cancel</Button><Button variant="danger" onClick={reject} loading={busy === 'reject'}><XCircle className="h-4 w-4" />Reject contribution</Button></>}
       >
         <div className="space-y-4">
-          <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-200"><AlertCircle className="mr-2 inline h-4 w-4" />This contribution will not be published. The contributor will see your reason.</div>
-          <div><label htmlFor="rejection-reason" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Rejection reason</label><textarea id="rejection-reason" rows="4" value={reason} onChange={(e) => { setReason(e.target.value); setReasonError('') }} placeholder="Explain why this contribution cannot be published" className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />{reasonError && <p className="mt-1 text-sm text-red-500">{reasonError}</p>}</div>
+          <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-200"><AlertCircle className="mr-2 inline h-4 w-4" />This contribution will not be published. The contributor will see your reason if you provide one.</div>
+          <div><label htmlFor="rejection-reason" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Rejection reason (optional)</label><textarea id="rejection-reason" rows="4" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Explain why this contribution cannot be published" className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" /></div>
         </div>
       </Modal>
     </>
@@ -193,11 +190,6 @@ export default function ApprovalsPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-8">
-      <section>
-        <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Approvals</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500 dark:text-gray-400">Review user contributions submitted through UniProductive and decide what gets published for the community.</p>
-      </section>
-
       <section aria-labelledby="approval-summary-heading">
         <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-end"><div><h2 id="approval-summary-heading" className="text-xl font-semibold text-gray-900 dark:text-white">Contribution overview</h2><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">A live view of all community submissions.</p></div><span className="text-sm text-gray-400">Updates after each review</span></div>
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"><StatCard label="Total contributions" value={stats.total} icon={Layers} tone="bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-300" /><StatCard label="Pending review" value={stats.Pending} icon={Clock} tone="bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-300" /><StatCard label="Approved" value={stats.Approved} icon={CheckCircle2} tone="bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-300" /><StatCard label="Rejected" value={stats.Rejected} icon={XCircle} tone="bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-300" /></div>
@@ -216,7 +208,7 @@ export default function ApprovalsPage() {
 
       <section aria-labelledby="approval-list-heading">
         <div className="flex items-center justify-between gap-4"><div><h2 id="approval-list-heading" className="text-xl font-semibold text-gray-900 dark:text-white">Submitted contributions</h2><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Open a submission to review its complete content before taking action.</p></div></div>
-        <div className="mt-4">{loading ? <div className="rounded-xl border border-gray-200 bg-white py-10 dark:border-gray-700 dark:bg-gray-800"><LoadingSpinner /></div> : filtered.length === 0 ? <Card><EmptyState icon={Inbox} title="No Contributions Found" description="There are no contributions matching the selected filters." /></Card> : <div className="space-y-3">{filtered.map((item) => { const Icon = typeIcon[item.type] || Layers; const content = item.content || {}; return <Card key={item._id} className="p-5 transition-shadow hover:shadow-md"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-300"><Icon className="h-4 w-4" /></div><h3 className="font-semibold text-gray-900 dark:text-white">{item.title || content.title || 'Untitled contribution'}</h3><Badge color={statusColor[item.status]}>{item.status}</Badge></div><div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500 dark:text-gray-400"><span className="inline-flex items-center gap-1"><User className="h-3.5 w-3.5" />{item.user?.name || 'Unknown contributor'}{item.user?.email && ` · ${item.user.email}`}</span><span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />Submitted {formatDate(item.submittedAt || item.createdAt)}</span><span>{item.type === 'Essential' ? 'Essentials' : item.type}</span></div>{content.description && <p className="mt-3 max-w-3xl truncate text-sm leading-6 text-gray-600 dark:text-gray-400">{content.description}</p>}{item.rejectionReason && <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300"><strong>Reason:</strong> {item.rejectionReason}</p>}</div><div className="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end"><Button variant="secondary" size="sm" onClick={() => openReview(item)}><Eye className="h-4 w-4" />{item.status === 'Pending' ? 'View / Review' : 'View'}</Button>{item.status === 'Pending' && <><Button size="sm" onClick={() => approveContribution(item)} loading={processingId === item._id} disabled={Boolean(processingId)}><CheckCircle2 className="h-4 w-4" />Approve</Button><Button variant="danger" size="sm" onClick={() => openReview(item, 'reject')} disabled={Boolean(processingId)}><XCircle className="h-4 w-4" />Reject</Button></>}</div></div></Card> })}</div>}</div>
+        <div className="mt-4">{loading ? <div className="rounded-xl border border-gray-200 bg-white py-10 dark:border-gray-700 dark:bg-gray-800"><LoadingSpinner /></div> : filtered.length === 0 ? <Card><EmptyState icon={Inbox} title="No Contributions Found" description="There are no contributions matching the selected filters." /></Card> : <div className="space-y-3">{filtered.map((item) => { const Icon = typeIcon[item.type] || Layers; const content = item.content || {}; return <Card key={item._id} className="p-5 transition-shadow hover:shadow-md"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-300"><Icon className="h-4 w-4" /></div><h3 className="font-semibold text-gray-900 dark:text-white">{item.title || content.title || 'Untitled contribution'}</h3><Badge color={statusColor[item.status]}>{item.status}</Badge></div><div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500 dark:text-gray-400"><span className="inline-flex items-center gap-1"><User className="h-3.5 w-3.5" />{item.user?.name || 'Unknown contributor'}</span>{item.user?.email && <span>Email: <a href={`mailto:${item.user.email}`} className="text-primary-600 hover:underline dark:text-primary-400">{item.user.email}</a></span>}<span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />Submitted {formatDate(item.submittedAt || item.createdAt)}</span><span>{item.type === 'Essential' ? 'Essentials' : item.type}</span></div>{item.rejectionReason && <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300"><strong>Reason:</strong> {item.rejectionReason}</p>}</div><div className="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end"><Button variant="secondary" size="sm" onClick={() => openReview(item)}><Eye className="h-4 w-4" />{item.status === 'Pending' ? 'View / Review' : 'View'}</Button>{item.status === 'Pending' && <><Button size="sm" onClick={() => approveContribution(item)} loading={processingId === item._id} disabled={Boolean(processingId)}><CheckCircle2 className="h-4 w-4" />Approve</Button><Button variant="danger" size="sm" onClick={() => openReview(item, 'reject')} disabled={Boolean(processingId)}><XCircle className="h-4 w-4" />Reject</Button></>}</div></div></Card> })}</div>}</div>
       </section>
       {review && <ReviewModal item={review.item} initialReject={review.action === 'reject'} onClose={() => setReview(null)} onDone={load} />}
     </div>
