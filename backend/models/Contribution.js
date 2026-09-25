@@ -5,7 +5,7 @@ const contributionSchema = new mongoose.Schema({
   type: { type: String, required: true, enum: ['Task', 'Quiz', 'Assignment', 'Essential', 'Announcement'] },
   title: { type: String, required: true, trim: true },
   content: { type: mongoose.Schema.Types.Mixed, required: true },
-  status: { type: String, enum: ['Pending', 'Approved', 'Rejected'], default: 'Pending', index: true },
+  status: { type: String, enum: ['Pending', 'Approved', 'Rejected', 'Deleted'], default: 'Pending', index: true },
   submittedAt: { type: Date, default: Date.now },
   reviewedAt: { type: Date, default: null },
   reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },

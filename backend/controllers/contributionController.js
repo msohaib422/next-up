@@ -67,7 +67,7 @@ export const createContribution = async (req, res, next) => {
 };
 
 const buildStats = (rows) => {
-  const stats = { total: 0, Pending: 0, Approved: 0, Rejected: 0 };
+  const stats = { total: 0, Pending: 0, Approved: 0, Rejected: 0, Deleted: 0 };
   rows.forEach((row) => { stats[row._id] = row.count; stats.total += row.count; });
   return stats;
 };
@@ -75,7 +75,7 @@ const buildStats = (rows) => {
 export const getMyContributions = async (req, res, next) => {
   try {
     const query = { user: req.user._id };
-    if (['Pending', 'Approved', 'Rejected'].includes(req.query.status)) query.status = req.query.status;
+    if (['Pending', 'Approved', 'Rejected', 'Deleted'].includes(req.query.status)) query.status = req.query.status;
     const [data, counts] = await Promise.all([
       Contribution.find(query).sort({ createdAt: -1 }),
       Contribution.aggregate([{ $match: { user: req.user._id } }, { $group: { _id: '$status', count: { $sum: 1 } } }]),
@@ -105,7 +105,7 @@ export const getContribution = async (req, res, next) => {
 export const listContributions = async (req, res, next) => {
   try {
     const query = {};
-    if (['Pending', 'Approved', 'Rejected'].includes(req.query.status)) query.status = req.query.status;
+    if (['Pending', 'Approved', 'Rejected', 'Deleted'].includes(req.query.status)) query.status = req.query.status;
     if (TYPES.includes(req.query.type)) query.type = req.query.type;
     if (req.query.search) {
       const search = new RegExp(String(req.query.search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
