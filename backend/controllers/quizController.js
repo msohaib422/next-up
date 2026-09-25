@@ -1,4 +1,5 @@
 import Quiz from '../models/Quiz.js';
+import Contribution from '../models/Contribution.js';
 import { createActivity } from './activityController.js';
 import { getVisibleUserIds } from '../utils/helpers.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
@@ -203,6 +204,13 @@ export const deleteQuiz = async (req, res, next) => {
     }
 
     await Quiz.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+
+    // Keep the contributor's record: an approved contribution that is later deleted
+    // must show as Deleted, not disappear or fall back to Not Published.
+    await Contribution.updateMany(
+      { finalEntity: req.params.id, status: 'Approved' },
+      { $set: { status: 'Deleted' } }
+    );
 
     res.json({ success: true, data: {} });
   } catch (error) {
