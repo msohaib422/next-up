@@ -8,7 +8,7 @@ import {
   CheckSquare, Clock, HelpCircle, Megaphone,
   AlertTriangle, CheckCircle2, Users, FileCheck,
   Pin, BookOpen, CalendarCheck, CalendarClock,
-  ChevronRight, ArrowRight
+  ChevronRight
 } from 'lucide-react'
 import {
   format, formatDistanceToNow,
@@ -743,8 +743,10 @@ function UpcomingRow({ item, onOpen }) {
         clickable ? 'hover:bg-gray-50 dark:hover:bg-gray-700/30' : ''
       }`}
     >
-      <div className="grid grid-cols-[minmax(0,1fr)_5rem_5rem_1rem] sm:grid-cols-[minmax(0,1fr)_6rem_6rem_1rem] items-center gap-2 sm:gap-4">
-        <div className="min-w-0">
+      {/* Two equal flexible columns keep the type tag exactly in the
+          horizontal middle of the card, whatever the title length. */}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-4">
+        <div className="min-w-0 pr-2 sm:pr-4">
           <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
             {item.title}
           </h3>
@@ -753,24 +755,23 @@ function UpcomingRow({ item, onOpen }) {
           </p>
         </div>
 
-        <div className="flex min-w-0 justify-center">
+        <div className="flex self-stretch items-center justify-center">
           <Badge {...badgeProps} size="sm" className="shrink-0 whitespace-nowrap">
             {badgeLabel}
           </Badge>
         </div>
 
-        <div className="flex min-w-0 justify-center">
+        <div className="flex min-w-0 items-center justify-end gap-2 sm:gap-4">
           {item.priority && (
             <Badge {...(priorityBadgeProps[item.priority] || { color: 'neutral' })} size="sm" className="shrink-0 whitespace-nowrap">
               {item.priority}
             </Badge>
           )}
-        </div>
-
-        <div className="flex justify-center">
-          {clickable && (
-            <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 group-hover:text-primary-500 shrink-0" />
-          )}
+          <span className="flex w-4 items-center justify-center flex-shrink-0">
+            {clickable && (
+              <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 group-hover:text-primary-500 shrink-0" />
+            )}
+          </span>
         </div>
       </div>
     </Wrapper>
@@ -1303,18 +1304,7 @@ function UserDashboard() {
           </Card>
 
           <Card className="overflow-hidden">
-            <SectionHeader
-              title="Announcements"
-              action={
-                <button
-                  type="button"
-                  onClick={() => navigate('/announcements')}
-                  className="inline-flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
-                >
-                  View all <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              }
-            />
+            <SectionHeader title="Announcements" />
             {topAnnouncements.length === 0 ? (
               <CardEmpty
                 icon={Megaphone}
@@ -1462,6 +1452,7 @@ function UserDashboard() {
                 key={`${item._type}-${item._id}`}
                 item={item}
                 onOpen={openItem}
+                centerCompletion
               />
             ))}
           </div>
