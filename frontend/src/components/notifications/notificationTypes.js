@@ -1,5 +1,5 @@
 import {
-  Inbox, CheckCircle2, XCircle, Send, Megaphone, PencilLine, Trash2, Bell, PlusCircle, RotateCcw,
+  Inbox, CheckCircle2, XCircle, Send, Megaphone, PencilLine, Trash2, Bell, PlusCircle, RotateCcw, Pin,
 } from 'lucide-react'
 
 /**
@@ -56,6 +56,11 @@ export const NOTIFICATION_TYPES = {
     label: 'Incomplete',
     icon: RotateCcw,
     iconClass: 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-300',
+  },
+  CONTENT_PINNED: {
+    label: 'Pinned',
+    icon: Pin,
+    iconClass: 'bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-300',
   },
 }
 

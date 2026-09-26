@@ -4,7 +4,7 @@ import { createActivity } from './activityController.js';
 import { getVisibleUserIds } from '../utils/helpers.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
-import { notifyContentChange, notifyContributionUpdated, notifyContributorsOfDeletedEntity } from '../services/notificationService.js';
+import { notifyAnnouncementPinned, notifyContentChange, notifyContributionUpdated, notifyContributorsOfDeletedEntity } from '../services/notificationService.js';
 
 export const uploadAnnouncementFile = [
   (req, res, next) => {
@@ -241,8 +241,15 @@ export const togglePin = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Announcement not found' });
     }
 
+    const wasPinned = announcement.pinned;
     announcement.pinned = !announcement.pinned;
     await announcement.save();
+
+    // Only after the pin is persisted, and only for the unpinned -> pinned
+    // direction, so unpinning and a no-op toggle stay silent.
+    if (!wasPinned && announcement.pinned) {
+      await notifyAnnouncementPinned(announcement, req.user);
+    }
 
     res.json({ success: true, data: announcement });
   } catch (error) {

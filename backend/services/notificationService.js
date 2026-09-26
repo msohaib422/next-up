@@ -70,6 +70,18 @@ export const createNotification = async ({ recipient, actor, type, title, messag
   }
 };
 
+/**
+ * The user accounts that may see a record owned by `owner`, mirroring the
+ * read rule in getVisibleUserIds: a record owned by a normal user is readable
+ * only by that user, a record owned by a collaborator by every normal user.
+ * Admin accounts are never recipients.
+ */
+const contentRecipients = async (owner) => {
+  if (!owner?._id) return [];
+  if (owner.role === 'collaborator') return User.find({ role: 'user' }).select('_id');
+  return [owner];
+};
+
 /** Human-readable name of a content type, as shown in the notification. */
 const contentName = (entityType) => {
   switch (entityType) {
@@ -108,7 +120,7 @@ export const notifyContentChange = async ({ entityType, entity, actor, action })
     if (actor?.role !== 'collaborator') return [];
     if (!entity?._id) return [];
 
-    const recipients = await User.find({ role: 'user' }).select('_id');
+    const recipients = await contentRecipients(actor);
     if (recipients.length === 0) return [];
 
     const isAdd = action === 'added';
@@ -164,9 +176,7 @@ export const notifyStatusChange = async ({ entityType, entity, owner, wasComplet
   try {
     if (!entity?._id || !owner?._id) return [];
 
-    const recipients = owner.role === 'collaborator'
-      ? await User.find({ role: 'user' }).select('_id')
-      : [owner];
+    const recipients = await contentRecipients(owner);
     if (recipients.length === 0) return [];
 
     // The caller only invokes this for a real transition, so the new state is
@@ -202,6 +212,45 @@ export const notifyStatusChange = async ({ entityType, entity, owner, wasComplet
     return created.filter(Boolean);
   } catch (error) {
     console.error('Error notifying users of status change:', error.message);
+    return [];
+  }
+};
+
+/**
+ * An admin pinned an announcement, which promotes it to the top of the list.
+ * Recipients follow the same visibility rule as every other content
+ * notification, so a private announcement still only reaches its owner.
+ *
+ * Call this only after the pin has actually been persisted, and only for the
+ * unpinned -> pinned direction; unpinning is deliberately silent.
+ */
+export const notifyAnnouncementPinned = async (announcement, owner) => {
+  try {
+    if (!announcement?._id) return [];
+
+    const recipients = await contentRecipients(owner);
+    if (recipients.length === 0) return [];
+
+    const created = await Promise.all(
+      recipients
+        .filter((recipient) => recipient?._id)
+        .map((recipient) =>
+          createNotification({
+            recipient: recipient._id,
+            actor: owner?._id,
+            type: 'CONTENT_PINNED',
+            title: 'Announcement Pinned',
+            message: `"${announcement.title}" has been pinned.`,
+            entityType: 'Announcement',
+            entityId: announcement._id,
+            link: entityLink('Announcement', announcement._id),
+            metadata: { contentName: 'Announcement', entityTitle: announcement.title },
+          })
+        )
+    );
+    return created.filter(Boolean);
+  } catch (error) {
+    console.error('Error notifying users of pinned announcement:', error.message);
     return [];
   }
 };

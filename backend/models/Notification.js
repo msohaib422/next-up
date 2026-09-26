@@ -15,6 +15,8 @@ export const NOTIFICATION_TYPES = [
   // An item was marked complete, or moved back to incomplete.
   'CONTENT_COMPLETED',
   'CONTENT_REOPENED',
+  // An admin pinned an announcement to the top of the list.
+  'CONTENT_PINNED',
 ];
 
 const notificationSchema = new mongoose.Schema(
