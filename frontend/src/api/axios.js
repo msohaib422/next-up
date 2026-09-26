@@ -21,6 +21,20 @@ api.interceptors.response.use(
         window.location.href = '/login'
       }
     }
+
+    // Registration approval gate. If the server refuses because the account is
+    // not approved, drop the session and show the status screen instead of
+    // leaving the user on a page they cannot use.
+    const approvalStatus = error.response?.status === 403
+      ? error.response?.data?.data?.status
+      : null
+    if (approvalStatus && approvalStatus !== 'Approved') {
+      localStorage.removeItem('token')
+      if (window.location.pathname !== '/account-status') {
+        window.location.href = '/account-status'
+      }
+    }
+
     return Promise.reject(error)
   }
 )

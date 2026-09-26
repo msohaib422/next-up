@@ -19,6 +19,7 @@ import UsersPage from './pages/UsersPage'
 import ContributePage from './pages/ContributePage'
 import ApprovalsPage from './pages/ApprovalsPage'
 import NotificationsPage from './pages/NotificationsPage'
+import AccountStatusPage from './pages/AccountStatusPage'
 
 export default function App() {
   const { loading } = useAuth()
@@ -29,6 +30,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/account-status" element={<AccountStatusPage />} />
       <Route path="/" element={<ProtectedRoute><Layout><DashboardPage /></Layout></ProtectedRoute>} />
       <Route path="/tasks" element={<ProtectedRoute><Layout><TasksPage /></Layout></ProtectedRoute>} />
       <Route path="/quizzes" element={<ProtectedRoute><Layout><QuizzesPage /></Layout></ProtectedRoute>} />

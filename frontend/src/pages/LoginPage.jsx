@@ -17,7 +17,14 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     try {
-      await login(email, password)
+      const user = await login(email, password)
+      // Credentials are valid but the account is not approved yet, so send the
+      // user to the status screen instead of the application.
+      if (user?.role !== 'collaborator' && user?.status && user.status !== 'Approved') {
+        toast.success('Welcome! Your account is awaiting approval.')
+        navigate('/account-status')
+        return
+      }
       toast.success('Welcome back!')
       navigate('/')
     } catch (err) {

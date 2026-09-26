@@ -37,12 +37,11 @@ export function AuthProvider({ children }) {
   }
 
   const register = async (name, email, password) => {
+    // Registration no longer signs the user in: the account is created as
+    // Pending Approval and the server issues no token, so the applicant stays
+    // on the public pages until an administrator approves them.
     const res = await api.post('/auth/register', { name, email, password })
-    const { token: newToken, data: userData } = res.data
-    localStorage.setItem('token', newToken)
-    setToken(newToken)
-    setUser(userData)
-    return userData
+    return res.data.data
   }
 
   const logout = () => {

@@ -1,12 +1,29 @@
 import { useState, useEffect, useMemo } from 'react'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
-import { Plus, Users, Pencil, Trash2, Search } from 'lucide-react'
+import { Plus, Users, Pencil, Trash2, Search, Check, X, Clock } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import UserModal from '../components/UserModal'
+
+// Accounts created before the approval workflow have no status field; they are
+// approved accounts and must keep behaving exactly as before.
+const statusOf = (user) => user.status || 'Approved'
+
+const STATUS_STYLES = {
+  'Pending Approval': 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300',
+  Approved: 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300',
+  Rejected: 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300',
+}
+
+const PENDING_RANK = { 'Pending Approval': 0, Approved: 1, Rejected: 2 }
+
+const formatDate = (value) =>
+  value
+    ? new Date(value).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+    : '—'
 
 export default function UsersPage() {
   const [users, setUsers] = useState([])
@@ -15,24 +32,38 @@ export default function UsersPage() {
   const [editingUser, setEditingUser] = useState(null)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const [search, setSearch] = useState('')
+  const [pendingCount, setPendingCount] = useState(0)
+  // review state: { user, action: 'approve' | 'reject' }
+  const [review, setReview] = useState(null)
+  const [reviewReason, setReviewReason] = useState('')
+  const [reviewSubmitting, setReviewSubmitting] = useState(false)
 
   useEffect(() => { fetchUsers() }, [])
 
   const filteredUsers = useMemo(() => {
     const query = search.trim().toLowerCase()
 
-    if (!query) return users
+    const matched = !query
+      ? users
+      : users.filter((user) => {
+        const searchableText = `${user.name || ''} ${user.email || ''}`.toLowerCase()
+        return searchableText.includes(query)
+      })
 
-    return users.filter((user) => {
-      const searchableText = `${user.name || ''} ${user.email || ''}`.toLowerCase()
-      return searchableText.includes(query)
-    })
+    // Pending registrations first, then most recently registered.
+    return [...matched].sort(
+      (a, b) =>
+        (PENDING_RANK[statusOf(a)] ?? 3) - (PENDING_RANK[statusOf(b)] ?? 3) ||
+        new Date(b.createdAt) - new Date(a.createdAt)
+    )
   }, [search, users])
 
   const fetchUsers = async () => {
     try {
       const res = await api.get('/users/admin/users')
-      setUsers(res.data.data || [])
+      const list = res.data.data || []
+      setUsers(list)
+      setPendingCount(list.filter((u) => statusOf(u) === 'Pending Approval').length)
     } catch (err) {
       toast.error('Failed to load users')
     } finally {
@@ -71,12 +102,64 @@ export default function UsersPage() {
     }
   }
 
+  const openReview = (user, action) => {
+    setReview({ user, action })
+    setReviewReason('')
+  }
+
+  const closeReview = () => {
+    if (reviewSubmitting) return
+    setReview(null)
+    setReviewReason('')
+  }
+
+  const confirmReview = async () => {
+    if (!review) return
+    setReviewSubmitting(true)
+    const { user, action } = review
+    try {
+      const res = action === 'approve'
+        ? await api.put(`/users/admin/users/${user._id}/approve`)
+        : await api.put(`/users/admin/users/${user._id}/reject`, { reason: reviewReason.trim() })
+
+      const updated = res.data.data
+      // Reflect the decision in the table straight away, no refetch needed.
+      setUsers((prev) =>
+        prev.map((u) =>
+          u._id === updated._id
+            ? { ...u, status: updated.status, rejectionReason: updated.rejectionReason ?? '' }
+            : u
+        )
+      )
+      if (updated.status === 'Approved') {
+        setPendingCount((n) => Math.max(0, n - 1))
+      } else if (updated.status === 'Rejected') {
+        setPendingCount((n) => Math.max(0, n - 1))
+      }
+      toast.success(res.data.message || `Registration ${action === 'approve' ? 'approved' : 'rejected'}.`)
+      setReview(null)
+      setReviewReason('')
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not update this registration')
+    } finally {
+      setReviewSubmitting(false)
+    }
+  }
+
   if (loading) return <LoadingSpinner />
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Users</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Users</h1>
+          {pendingCount > 0 && (
+            <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-amber-700 dark:text-amber-300">
+              <Clock className="w-4 h-4" />
+              {pendingCount} registration{pendingCount === 1 ? '' : 's'} awaiting approval
+            </p>
+          )}
+        </div>
         <Button onClick={() => { setEditingUser(null); setShowModal(true) }}>
           <Plus className="w-4 h-4" /> Add User
         </Button>
@@ -111,16 +194,57 @@ export default function UsersPage() {
                 <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                   <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Name</th>
                   <th className="text-center px-4 py-3 font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Email</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Registered</th>
+                  <th className="text-center px-4 py-3 font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {filteredUsers.map((user) => (
-                  <tr key={user._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                {filteredUsers.map((user) => {
+                  const status = statusOf(user)
+                  const isPending = status === 'Pending Approval'
+                  return (
+                  <tr
+                    key={user._id}
+                    className={`transition-colors ${
+                      isPending
+                        ? 'bg-amber-50/50 hover:bg-amber-50 dark:bg-amber-900/10 dark:hover:bg-amber-900/20'
+                        : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                    }`}
+                  >
                     <td className="px-4 py-3 text-gray-900 dark:text-gray-100 font-medium">{user.name}</td>
                     <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-400">{user.email}</td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap">{formatDate(user.createdAt)}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[status] || STATUS_STYLES.Approved}`}>
+                        {status}
+                      </span>
+                      {status === 'Rejected' && user.rejectionReason && (
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 max-w-[16rem] mx-auto">{user.rejectionReason}</p>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        {isPending && (
+                          <>
+                            <button
+                              onClick={() => openReview(user, 'approve')}
+                              disabled={reviewSubmitting}
+                              className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50 dark:text-green-300 dark:hover:bg-green-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="Approve registration"
+                            >
+                              <Check className="w-4 h-4" /> Approve
+                            </button>
+                            <button
+                              onClick={() => openReview(user, 'reject')}
+                              disabled={reviewSubmitting}
+                              className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="Reject registration"
+                            >
+                              <X className="w-4 h-4" /> Reject
+                            </button>
+                          </>
+                        )}
                         <button
                           onClick={() => { setEditingUser(user); setShowModal(true) }}
                           className="p-1.5 rounded-lg text-gray-500 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 dark:hover:text-primary-400 transition-colors"
@@ -138,7 +262,8 @@ export default function UsersPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -151,6 +276,58 @@ export default function UsersPage() {
         onSave={handleSave}
         user={editingUser}
       />
+
+      {review && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+              {review.action === 'approve' ? 'Approve registration' : 'Reject registration'}
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-5">
+              {review.action === 'approve' ? (
+                <>
+                  Approve <span className="font-medium text-gray-900 dark:text-gray-100">{review.user.name}</span>?
+                  They will be able to sign in and use the system immediately, and will be notified by email.
+                </>
+              ) : (
+                <>
+                  Reject <span className="font-medium text-gray-900 dark:text-gray-100">{review.user.name}</span>?
+                  They will not be able to access the system, and will be notified by email. The registration
+                  record is kept so this decision remains on record.
+                </>
+              )}
+            </p>
+
+            {review.action === 'reject' && (
+              <div className="mb-5">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  Reason <span className="font-normal text-gray-400">(optional)</span>
+                </label>
+                <textarea
+                  value={reviewReason}
+                  onChange={(e) => setReviewReason(e.target.value)}
+                  maxLength={500}
+                  rows={3}
+                  placeholder="Let the applicant know why their registration was not approved..."
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+                <p className="mt-1 text-xs text-gray-400 text-right">{reviewReason.length}/500</p>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={closeReview} disabled={reviewSubmitting}>Cancel</Button>
+              <Button
+                variant={review.action === 'approve' ? 'primary' : 'danger'}
+                onClick={confirmReview}
+                loading={reviewSubmitting}
+              >
+                {review.action === 'approve' ? 'Approve' : 'Reject'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">

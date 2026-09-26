@@ -1,4 +1,14 @@
 import dotenv from 'dotenv';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// Load backend/.env explicitly rather than relying on the process working
+// directory, so SMTP variables are found whether the app is started from the
+// repo root, from backend/, or from a serverless runtime. A missing file is
+// ignored, which is the normal case on Vercel where the variables come from
+// the dashboard.
+const backendEnv = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.env');
+dotenv.config({ path: backendEnv });
 dotenv.config();
 
 import express from 'express';
@@ -6,6 +16,7 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import connectDB from './config/db.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { verifySmtpConnection, isMailConfigured } from './services/mailService.js';
 
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
@@ -60,6 +71,12 @@ app.use((req, res, next) => {
 app.use(errorHandler);
 
 connectDB();
+
+// Report SMTP readiness once at startup. Non-fatal by design: a broken mail
+// server must not stop the API from serving, but it should never be silent.
+if (isMailConfigured()) {
+  verifySmtpConnection().catch(() => {});
+}
 
 if (!process.env.VERCEL) {
   const PORT = process.env.PORT || 5000;

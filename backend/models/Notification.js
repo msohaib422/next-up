@@ -17,6 +17,10 @@ export const NOTIFICATION_TYPES = [
   'CONTENT_REOPENED',
   // An admin pinned an announcement to the top of the list.
   'CONTENT_PINNED',
+  // Registration approval workflow.
+  'REGISTRATION_SUBMITTED',
+  'REGISTRATION_APPROVED',
+  'REGISTRATION_REJECTED',
 ];
 
 const notificationSchema = new mongoose.Schema(

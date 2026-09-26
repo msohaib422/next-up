@@ -33,6 +33,30 @@ const userSchema = new mongoose.Schema(
       enum: ['user', 'collaborator'],
       default: 'user',
     },
+    // Registration approval workflow. A new self-registered account starts as
+    // 'Pending Approval' and cannot use the system until an administrator
+    // approves it. The default is 'Approved' so every account that already
+    // exists keeps working with no data migration.
+    status: {
+      type: String,
+      enum: ['Pending Approval', 'Approved', 'Rejected'],
+      default: 'Approved',
+    },
+    // Optional administrator note captured when a registration is declined.
+    rejectionReason: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    reviewedAt: {
+      type: Date,
+      default: null,
+    },
+    reviewedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
   },
   { timestamps: true }
 );

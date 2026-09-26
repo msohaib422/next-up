@@ -1,5 +1,6 @@
 import {
   Inbox, CheckCircle2, XCircle, Send, Megaphone, PencilLine, Trash2, Bell, PlusCircle, RotateCcw, Pin,
+  Clock, UserCheck, ShieldOff,
 } from 'lucide-react'
 
 /**
@@ -61,6 +62,21 @@ export const NOTIFICATION_TYPES = {
     label: 'Pinned',
     icon: Pin,
     iconClass: 'bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-300',
+  },
+  REGISTRATION_SUBMITTED: {
+    label: 'Pending Approval',
+    icon: Clock,
+    iconClass: 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-300',
+  },
+  REGISTRATION_APPROVED: {
+    label: 'Approved',
+    icon: UserCheck,
+    iconClass: 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-300',
+  },
+  REGISTRATION_REJECTED: {
+    label: 'Rejected',
+    icon: ShieldOff,
+    iconClass: 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-300',
   },
 }
 

@@ -1,7 +1,7 @@
 import express from 'express';
 import {
   getProfile, updateProfile, updateProfileImage, changePassword,
-  getAllUsers, createUser, updateUser, deleteUser,
+  getAllUsers, createUser, updateUser, deleteUser, approveUser, rejectUser,
 } from '../controllers/userController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -18,5 +18,7 @@ router.get('/admin/users', authorize('collaborator'), getAllUsers);
 router.post('/admin/users', authorize('collaborator'), createUser);
 router.put('/admin/users/:id', authorize('collaborator'), updateUser);
 router.delete('/admin/users/:id', authorize('collaborator'), deleteUser);
+router.put('/admin/users/:id/approve', authorize('collaborator'), approveUser);
+router.put('/admin/users/:id/reject', authorize('collaborator'), rejectUser);
 
 export default router;
