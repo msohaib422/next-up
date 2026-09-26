@@ -177,7 +177,7 @@ export default function NotificationsPage() {
                     </p>
                   </div>
 
-                  <div className="flex shrink-0 items-center gap-1 self-center">
+                  <div className="flex shrink-0 items-center gap-[15px] self-center">
                     <button
                       type="button"
                       onClick={(event) => handleToggleRead(event, notification)}
