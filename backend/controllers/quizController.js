@@ -1,7 +1,7 @@
 import Quiz from '../models/Quiz.js';
 import Contribution from '../models/Contribution.js';
 import { createActivity } from './activityController.js';
-import { getVisibleUserIds } from '../utils/helpers.js';
+import { getVisibleUserIds, getWritableUserIds } from '../utils/helpers.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
 import { fileTooLargeMessage } from '../config/uploadLimits.js';
@@ -140,7 +140,7 @@ export const createQuiz = async (req, res, next) => {
 
 export const updateQuiz = async (req, res, next) => {
   try {
-    const existingQuiz = await Quiz.findOne({ _id: req.params.id, user: req.user._id });
+    const existingQuiz = await Quiz.findOne({ _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } });
     if (!existingQuiz) {
       return res.status(404).json({ success: false, message: 'Quiz not found' });
     }
@@ -182,7 +182,7 @@ export const updateQuiz = async (req, res, next) => {
     }
 
     const quiz = await Quiz.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
+      { _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } },
       updateFields,
       { new: true, runValidators: true }
     );
@@ -207,7 +207,7 @@ export const updateQuiz = async (req, res, next) => {
 
 export const deleteQuiz = async (req, res, next) => {
   try {
-    const quiz = await Quiz.findOne({ _id: req.params.id, user: req.user._id });
+    const quiz = await Quiz.findOne({ _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } });
     if (!quiz) {
       return res.status(404).json({ success: false, message: 'Quiz not found' });
     }
@@ -221,7 +221,7 @@ export const deleteQuiz = async (req, res, next) => {
 
     await notifyContributorsOfDeletedEntity({ entityType: 'Quiz', entityId: req.params.id, actor: req.user });
 
-    await Quiz.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+    await Quiz.findOneAndDelete({ _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } });
 
     // Keep the contributor's record: an approved contribution that is later deleted
     // must show as Deleted, not disappear or fall back to Not Published.

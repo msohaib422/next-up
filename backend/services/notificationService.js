@@ -71,15 +71,51 @@ export const createNotification = async ({ recipient, actor, type, title, messag
 };
 
 /**
- * The user accounts that may see a record owned by `owner`, mirroring the
- * read rule in getVisibleUserIds: a record owned by a normal user is readable
- * only by that user, a record owned by a collaborator by every normal user.
- * Admin accounts are never recipients.
+ * The USER accounts that may see a record owned by `owner`, mirroring the read
+ * rule in getVisibleUserIds: a record owned by a normal user is readable only by
+ * that user, a record owned by a collaborator by every normal user. Admin
+ * accounts are handled separately, by otherAdminRecipients below.
  */
 const contentRecipients = async (owner) => {
   if (!owner?._id) return [];
   if (owner.role === 'collaborator') return User.find({ role: 'user' }).select('_id');
   return [owner];
+};
+
+/**
+ * The OTHER admins, i.e. everyone in the shared admin workspace except the one
+ * who performed the action. This is the admin-to-admin fan-out: an admin action
+ * is a shared action, so the rest of the team is told about it through the same
+ * notification system they already use. The acting admin is never a recipient
+ * of their own action.
+ */
+const otherAdminRecipients = async (actor) => {
+  if (!actor?._id) return [];
+  const admins = await User.find({ role: 'collaborator' }).select('_id name');
+  return admins.filter((admin) => String(admin._id) !== String(actor._id));
+};
+
+/** "Admin Sohaib" when the name is known, otherwise a neutral "An admin". */
+const actorLabel = (actor) => (actor?.name ? `Admin ${actor.name}` : 'An admin');
+
+/** Lower-case noun used in the admin-facing sentence, e.g. "timetable entry". */
+const contentNoun = (entityType) => {
+  switch (entityType) {
+    case 'Essential':
+      return 'essential';
+    case 'Announcement':
+      return 'announcement';
+    case 'Task':
+      return 'task';
+    case 'Quiz':
+      return 'quiz';
+    case 'Assignment':
+      return 'assignment';
+    case 'Lecture':
+      return 'timetable entry';
+    default:
+      return 'item';
+  }
 };
 
 /** Human-readable name of a content type, as shown in the notification. */
@@ -104,9 +140,15 @@ const contentName = (entityType) => {
 
 /**
  * An admin published new content, or edited content that already exists.
- * Every regular user is notified, because getVisibleUserIds() already makes
- * admin-created records visible to all normal users, so they can all act on
- * the notification's link.
+ *
+ * Recipients are BOTH audiences of a shared admin action:
+ *
+ *   - every regular user, because getVisibleUserIds() already makes
+ *     admin-created records visible to all normal users, so they can all act on
+ *     the notification's link;
+ *   - every OTHER admin, because all admins work in one shared workspace and a
+ *     change made by one of them is a change to everyone's content. The acting
+ *     admin is explicitly excluded, so nobody is notified of their own action.
  *
  * Only collaborator actions fan out: content a normal user creates stays
  * private to that user (see getVisibleUserIds), so notifying everyone about it
@@ -120,8 +162,11 @@ export const notifyContentChange = async ({ entityType, entity, actor, action })
     if (actor?.role !== 'collaborator') return [];
     if (!entity?._id) return [];
 
-    const recipients = await contentRecipients(actor);
-    if (recipients.length === 0) return [];
+    const [userRecipients, adminRecipients] = await Promise.all([
+      contentRecipients(actor),
+      otherAdminRecipients(actor),
+    ]);
+    if (userRecipients.length === 0 && adminRecipients.length === 0) return [];
 
     const isAdd = action === 'added';
     const name = contentName(entityType);
@@ -129,10 +174,13 @@ export const notifyContentChange = async ({ entityType, entity, actor, action })
     const verb = isAdd ? 'added' : 'updated';
     // Timetable entries are Lectures and have no `title`; the subject names them.
     const entityTitle = entity.title || entity.subject || 'Untitled';
+    const who = actorLabel(actor);
+    const noun = contentNoun(entityType);
 
-    const created = await Promise.all(
-      recipients
-        .filter((recipient) => String(recipient._id) !== String(actor._id))
+    const created = await Promise.all([
+      // Regular users keep the exact wording they have always received.
+      ...userRecipients
+        .filter((recipient) => recipient?._id && String(recipient._id) !== String(actor._id))
         .map((recipient) =>
           createNotification({
             recipient: recipient._id,
@@ -151,8 +199,28 @@ export const notifyContentChange = async ({ entityType, entity, actor, action })
               ? `added:${entityType}:${entity._id}:${recipient._id}`
               : `updated:${entityType}:${entity._id}:${recipient._id}:${entity.updatedAt}`,
           })
-        )
-    );
+        ),
+      // Other admins are told that a colleague - named, not just "an admin" -
+      // changed shared content. Same dedupe guarantees as above.
+      ...adminRecipients.map((admin) =>
+        createNotification({
+          recipient: admin._id,
+          actor: actor._id,
+          type: isAdd ? 'CONTENT_ADDED' : 'CONTENT_UPDATED',
+          title: isAdd ? `${name} Added by an Admin` : `${name} Updated by an Admin`,
+          message: isAdd
+            ? `${who} created a new ${noun}: "${entityTitle}".`
+            : `${who} updated the ${noun} "${entityTitle}".`,
+          entityType,
+          entityId: entity._id,
+          link,
+          metadata: { contentName: name, action, entityTitle, actorName: actor?.name || '' },
+          dedupeKey: isAdd
+            ? `added:${entityType}:${entity._id}:${admin._id}`
+            : `updated:${entityType}:${entity._id}:${admin._id}:${entity.updatedAt}`,
+        })
+      ),
+    ]);
     return created.filter(Boolean);
   } catch (error) {
     console.error('Error notifying users of content change:', error.message);
@@ -176,8 +244,13 @@ export const notifyStatusChange = async ({ entityType, entity, owner, wasComplet
   try {
     if (!entity?._id || !owner?._id) return [];
 
-    const recipients = await contentRecipients(owner);
-    if (recipients.length === 0) return [];
+    // Other admins are included only when an ADMIN changed shared content;
+    // a normal user completing their own private task notifies nobody else.
+    const [recipients, adminRecipients] = await Promise.all([
+      contentRecipients(owner),
+      owner.role === 'collaborator' ? otherAdminRecipients(owner) : [],
+    ]);
+    if (recipients.length === 0 && adminRecipients.length === 0) return [];
 
     // The caller only invokes this for a real transition, so the new state is
     // simply the opposite of the previous one.
@@ -185,9 +258,10 @@ export const notifyStatusChange = async ({ entityType, entity, owner, wasComplet
     const name = contentName(entityType);
     const link = entityLink(entityType, entity._id);
     const entityTitle = entity.title || entity.subject || 'Untitled';
+    const who = actorLabel(owner);
 
-    const created = await Promise.all(
-      recipients
+    const created = await Promise.all([
+      ...recipients
         .filter((recipient) => recipient?._id)
         .map((recipient) =>
           createNotification({
@@ -207,8 +281,21 @@ export const notifyStatusChange = async ({ entityType, entity, owner, wasComplet
             // that is millisecond-resolution, so two toggles in the same
             // millisecond would collide and lose a notification.
           })
-        )
-    );
+        ),
+      ...adminRecipients.map((admin) =>
+        createNotification({
+          recipient: admin._id,
+          actor: owner._id,
+          type: isCompleted ? 'CONTENT_COMPLETED' : 'CONTENT_REOPENED',
+          title: isCompleted ? `${name} Completed by an Admin` : `${name} Reopened by an Admin`,
+          message: `${who} marked the ${contentNoun(entityType)} "${entityTitle}" as ${isCompleted ? 'complete' : 'incomplete'}.`,
+          entityType,
+          entityId: entity._id,
+          link,
+          metadata: { contentName: name, status: isCompleted ? 'Completed' : 'Incomplete', entityTitle, actorName: owner?.name || '' },
+        })
+      ),
+    ]);
     return created.filter(Boolean);
   } catch (error) {
     console.error('Error notifying users of status change:', error.message);
@@ -228,11 +315,14 @@ export const notifyAnnouncementPinned = async (announcement, owner) => {
   try {
     if (!announcement?._id) return [];
 
-    const recipients = await contentRecipients(owner);
-    if (recipients.length === 0) return [];
+    const [recipients, adminRecipients] = await Promise.all([
+      contentRecipients(owner),
+      owner?.role === 'collaborator' ? otherAdminRecipients(owner) : [],
+    ]);
+    if (recipients.length === 0 && adminRecipients.length === 0) return [];
 
-    const created = await Promise.all(
-      recipients
+    const created = await Promise.all([
+      ...recipients
         .filter((recipient) => recipient?._id)
         .map((recipient) =>
           createNotification({
@@ -246,8 +336,21 @@ export const notifyAnnouncementPinned = async (announcement, owner) => {
             link: entityLink('Announcement', announcement._id),
             metadata: { contentName: 'Announcement', entityTitle: announcement.title },
           })
-        )
-    );
+        ),
+      ...adminRecipients.map((admin) =>
+        createNotification({
+          recipient: admin._id,
+          actor: owner?._id,
+          type: 'CONTENT_PINNED',
+          title: 'Announcement Pinned by an Admin',
+          message: `${actorLabel(owner)} pinned the announcement "${announcement.title}".`,
+          entityType: 'Announcement',
+          entityId: announcement._id,
+          link: entityLink('Announcement', announcement._id),
+          metadata: { contentName: 'Announcement', entityTitle: announcement.title, actorName: owner?.name || '' },
+        })
+      ),
+    ]);
     return created.filter(Boolean);
   } catch (error) {
     console.error('Error notifying users of pinned announcement:', error.message);
@@ -354,6 +457,50 @@ export const notifyContributionApproved = async (contribution, admin, entity) =>
     metadata: { contributionType: contribution.type, title: contribution.title, contributionId: contribution._id },
     dedupeKey: `approved:${contribution._id}`,
   });
+};
+
+/**
+ * The same publication, told to the OTHER admins. Publishing turns a
+ * contribution into shared content that every admin can now see, edit and
+ * delete, so the rest of the team learns who published it and where - the
+ * admin-to-admin half of the existing publication notification. The approving
+ * admin is not a recipient, and the contributor still gets exactly the one
+ * notification notifyContributionApproved sends them.
+ */
+export const notifyAdminsOfPublishedContribution = async (contribution, admin, entity) => {
+  try {
+    const admins = await otherAdminRecipients(admin);
+    if (admins.length === 0) return [];
+
+    const publishedId = entity?._id || contribution.finalEntity || null;
+    const created = await Promise.all(
+      admins.map((other) =>
+        createNotification({
+          recipient: other._id,
+          actor: admin?._id,
+          type: 'CONTRIBUTION_PUBLISHED',
+          title: 'Contribution Published',
+          message: `${actorLabel(admin)} published a contributed ${label(contribution.type)}: "${contribution.title}".`,
+          entityType: contribution.type,
+          entityId: publishedId,
+          // Points at the published item itself, which is where the other
+          // admins will now find it in the shared content lists.
+          link: entityLink(contribution.type, publishedId),
+          metadata: {
+            contributionType: contribution.type,
+            title: contribution.title,
+            contributionId: contribution._id,
+            actorName: admin?.name || '',
+          },
+          dedupeKey: `published-admin:${contribution._id}:${other._id}`,
+        })
+      )
+    );
+    return created.filter(Boolean);
+  } catch (error) {
+    console.error('Error notifying admins of published contribution:', error.message);
+    return [];
+  }
 };
 
 export const notifyContributionRejected = async (contribution, admin) => {

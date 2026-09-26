@@ -1,3 +1,4 @@
+import { getWritableUserIds } from '../utils/helpers.js';
 import Contribution from '../models/Contribution.js';
 import Task from '../models/Task.js';
 import Quiz from '../models/Quiz.js';
@@ -7,6 +8,7 @@ import Announcement from '../models/Announcement.js';
 import {
   notifyContributionSubmitted,
   notifyContributionApproved,
+  notifyAdminsOfPublishedContribution,
   notifyContributionRejected,
 } from '../services/notificationService.js';
 
@@ -99,7 +101,7 @@ export const getContributionStats = async (req, res, next) => {
 
 export const getContribution = async (req, res, next) => {
   try {
-    const query = req.user.role === 'collaborator' ? { _id: req.params.id } : { _id: req.params.id, user: req.user._id };
+    const query = req.user.role === 'collaborator' ? { _id: req.params.id } : { _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } };
     const contribution = await Contribution.findOne(query)
       .populate('user', 'name email')
       .populate('reviewedBy', 'name email');
@@ -154,15 +156,26 @@ export const approveContribution = async (req, res, next) => {
     if (contribution.type === 'Assignment') {
       data.approvalStatus = 'Approved';
     }
-    const entity = await MODELS[contribution.type].create({
+    // ONE published record, stored under the approving admin. `user` is
+    // attribution only: getVisibleUserIds() makes every admin-created record
+    // readable by all admins and all users, so the published item shows up in
+    // every admin's lists without a second copy existing anywhere.
+    const published = {
       ...data,
       user: req.user._id,
       contributor: contribution.user,
-    });
+    };
+    // Only Essential and Announcement carry an author name; the other models
+    // do not define the path, so it is set only where it exists.
+    if (MODELS[contribution.type].schema.path('createdBy')) {
+      published.createdBy = req.user.name;
+    }
+    const entity = await MODELS[contribution.type].create(published);
     contribution.finalEntity = entity._id;
     await contribution.save();
     await contribution.populate('user', 'name email');
     await notifyContributionApproved(contribution, req.user, entity);
+    await notifyAdminsOfPublishedContribution(contribution, req.user, entity);
     res.json({ success: true, data: contribution, message: 'Contribution approved and published.' });
   } catch (error) {
     if (contribution) {

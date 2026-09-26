@@ -250,7 +250,10 @@ function AdminDashboard() {
         const [usersRes, tasksRes, assignmentsRes, quizzesRes, annRes] = await Promise.all([
           api.get('/users/admin/users').catch(() => ({ data: { data: [] } })),
           api.get('/tasks').catch(() => ({ data: { data: [] } })),
-          api.get('/assignments/my').catch(() => ({ data: { data: [] } })),
+          // Shared endpoint, not /assignments/my: the admin dashboard reports
+          // on the whole admin workspace, so it must not be limited to the
+          // assignments created by the signed-in admin.
+          api.get('/assignments').catch(() => ({ data: { data: [] } })),
           api.get('/quizzes').catch(() => ({ data: { data: [] } })),
           api.get('/announcements').catch(() => ({ data: { data: [] } })),
         ])

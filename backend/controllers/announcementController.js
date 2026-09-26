@@ -1,7 +1,7 @@
 import Announcement from '../models/Announcement.js';
 import Contribution from '../models/Contribution.js';
 import { createActivity } from './activityController.js';
-import { getVisibleUserIds } from '../utils/helpers.js';
+import { getVisibleUserIds, getWritableUserIds } from '../utils/helpers.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
 import { fileTooLargeMessage } from '../config/uploadLimits.js';
@@ -156,7 +156,7 @@ export const createAnnouncement = async (req, res, next) => {
 
 export const updateAnnouncement = async (req, res, next) => {
   try {
-    const existingAnnouncement = await Announcement.findOne({ _id: req.params.id, user: req.user._id });
+    const existingAnnouncement = await Announcement.findOne({ _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } });
     if (!existingAnnouncement) {
       return res.status(404).json({ success: false, message: 'Announcement not found' });
     }
@@ -188,7 +188,7 @@ export const updateAnnouncement = async (req, res, next) => {
     }
 
     const announcement = await Announcement.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
+      { _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } },
       updateFields,
       { new: true, runValidators: true }
     );
@@ -206,7 +206,7 @@ export const updateAnnouncement = async (req, res, next) => {
 
 export const deleteAnnouncement = async (req, res, next) => {
   try {
-    const announcement = await Announcement.findOne({ _id: req.params.id, user: req.user._id });
+    const announcement = await Announcement.findOne({ _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } });
     if (!announcement) {
       return res.status(404).json({ success: false, message: 'Announcement not found' });
     }
@@ -220,7 +220,7 @@ export const deleteAnnouncement = async (req, res, next) => {
 
     await notifyContributorsOfDeletedEntity({ entityType: 'Announcement', entityId: req.params.id, actor: req.user });
 
-    await Announcement.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+    await Announcement.findOneAndDelete({ _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } });
 
     // Keep the contributor's record: an approved contribution that is later deleted
     // must show as Deleted, not disappear or fall back to Not Published.
@@ -237,7 +237,7 @@ export const deleteAnnouncement = async (req, res, next) => {
 
 export const togglePin = async (req, res, next) => {
   try {
-    const announcement = await Announcement.findOne({ _id: req.params.id, user: req.user._id });
+    const announcement = await Announcement.findOne({ _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } });
     if (!announcement) {
       return res.status(404).json({ success: false, message: 'Announcement not found' });
     }
@@ -260,7 +260,10 @@ export const togglePin = async (req, res, next) => {
 
 export const toggleSave = async (req, res, next) => {
   try {
-    const announcement = await Announcement.findOne({ _id: req.params.id, user: req.user._id });
+    // Saving is per-user bookkeeping on shared content: anyone who can SEE the
+    // announcement may toggle their own entry in savedBy (same visibility scope
+    // as getAnnouncement), so a regular user can also save an admin's item.
+    const announcement = await Announcement.findOne({ _id: req.params.id, user: { $in: await getVisibleUserIds(req.user) } });
     if (!announcement) {
       return res.status(404).json({ success: false, message: 'Announcement not found' });
     }
@@ -283,7 +286,7 @@ export const toggleSave = async (req, res, next) => {
 
 export const toggleExpire = async (req, res, next) => {
   try {
-    const announcement = await Announcement.findOne({ _id: req.params.id, user: req.user._id });
+    const announcement = await Announcement.findOne({ _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } });
     if (!announcement) {
       return res.status(404).json({ success: false, message: 'Announcement not found' });
     }

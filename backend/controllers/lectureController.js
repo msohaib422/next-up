@@ -1,6 +1,6 @@
 import Lecture from '../models/Lecture.js';
 import { createActivity } from './activityController.js';
-import { getVisibleUserIds } from '../utils/helpers.js';
+import { getVisibleUserIds, getWritableUserIds } from '../utils/helpers.js';
 import { notifyContentChange } from '../services/notificationService.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
@@ -110,7 +110,7 @@ export const createLecture = async (req, res, next) => {
 
 export const updateLecture = async (req, res, next) => {
   try {
-    const existingLecture = await Lecture.findOne({ _id: req.params.id, user: req.user._id });
+    const existingLecture = await Lecture.findOne({ _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } });
     if (!existingLecture) {
       return res.status(404).json({ success: false, message: 'Lecture not found' });
     }
@@ -138,7 +138,7 @@ export const updateLecture = async (req, res, next) => {
     }
 
     const lecture = await Lecture.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
+      { _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } },
       updateFields,
       { new: true, runValidators: true }
     );
@@ -153,7 +153,7 @@ export const updateLecture = async (req, res, next) => {
 
 export const deleteLecture = async (req, res, next) => {
   try {
-    const lecture = await Lecture.findOne({ _id: req.params.id, user: req.user._id });
+    const lecture = await Lecture.findOne({ _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } });
     if (!lecture) {
       return res.status(404).json({ success: false, message: 'Lecture not found' });
     }
@@ -165,7 +165,7 @@ export const deleteLecture = async (req, res, next) => {
       });
     }
 
-    await Lecture.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+    await Lecture.findOneAndDelete({ _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } });
 
     res.json({ success: true, data: {} });
   } catch (error) {

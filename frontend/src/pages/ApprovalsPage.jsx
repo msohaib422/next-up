@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
+import { useHighlightSync } from '../hooks/useHighlightSync'
 import {
   AlertCircle,
   Calendar,
@@ -150,6 +151,8 @@ export default function ApprovalsPage() {
   const [review, setReview] = useState(null)
   const [searchParams, setSearchParams] = useSearchParams()
   const processedHighlight = useRef(null)
+  // Id whose row was missing on the first attempt (one retry, then drop the link).
+  const missingHighlight = useRef(null)
 
   const load = async () => {
     try {
@@ -165,19 +168,32 @@ export default function ApprovalsPage() {
 
   useEffect(() => { load() }, [])
 
-  // Highlight a contribution opened from a notification
+  // A notification may point at a contribution this page has not loaded yet
+  // (e.g. it was submitted or published while this page was already open).
+  useHighlightSync(items.map((item) => item._id), loading, load)
+
+  // Highlight a contribution opened from a notification. A contribution that is
+  // not listed yet is retried once the data settles (see useHighlightSync), then
+  // the link is dropped exactly as before.
   useEffect(() => {
     if (loading) return
     const highlightId = searchParams.get('highlight')
     if (!highlightId || highlightId === processedHighlight.current) return
-    processedHighlight.current = highlightId
+    if (missingHighlight.current === highlightId) {
+      searchParams.delete('highlight')
+      setSearchParams(searchParams, { replace: true })
+      return
+    }
     const timer = setTimeout(() => {
       const element = document.getElementById(`contribution-${highlightId}`)
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        element.classList.add('highlight-glow')
-        setTimeout(() => element.classList.remove('highlight-glow'), 3000)
+      if (!element) {
+        missingHighlight.current = highlightId
+        return
       }
+      processedHighlight.current = highlightId
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      element.classList.add('highlight-glow')
+      setTimeout(() => element.classList.remove('highlight-glow'), 3000)
       searchParams.delete('highlight')
       setSearchParams(searchParams, { replace: true })
     }, 300)

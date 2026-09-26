@@ -1,7 +1,7 @@
 import Essential from '../models/Essential.js';
 import Contribution from '../models/Contribution.js';
 import { createActivity } from './activityController.js';
-import { getVisibleUserIds } from '../utils/helpers.js';
+import { getVisibleUserIds, getWritableUserIds } from '../utils/helpers.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
 import { fileTooLargeMessage } from '../config/uploadLimits.js';
@@ -153,7 +153,7 @@ export const createEssential = async (req, res, next) => {
 
 export const updateEssential = async (req, res, next) => {
   try {
-    const existingEssential = await Essential.findOne({ _id: req.params.id, user: req.user._id });
+    const existingEssential = await Essential.findOne({ _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } });
     if (!existingEssential) {
       return res.status(404).json({ success: false, message: 'Essential not found' });
     }
@@ -204,7 +204,7 @@ export const updateEssential = async (req, res, next) => {
     }
 
     const essential = await Essential.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
+      { _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } },
       updateFields,
       { new: true, runValidators: true }
     );
@@ -222,7 +222,7 @@ export const updateEssential = async (req, res, next) => {
 
 export const deleteEssential = async (req, res, next) => {
   try {
-    const essential = await Essential.findOne({ _id: req.params.id, user: req.user._id });
+    const essential = await Essential.findOne({ _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } });
     if (!essential) {
       return res.status(404).json({ success: false, message: 'Essential not found' });
     }
@@ -236,7 +236,7 @@ export const deleteEssential = async (req, res, next) => {
 
     await notifyContributorsOfDeletedEntity({ entityType: 'Essential', entityId: req.params.id, actor: req.user });
 
-    await Essential.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+    await Essential.findOneAndDelete({ _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } });
 
     // Keep the contributor's record: an approved contribution that is later deleted
     // must show as Deleted, not disappear or fall back to Not Published.

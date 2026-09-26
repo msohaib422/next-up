@@ -7,16 +7,45 @@ export const generateToken = (userId) => {
   });
 };
 
+/**
+ * The shared, multi-admin scope.
+ *
+ * Every collaborator (admin) account is part of ONE shared workspace, so
+ * content authored by any admin is shared content:
+ *
+ *   - READ   `getVisibleUserIds`  - admins see every admin's content, and so do
+ *                                  normal users (admin content is published to
+ *                                  them). A normal user's own content stays
+ *                                  private to that user.
+ *   - WRITE  `getWritableUserIds` - admins may edit/delete any admin's shared
+ *                                  content (it is ONE record, not a per-admin
+ *                                  copy), while a normal user may only ever
+ *                                  change their own.
+ *
+ * The `user` field on a document stays the account that created it: that is
+ * attribution and audit information, never a visibility boundary between
+ * admins. Nothing here duplicates a record.
+ */
+const collaboratorIds = async () => (await User.find({ role: 'collaborator' }).select('_id')).map((c) => c._id);
+
 // Returns the list of user IDs whose records may be READ by the requester.
-// Records are stored under the creator's account, so admin (collaborator)-created
-// data must also be visible to normal users. Collaborators keep seeing only
-// their own records, exactly as before.
 export const getVisibleUserIds = async (user) => {
+  // For an admin this is the whole shared workspace (their own id is already
+  // among the collaborators); for a normal user it is themselves plus the admins,
+  // because admin content is published to users. Other users' own content is
+  // never in the list, so it stays private.
+  const collaborators = await collaboratorIds();
+  return Array.from(new Set([String(user._id), ...collaborators.map(String)]));
+};
+
+// Returns the list of user IDs whose records the requester may MODIFY. For an
+// admin that is the whole shared workspace; for anyone else it is only their
+// own account, so user permissions are unchanged.
+export const getWritableUserIds = async (user) => {
   if (user.role === 'collaborator') {
-    return [user._id];
+    return Array.from(new Set([String(user._id), ...(await collaboratorIds()).map(String)]));
   }
-  const collaborators = await User.find({ role: 'collaborator' }).select('_id');
-  return [user._id, ...collaborators.map((c) => c._id)];
+  return [String(user._id)];
 };
 
 export const formatDate = (date) => {

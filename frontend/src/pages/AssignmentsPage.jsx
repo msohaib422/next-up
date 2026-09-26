@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
 import { useAuth } from '../hooks/useAuth'
+import { useHighlightSync } from '../hooks/useHighlightSync'
 import { Plus, CheckSquare, Search, Calendar, X, Paperclip, Download } from 'lucide-react'
 import { parseISO, isPast, isToday, format } from 'date-fns'
 import { useSearchParams } from 'react-router-dom'
@@ -48,31 +49,48 @@ export default function AssignmentsPage() {
   const [dateFilter, setDateFilter] = useState('')
   const [searchParams, setSearchParams] = useSearchParams()
   const processedHighlight = useRef(null)
+  // Id whose row was missing on the first attempt (one retry, then drop the link).
+  const missingHighlight = useRef(null)
 
   useEffect(() => { fetchAssignments() }, [])
 
-  // Highlight item from dashboard navigation
+  // A notification may point at an item this page has not loaded yet
+  // (e.g. another admin published it while this page was already open).
+  useHighlightSync(assignments.map((item) => item._id), loading, fetchAssignments)
+
+  // Highlight item from dashboard navigation.
+  //
+  // A row that is not on the page yet is retried once the data settles (see
+  // useHighlightSync: that happens when the item was created by another admin
+  // while this page was already open). After that single retry the link is
+  // dropped exactly as before, so a genuinely missing row cannot leave the
+  // effect re-running.
   useEffect(() => {
-    if (!loading) {
-      const highlightId = searchParams.get('highlight')
-      if (highlightId && highlightId !== processedHighlight.current) {
-        processedHighlight.current = highlightId
-        const timer = setTimeout(() => {
-          const element = document.getElementById(`item-${highlightId}`)
-          if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' })
-            element.classList.add('highlight-glow')
-            setTimeout(() => {
-              element.classList.remove('highlight-glow')
-            }, 3000)
-          }
-          searchParams.delete('highlight')
-          setSearchParams(searchParams, { replace: true })
-        }, 300)
-        return () => clearTimeout(timer)
-      }
+    if (loading) return
+    const highlightId = searchParams.get('highlight')
+    if (!highlightId || highlightId === processedHighlight.current) return
+    if (missingHighlight.current === highlightId) {
+      searchParams.delete('highlight')
+      setSearchParams(searchParams, { replace: true })
+      return
     }
-  }, [loading, searchParams])
+    const timer = setTimeout(() => {
+      const element = document.getElementById(`item-${highlightId}`)
+      if (!element) {
+        missingHighlight.current = highlightId
+        return
+      }
+      processedHighlight.current = highlightId
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      element.classList.add('highlight-glow')
+      setTimeout(() => {
+        element.classList.remove('highlight-glow')
+      }, 3000)
+      searchParams.delete('highlight')
+      setSearchParams(searchParams, { replace: true })
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [loading, assignments, searchParams, setSearchParams])
 
   const fetchAssignments = async () => {
     try {

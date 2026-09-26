@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
 import { useAuth } from '../hooks/useAuth'
+import { useHighlightSync } from '../hooks/useHighlightSync'
 import { Plus, Megaphone, Search, Calendar, X, Paperclip, Download, Pin, Bookmark, ExternalLink } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { useSearchParams } from 'react-router-dom'
@@ -69,31 +70,48 @@ export default function AnnouncementsPage() {
   const [savedFilter, setSavedFilter] = useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
   const processedHighlight = useRef(null)
+  // Id whose row was missing on the first attempt (one retry, then drop the link).
+  const missingHighlight = useRef(null)
 
   useEffect(() => { fetchAnnouncements() }, [])
 
-  // Highlight item from dashboard navigation
+  // A notification may point at an item this page has not loaded yet
+  // (e.g. another admin published it while this page was already open).
+  useHighlightSync(announcements.map((item) => item._id), loading, fetchAnnouncements)
+
+  // Highlight item from dashboard navigation.
+  //
+  // A row that is not on the page yet is retried once the data settles (see
+  // useHighlightSync: that happens when the item was created by another admin
+  // while this page was already open). After that single retry the link is
+  // dropped exactly as before, so a genuinely missing row cannot leave the
+  // effect re-running.
   useEffect(() => {
-    if (!loading) {
-      const highlightId = searchParams.get('highlight')
-      if (highlightId && highlightId !== processedHighlight.current) {
-        processedHighlight.current = highlightId
-        const timer = setTimeout(() => {
-          const element = document.getElementById(`item-${highlightId}`)
-          if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' })
-            element.classList.add('highlight-glow')
-            setTimeout(() => {
-              element.classList.remove('highlight-glow')
-            }, 3000)
-          }
-          searchParams.delete('highlight')
-          setSearchParams(searchParams, { replace: true })
-        }, 300)
-        return () => clearTimeout(timer)
-      }
+    if (loading) return
+    const highlightId = searchParams.get('highlight')
+    if (!highlightId || highlightId === processedHighlight.current) return
+    if (missingHighlight.current === highlightId) {
+      searchParams.delete('highlight')
+      setSearchParams(searchParams, { replace: true })
+      return
     }
-  }, [loading, searchParams])
+    const timer = setTimeout(() => {
+      const element = document.getElementById(`item-${highlightId}`)
+      if (!element) {
+        missingHighlight.current = highlightId
+        return
+      }
+      processedHighlight.current = highlightId
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      element.classList.add('highlight-glow')
+      setTimeout(() => {
+        element.classList.remove('highlight-glow')
+      }, 3000)
+      searchParams.delete('highlight')
+      setSearchParams(searchParams, { replace: true })
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [loading, announcements, searchParams, setSearchParams])
 
   const fetchAnnouncements = async () => {
     try {
@@ -156,7 +174,7 @@ export default function AnnouncementsPage() {
       setAnnouncements(prev =>
         prev.map(a => a._id === announcement._id ? { ...a, savedBy: updated?.savedBy || [] } : a)
       )
-      const isSaved = updated?.savedBy?.some(id => id === user?._id)
+      const isSaved = updated?.savedBy?.some(id => String(id) === String(user?._id))
       toast.success(isSaved ? 'Announcement saved' : 'Announcement unsaved')
     } catch (err) {
       toast.error('Failed to update save')
@@ -175,7 +193,8 @@ export default function AnnouncementsPage() {
   }
 
   const isSaved = (announcement) => {
-    return announcement.savedBy?.some(id => id === user?._id)
+    // savedBy holds ObjectIds, so compare as strings rather than by identity.
+    return announcement.savedBy?.some(id => String(id) === String(user?._id))
   }
 
   const filtered = useMemo(() => {

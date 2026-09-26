@@ -1,7 +1,7 @@
 import Assignment from '../models/Assignment.js';
 import Contribution from '../models/Contribution.js';
 import { createActivity } from './activityController.js';
-import { getVisibleUserIds } from '../utils/helpers.js';
+import { getVisibleUserIds, getWritableUserIds } from '../utils/helpers.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
 import { fileTooLargeMessage } from '../config/uploadLimits.js';
@@ -140,7 +140,7 @@ export const createAssignment = async (req, res, next) => {
 
 export const updateAssignment = async (req, res, next) => {
   try {
-    const existingAssignment = await Assignment.findOne({ _id: req.params.id, user: req.user._id });
+    const existingAssignment = await Assignment.findOne({ _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } });
     if (!existingAssignment) {
       return res.status(404).json({ success: false, message: 'Assignment not found' });
     }
@@ -172,7 +172,7 @@ export const updateAssignment = async (req, res, next) => {
     }
 
     const assignment = await Assignment.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
+      { _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } },
       updateFields,
       { new: true, runValidators: true }
     );
@@ -197,7 +197,7 @@ export const updateAssignment = async (req, res, next) => {
 
 export const deleteAssignment = async (req, res, next) => {
   try {
-    const assignment = await Assignment.findOne({ _id: req.params.id, user: req.user._id });
+    const assignment = await Assignment.findOne({ _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } });
     if (!assignment) {
       return res.status(404).json({ success: false, message: 'Assignment not found' });
     }
@@ -211,7 +211,7 @@ export const deleteAssignment = async (req, res, next) => {
 
     await notifyContributorsOfDeletedEntity({ entityType: 'Assignment', entityId: req.params.id, actor: req.user });
 
-    await Assignment.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+    await Assignment.findOneAndDelete({ _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } });
 
     // Keep the contributor's record: an approved contribution that is later deleted
     // must show as Deleted, not disappear or fall back to Not Published.
@@ -228,13 +228,13 @@ export const deleteAssignment = async (req, res, next) => {
 
 export const completeAssignment = async (req, res, next) => {
   try {
-    const existingAssignment = await Assignment.findOne({ _id: req.params.id, user: req.user._id });
+    const existingAssignment = await Assignment.findOne({ _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } });
     if (!existingAssignment) {
       return res.status(404).json({ success: false, message: 'Assignment not found' });
     }
 
     const assignment = await Assignment.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
+      { _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } },
       { status: 'Completed' },
       { new: true }
     );
