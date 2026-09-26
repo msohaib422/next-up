@@ -1,5 +1,5 @@
 {
-  "name": "university-productivity",
+  "name": "nextup",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -7,7 +7,14 @@
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm run dev",
     "build": "cd frontend && npm run build",
-    "start": "cd backend && npm start"
+    "start": "cd backend && npm start",
+    "inspect:cluster": "cd backend && node scripts/inspect-cluster.mjs",
+    "backup:accounts": "cd backend && node scripts/backup-accounts.mjs",
+    "migrate:db": "cd backend && node scripts/migrate-db.mjs",
+    "reset:content": "cd backend && node scripts/reset-content.mjs",
+    "sync:admins": "cd backend && node scripts/sync-admin-accounts.mjs",
+    "verify": "cd backend && node scripts/verify-all.mjs",
+    "verify:shared-admin": "cd backend && node scripts/verify-shared-admin.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.450.0",
@@ -20,6 +27,7 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.0.2",
     "multer": "^1.4.5-lts.1",
+    "nodemailer": "^10.0.10",
     "uuid": "^9.0.0"
   }
 }

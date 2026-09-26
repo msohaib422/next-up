@@ -1,16 +1,18 @@
 import Quiz from '../models/Quiz.js';
 import Contribution from '../models/Contribution.js';
 import { createActivity } from './activityController.js';
-import { getVisibleUserIds } from '../utils/helpers.js';
+import { getVisibleUserIds, manageableRecordQuery } from '../utils/helpers.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
+import { fileTooLargeMessage } from '../config/uploadLimits.js';
+import { notifyContentChange, notifyContributionUpdated, notifyContributorsOfDeletedEntity, notifyStatusChange } from '../services/notificationService.js';
 
 export const uploadQuizFile = [
   (req, res, next) => {
     upload.single('file')(req, res, (err) => {
       if (err) {
         if (err.code === 'LIMIT_FILE_SIZE') {
-          return res.status(400).json({ success: false, message: 'File is too large. Maximum size is 10 MB.' });
+          return res.status(400).json({ success: false, message: fileTooLargeMessage });
         }
         return res.status(400).json({ success: false, message: err.message || 'File upload failed.' });
       }
@@ -43,7 +45,7 @@ export const uploadQuizFile = [
       } else if (error.http_code === 401 || error.message?.includes('authentication failed')) {
         message = 'Upload service authentication failed. Please contact support.';
       } else if (error.message?.includes('File too large') || error.code === 'LIMIT_FILE_SIZE') {
-        message = 'File is too large. Maximum size is 10 MB.';
+        message = fileTooLargeMessage;
       } else {
         message = error.message || 'File upload to storage failed.';
       }
@@ -128,6 +130,8 @@ export const createQuiz = async (req, res, next) => {
 
     await createActivity(req.user._id, 'quiz_created', `Created quiz: ${title}`, '', 'Quiz', quiz._id);
 
+    await notifyContentChange({ entityType: 'Quiz', entity: quiz, actor: req.user, action: 'added' });
+
     res.status(201).json({ success: true, data: quiz });
   } catch (error) {
     next(error);
@@ -136,7 +140,10 @@ export const createQuiz = async (req, res, next) => {
 
 export const updateQuiz = async (req, res, next) => {
   try {
-    const existingQuiz = await Quiz.findOne({ _id: req.params.id, user: req.user._id });
+    // Shared admin scope: an admin may act on ANY record owned by an admin
+    // (not only their own), while a normal user stays limited to their own.
+    const manageableQuery = await manageableRecordQuery(req.user, req.params.id);
+    const existingQuiz = await Quiz.findOne(manageableQuery);
     if (!existingQuiz) {
       return res.status(404).json({ success: false, message: 'Quiz not found' });
     }
@@ -177,11 +184,22 @@ export const updateQuiz = async (req, res, next) => {
       updateFields.attachment = { name: '', url: '', type: '', publicId: '', resourceType: '' };
     }
 
-    const quiz = await Quiz.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
+    const quiz = await Quiz.findOneAndUpdate(manageableQuery,
       updateFields,
       { new: true, runValidators: true }
     );
+
+    if (quiz) {
+      await notifyContributionUpdated({ entityType: 'Quiz', entity: quiz, admin: req.user });
+      // Only a real complete <-> incomplete flip is worth a notification, and it
+      // replaces the generic "updated" one so a single request never notifies twice.
+      const wasCompleted = existingQuiz.status === 'Completed';
+      if (wasCompleted !== (quiz.status === 'Completed')) {
+        await notifyStatusChange({ entityType: 'Quiz', entity: quiz, owner: req.user, wasCompleted });
+      } else {
+        await notifyContentChange({ entityType: 'Quiz', entity: quiz, actor: req.user, action: 'updated' });
+      }
+    }
 
     res.json({ success: true, data: quiz });
   } catch (error) {
@@ -191,7 +209,10 @@ export const updateQuiz = async (req, res, next) => {
 
 export const deleteQuiz = async (req, res, next) => {
   try {
-    const quiz = await Quiz.findOne({ _id: req.params.id, user: req.user._id });
+    // Shared admin scope: an admin may act on ANY record owned by an admin
+    // (not only their own), while a normal user stays limited to their own.
+    const manageableQuery = await manageableRecordQuery(req.user, req.params.id);
+    const quiz = await Quiz.findOne(manageableQuery);
     if (!quiz) {
       return res.status(404).json({ success: false, message: 'Quiz not found' });
     }
@@ -203,7 +224,9 @@ export const deleteQuiz = async (req, res, next) => {
       });
     }
 
-    await Quiz.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+    await notifyContributorsOfDeletedEntity({ entityType: 'Quiz', entityId: req.params.id, actor: req.user });
+
+    await Quiz.findOneAndDelete(manageableQuery);
 
     // Keep the contributor's record: an approved contribution that is later deleted
     // must show as Deleted, not disappear or fall back to Not Published.

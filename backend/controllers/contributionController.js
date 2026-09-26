@@ -4,6 +4,11 @@ import Quiz from '../models/Quiz.js';
 import Assignment from '../models/Assignment.js';
 import Essential from '../models/Essential.js';
 import Announcement from '../models/Announcement.js';
+import {
+  notifyContributionSubmitted,
+  notifyContributionApproved,
+  notifyContributionRejected,
+} from '../services/notificationService.js';
 
 const MODELS = { Task, Quiz, Assignment, Essential, Announcement };
 const TYPES = Object.keys(MODELS);
@@ -62,6 +67,7 @@ export const createContribution = async (req, res, next) => {
     const validationError = validateContent(type, content);
     if (validationError) return res.status(400).json({ success: false, message: validationError });
     const contribution = await Contribution.create({ user: req.user._id, type, title: content.title, content, status: 'Pending' });
+    await notifyContributionSubmitted(contribution, req.user);
     res.status(201).json({ success: true, data: contribution, message: 'Contribution submitted successfully and is now waiting for admin review.' });
   } catch (error) { next(error); }
 };
@@ -156,6 +162,7 @@ export const approveContribution = async (req, res, next) => {
     contribution.finalEntity = entity._id;
     await contribution.save();
     await contribution.populate('user', 'name email');
+    await notifyContributionApproved(contribution, req.user, entity);
     res.json({ success: true, data: contribution, message: 'Contribution approved and published.' });
   } catch (error) {
     if (contribution) {
@@ -177,6 +184,7 @@ export const rejectContribution = async (req, res, next) => {
       { new: true }
     );
     if (!contribution) return res.status(409).json({ success: false, message: 'Contribution was already reviewed.' });
+    await notifyContributionRejected(contribution, req.user);
     res.json({ success: true, data: contribution, message: 'Contribution rejected.' });
   } catch (error) { next(error); }
 };

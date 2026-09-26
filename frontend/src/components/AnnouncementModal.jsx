@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import Modal from './ui/Modal'
 import Input from './ui/Input'
 import Select from './ui/Select'
 import Button from './ui/Button'
+import FileUploadField from './ui/FileUploadField'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
-import { Paperclip, X } from 'lucide-react'
 import ContributorAttribution from './ui/ContributorAttribution'
 
 const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp']
@@ -34,7 +34,6 @@ export default function AnnouncementModal({ isOpen, onClose, onSave, announcemen
   const [file, setFile] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [attachment, setAttachment] = useState(null)
-  const fileInputRef = useRef(null)
 
   useEffect(() => {
     setErrors({})
@@ -56,8 +55,7 @@ export default function AnnouncementModal({ isOpen, onClose, onSave, announcemen
     }
   }, [announcement, isOpen])
 
-  const handleFileChange = (e) => {
-    const selected = e.target.files?.[0]
+  const handleFileChange = (selected) => {
     if (!selected) return
     if (!ALLOWED_TYPES.includes(selected.type)) {
       setErrors(prev => ({ ...prev, file: 'Only PDF, JPG, JPEG, PNG, WEBP files are allowed.' }))
@@ -75,7 +73,6 @@ export default function AnnouncementModal({ isOpen, onClose, onSave, announcemen
   const handleRemoveFile = () => {
     setFile(null)
     setAttachment(null)
-    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const uploadFile = async () => {
@@ -189,28 +186,15 @@ export default function AnnouncementModal({ isOpen, onClose, onSave, announcemen
           {errors.date && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.date}</p>}
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Attachment</label>
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-              <Paperclip className="w-4 h-4" />
-              {file ? file.name : (attachment?.name || 'Choose PDF or Image')}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png,.webp"
-                onChange={handleFileChange}
-                className="hidden"
-              />
-            </label>
-            {(file || attachment) && (
-              <button type="button" onClick={handleRemoveFile} className="text-gray-400 hover:text-red-500">
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-          {errors.file && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.file}</p>}
-        </div>
+        <FileUploadField
+          file={file}
+          attachment={attachment}
+          onSelect={handleFileChange}
+          onRemove={handleRemoveFile}
+          accept=".pdf,.jpg,.jpeg,.png,.webp"
+          id="announcement-attachment"
+          error={errors.file}
+        />
 
         <Input
           label="Link"

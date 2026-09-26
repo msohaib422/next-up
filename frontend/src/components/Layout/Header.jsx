@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Menu, User } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
+import NotificationBell from '../notifications/NotificationBell'
 import { format } from 'date-fns'
 
 export default function Header({ onMenuToggle }) {
@@ -25,6 +26,7 @@ export default function Header({ onMenuToggle }) {
           <span className="text-sm text-gray-500 dark:text-gray-400 hidden md:block">
             {format(time, 'EEE, MMM d · h:mm a')}
           </span>
+          <NotificationBell />
           <button
             onClick={() => navigate('/profile')}
             className="flex items-center gap-2"

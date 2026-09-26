@@ -1,9 +1,11 @@
 import Task from '../models/Task.js';
 import Contribution from '../models/Contribution.js';
 import { createActivity } from './activityController.js';
-import { getVisibleUserIds } from '../utils/helpers.js';
+import { getVisibleUserIds, manageableRecordQuery } from '../utils/helpers.js';
+import { notifyContentChange, notifyContributionUpdated, notifyContributorsOfDeletedEntity, notifyStatusChange } from '../services/notificationService.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
+import { fileTooLargeMessage } from '../config/uploadLimits.js';
 
 export const uploadTaskFile = [
   (req, res, next) => {
@@ -12,7 +14,7 @@ export const uploadTaskFile = [
       if (err) {
         console.error('[Upload] Multer error:', err.message, err.code);
         if (err.code === 'LIMIT_FILE_SIZE') {
-          return res.status(400).json({ success: false, message: 'File is too large. Maximum size is 10 MB.' });
+          return res.status(400).json({ success: false, message: fileTooLargeMessage });
         }
         return res.status(400).json({ success: false, message: err.message || 'File upload failed.' });
       }
@@ -56,7 +58,7 @@ export const uploadTaskFile = [
       } else if (error.http_code === 401 || error.message?.includes('authentication failed')) {
         message = 'Upload service authentication failed. Please contact support.';
       } else if (error.message?.includes('File too large') || error.code === 'LIMIT_FILE_SIZE') {
-        message = 'File is too large. Maximum size is 10 MB.';
+        message = fileTooLargeMessage;
       } else {
         message = error.message || 'File upload to storage failed.';
       }
@@ -139,6 +141,8 @@ export const createTask = async (req, res, next) => {
 
     await createActivity(req.user._id, 'task_created', `Created task: ${title}`, '', 'Task', task._id);
 
+    await notifyContentChange({ entityType: 'Task', entity: task, actor: req.user, action: 'added' });
+
     res.status(201).json({ success: true, data: task });
   } catch (error) {
     next(error);
@@ -147,7 +151,10 @@ export const createTask = async (req, res, next) => {
 
 export const updateTask = async (req, res, next) => {
   try {
-    const existingTask = await Task.findOne({ _id: req.params.id, user: req.user._id });
+    // Shared admin scope: an admin may act on ANY record owned by an admin
+    // (not only their own), while a normal user stays limited to their own.
+    const manageableQuery = await manageableRecordQuery(req.user, req.params.id);
+    const existingTask = await Task.findOne(manageableQuery);
     if (!existingTask) {
       return res.status(404).json({ success: false, message: 'Task not found' });
     }
@@ -178,11 +185,22 @@ export const updateTask = async (req, res, next) => {
       updateFields.attachment = { name: '', url: '', type: '', publicId: '', resourceType: '' };
     }
 
-    const task = await Task.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
+    const task = await Task.findOneAndUpdate(manageableQuery,
       updateFields,
       { new: true, runValidators: true }
     );
+
+    if (task) {
+      await notifyContributionUpdated({ entityType: 'Task', entity: task, admin: req.user });
+      // Only a real complete <-> incomplete flip is worth a notification, and it
+      // replaces the generic "updated" one so a single request never notifies twice.
+      const wasCompleted = existingTask.status === 'Completed';
+      if (wasCompleted !== (task.status === 'Completed')) {
+        await notifyStatusChange({ entityType: 'Task', entity: task, owner: req.user, wasCompleted });
+      } else {
+        await notifyContentChange({ entityType: 'Task', entity: task, actor: req.user, action: 'updated' });
+      }
+    }
 
     res.json({ success: true, data: task });
   } catch (error) {
@@ -192,7 +210,10 @@ export const updateTask = async (req, res, next) => {
 
 export const deleteTask = async (req, res, next) => {
   try {
-    const task = await Task.findOne({ _id: req.params.id, user: req.user._id });
+    // Shared admin scope: an admin may act on ANY record owned by an admin
+    // (not only their own), while a normal user stays limited to their own.
+    const manageableQuery = await manageableRecordQuery(req.user, req.params.id);
+    const task = await Task.findOne(manageableQuery);
     if (!task) {
       return res.status(404).json({ success: false, message: 'Task not found' });
     }
@@ -204,7 +225,9 @@ export const deleteTask = async (req, res, next) => {
       });
     }
 
-    await Task.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+    await notifyContributorsOfDeletedEntity({ entityType: 'Task', entityId: req.params.id, actor: req.user });
+
+    await Task.findOneAndDelete(manageableQuery);
 
     // Keep the contributor's record: an approved contribution that is later deleted
     // must show as Deleted, not disappear or fall back to Not Published.
@@ -221,8 +244,15 @@ export const deleteTask = async (req, res, next) => {
 
 export const completeTask = async (req, res, next) => {
   try {
-    const task = await Task.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
+    // Shared admin scope: an admin may act on ANY record owned by an admin
+    // (not only their own), while a normal user stays limited to their own.
+    const manageableQuery = await manageableRecordQuery(req.user, req.params.id);
+    const existingTask = await Task.findOne(manageableQuery);
+    if (!existingTask) {
+      return res.status(404).json({ success: false, message: 'Task not found' });
+    }
+
+    const task = await Task.findOneAndUpdate(manageableQuery,
       { status: 'Completed' },
       { new: true }
     );
@@ -231,6 +261,10 @@ export const completeTask = async (req, res, next) => {
     }
 
     await createActivity(req.user._id, 'task_completed', `Completed task: ${task.title}`, '', 'Task', task._id);
+
+    if (existingTask.status !== 'Completed') {
+      await notifyStatusChange({ entityType: 'Task', entity: task, owner: req.user, wasCompleted: false });
+    }
 
     res.json({ success: true, data: task });
   } catch (error) {
