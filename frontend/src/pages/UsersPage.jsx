@@ -193,7 +193,7 @@ export default function UsersPage() {
           {pendingCount > 0 && (
             <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-amber-700 dark:text-amber-300">
               <Clock className="w-4 h-4" />
-              {pendingCount} registration{pendingCount === 1 ? '' : 's'} awaiting approval
+              {pendingCount} Registration{pendingCount === 1 ? '' : 's'} Awaiting Approval
             </p>
           )}
         </div>
