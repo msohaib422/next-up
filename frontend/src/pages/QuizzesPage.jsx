@@ -56,7 +56,7 @@ export default function QuizzesPage() {
 
   // A notification may point at an item this page has not loaded yet
   // (e.g. another admin published it while this page was already open).
-  useHighlightSync(quizzes.map((item) => item._id), loading, fetchQuizzes)
+  useHighlightSync(quizzes.map((item) => item._id), loading, () => fetchQuizzes())
 
   // Highlight item from dashboard navigation.
   //

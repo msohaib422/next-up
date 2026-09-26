@@ -37,7 +37,7 @@ export default function EssentialsPage() {
 
   // A notification may point at an item this page has not loaded yet
   // (e.g. another admin published it while this page was already open).
-  useHighlightSync(essentials.map((item) => item._id), loading, fetchEssentials)
+  useHighlightSync(essentials.map((item) => item._id), loading, () => fetchEssentials())
 
   // Highlight item from dashboard navigation.
   //

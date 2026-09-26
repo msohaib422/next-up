@@ -56,7 +56,7 @@ export default function TasksPage() {
 
   // A notification may point at an item this page has not loaded yet
   // (e.g. another admin published it while this page was already open).
-  useHighlightSync(tasks.map((item) => item._id), loading, fetchTasks)
+  useHighlightSync(tasks.map((item) => item._id), loading, () => fetchTasks())
 
   // Highlight item from dashboard navigation.
   //

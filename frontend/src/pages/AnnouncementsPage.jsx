@@ -77,7 +77,7 @@ export default function AnnouncementsPage() {
 
   // A notification may point at an item this page has not loaded yet
   // (e.g. another admin published it while this page was already open).
-  useHighlightSync(announcements.map((item) => item._id), loading, fetchAnnouncements)
+  useHighlightSync(announcements.map((item) => item._id), loading, () => fetchAnnouncements())
 
   // Highlight item from dashboard navigation.
   //

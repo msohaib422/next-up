@@ -22,7 +22,7 @@ export default function TimetablePage() {
 
   // A notification may point at an entry this page has not loaded yet
   // (e.g. another admin added it while this page was already open).
-  useHighlightSync(lectures.map((lecture) => lecture._id), loading, fetchLectures)
+  useHighlightSync(lectures.map((lecture) => lecture._id), loading, () => fetchLectures())
 
   const fetchLectures = async () => {
     try {

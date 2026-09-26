@@ -37,7 +37,13 @@ export function needsHighlightRefetch({ highlightId, loading, ids, handled }) {
  * second notification system, no socket layer and no polling of its own - and it
  * fires at most one extra request per highlighted id.
  *
- * Usage: useHighlightSync(tasks.map((t) => t._id), loading, fetchTasks)
+ * Usage: useHighlightSync(tasks.map((t) => t._id), loading, () => fetchTasks())
+ *
+ * Note the arrow wrapper. `refetch` is read while the component renders, so
+ * passing a `const` fetch function that is declared further down the component
+ * body throws a temporal-dead-zone ReferenceError and blanks the whole page.
+ * Wrapping defers the lookup to the moment the hook actually calls it, which
+ * the ref below keeps stable anyway.
  */
 export function useHighlightSync(ids, loading, refetch) {
   const [searchParams] = useSearchParams()
