@@ -1,7 +1,7 @@
 import Assignment from '../models/Assignment.js';
 import Contribution from '../models/Contribution.js';
 import { createActivity } from './activityController.js';
-import { getVisibleUserIds } from '../utils/helpers.js';
+import { getVisibleUserIds, manageableRecordQuery } from '../utils/helpers.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
 import { fileTooLargeMessage } from '../config/uploadLimits.js';
@@ -140,7 +140,10 @@ export const createAssignment = async (req, res, next) => {
 
 export const updateAssignment = async (req, res, next) => {
   try {
-    const existingAssignment = await Assignment.findOne({ _id: req.params.id, user: req.user._id });
+    // Shared admin scope: an admin may act on ANY record owned by an admin
+    // (not only their own), while a normal user stays limited to their own.
+    const manageableQuery = await manageableRecordQuery(req.user, req.params.id);
+    const existingAssignment = await Assignment.findOne(manageableQuery);
     if (!existingAssignment) {
       return res.status(404).json({ success: false, message: 'Assignment not found' });
     }
@@ -171,8 +174,7 @@ export const updateAssignment = async (req, res, next) => {
       updateFields.attachment = { name: '', url: '', type: '', publicId: '', resourceType: '' };
     }
 
-    const assignment = await Assignment.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
+    const assignment = await Assignment.findOneAndUpdate(manageableQuery,
       updateFields,
       { new: true, runValidators: true }
     );
@@ -197,7 +199,10 @@ export const updateAssignment = async (req, res, next) => {
 
 export const deleteAssignment = async (req, res, next) => {
   try {
-    const assignment = await Assignment.findOne({ _id: req.params.id, user: req.user._id });
+    // Shared admin scope: an admin may act on ANY record owned by an admin
+    // (not only their own), while a normal user stays limited to their own.
+    const manageableQuery = await manageableRecordQuery(req.user, req.params.id);
+    const assignment = await Assignment.findOne(manageableQuery);
     if (!assignment) {
       return res.status(404).json({ success: false, message: 'Assignment not found' });
     }
@@ -211,7 +216,7 @@ export const deleteAssignment = async (req, res, next) => {
 
     await notifyContributorsOfDeletedEntity({ entityType: 'Assignment', entityId: req.params.id, actor: req.user });
 
-    await Assignment.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+    await Assignment.findOneAndDelete(manageableQuery);
 
     // Keep the contributor's record: an approved contribution that is later deleted
     // must show as Deleted, not disappear or fall back to Not Published.
@@ -228,13 +233,15 @@ export const deleteAssignment = async (req, res, next) => {
 
 export const completeAssignment = async (req, res, next) => {
   try {
-    const existingAssignment = await Assignment.findOne({ _id: req.params.id, user: req.user._id });
+    // Shared admin scope: an admin may act on ANY record owned by an admin
+    // (not only their own), while a normal user stays limited to their own.
+    const manageableQuery = await manageableRecordQuery(req.user, req.params.id);
+    const existingAssignment = await Assignment.findOne(manageableQuery);
     if (!existingAssignment) {
       return res.status(404).json({ success: false, message: 'Assignment not found' });
     }
 
-    const assignment = await Assignment.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
+    const assignment = await Assignment.findOneAndUpdate(manageableQuery,
       { status: 'Completed' },
       { new: true }
     );

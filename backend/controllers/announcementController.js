@@ -1,7 +1,7 @@
 import Announcement from '../models/Announcement.js';
 import Contribution from '../models/Contribution.js';
 import { createActivity } from './activityController.js';
-import { getVisibleUserIds } from '../utils/helpers.js';
+import { getVisibleUserIds, manageableRecordQuery } from '../utils/helpers.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
 import { fileTooLargeMessage } from '../config/uploadLimits.js';
@@ -156,7 +156,10 @@ export const createAnnouncement = async (req, res, next) => {
 
 export const updateAnnouncement = async (req, res, next) => {
   try {
-    const existingAnnouncement = await Announcement.findOne({ _id: req.params.id, user: req.user._id });
+    // Shared admin scope: pin/expire/edit/remove applies to content owned by
+    // ANY admin, not only the admin who created it.
+    const manageableQuery = await manageableRecordQuery(req.user, req.params.id);
+    const existingAnnouncement = await Announcement.findOne(manageableQuery);
     if (!existingAnnouncement) {
       return res.status(404).json({ success: false, message: 'Announcement not found' });
     }
@@ -187,8 +190,7 @@ export const updateAnnouncement = async (req, res, next) => {
       updateFields.attachment = { name: '', url: '', type: '', publicId: '', resourceType: '' };
     }
 
-    const announcement = await Announcement.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
+    const announcement = await Announcement.findOneAndUpdate(manageableQuery,
       updateFields,
       { new: true, runValidators: true }
     );
@@ -206,7 +208,10 @@ export const updateAnnouncement = async (req, res, next) => {
 
 export const deleteAnnouncement = async (req, res, next) => {
   try {
-    const announcement = await Announcement.findOne({ _id: req.params.id, user: req.user._id });
+    // Shared admin scope: pin/expire/edit/remove applies to content owned by
+    // ANY admin, not only the admin who created it.
+    const manageableQuery = await manageableRecordQuery(req.user, req.params.id);
+    const announcement = await Announcement.findOne(manageableQuery);
     if (!announcement) {
       return res.status(404).json({ success: false, message: 'Announcement not found' });
     }
@@ -220,7 +225,7 @@ export const deleteAnnouncement = async (req, res, next) => {
 
     await notifyContributorsOfDeletedEntity({ entityType: 'Announcement', entityId: req.params.id, actor: req.user });
 
-    await Announcement.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+    await Announcement.findOneAndDelete(manageableQuery);
 
     // Keep the contributor's record: an approved contribution that is later deleted
     // must show as Deleted, not disappear or fall back to Not Published.
@@ -237,7 +242,10 @@ export const deleteAnnouncement = async (req, res, next) => {
 
 export const togglePin = async (req, res, next) => {
   try {
-    const announcement = await Announcement.findOne({ _id: req.params.id, user: req.user._id });
+    // Shared admin scope: pin/expire/edit/remove applies to content owned by
+    // ANY admin, not only the admin who created it.
+    const manageableQuery = await manageableRecordQuery(req.user, req.params.id);
+    const announcement = await Announcement.findOne(manageableQuery);
     if (!announcement) {
       return res.status(404).json({ success: false, message: 'Announcement not found' });
     }
@@ -260,7 +268,9 @@ export const togglePin = async (req, res, next) => {
 
 export const toggleSave = async (req, res, next) => {
   try {
-    const announcement = await Announcement.findOne({ _id: req.params.id, user: req.user._id });
+    // Saving is per-user: anyone who can SEE the announcement may toggle their
+    // own entry in savedBy, not only the admin who created it.
+    const announcement = await Announcement.findOne({ _id: req.params.id, user: { $in: await getVisibleUserIds(req.user) } });
     if (!announcement) {
       return res.status(404).json({ success: false, message: 'Announcement not found' });
     }
@@ -283,7 +293,10 @@ export const toggleSave = async (req, res, next) => {
 
 export const toggleExpire = async (req, res, next) => {
   try {
-    const announcement = await Announcement.findOne({ _id: req.params.id, user: req.user._id });
+    // Shared admin scope: pin/expire/edit/remove applies to content owned by
+    // ANY admin, not only the admin who created it.
+    const manageableQuery = await manageableRecordQuery(req.user, req.params.id);
+    const announcement = await Announcement.findOne(manageableQuery);
     if (!announcement) {
       return res.status(404).json({ success: false, message: 'Announcement not found' });
     }

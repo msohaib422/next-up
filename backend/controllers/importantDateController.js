@@ -1,6 +1,6 @@
 import ImportantDate from '../models/ImportantDate.js';
 import { createActivity } from './activityController.js';
-import { getVisibleUserIds } from '../utils/helpers.js';
+import { getVisibleUserIds, manageableRecordQuery } from '../utils/helpers.js';
 
 export const getImportantDates = async (req, res, next) => {
   try {
@@ -57,8 +57,10 @@ export const createImportantDate = async (req, res, next) => {
 
 export const updateImportantDate = async (req, res, next) => {
   try {
-    const date = await ImportantDate.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
+    // Shared admin scope: an admin may act on ANY record owned by an admin
+    // (not only their own), while a normal user stays limited to their own.
+    const manageableQuery = await manageableRecordQuery(req.user, req.params.id);
+    const date = await ImportantDate.findOneAndUpdate(manageableQuery,
       req.body,
       { new: true, runValidators: true }
     );
@@ -73,7 +75,10 @@ export const updateImportantDate = async (req, res, next) => {
 
 export const deleteImportantDate = async (req, res, next) => {
   try {
-    const date = await ImportantDate.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+    // Shared admin scope: an admin may act on ANY record owned by an admin
+    // (not only their own), while a normal user stays limited to their own.
+    const manageableQuery = await manageableRecordQuery(req.user, req.params.id);
+    const date = await ImportantDate.findOneAndDelete(manageableQuery);
     if (!date) {
       return res.status(404).json({ success: false, message: 'Important date not found' });
     }

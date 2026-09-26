@@ -1,8 +1,12 @@
 import Activity from '../models/Activity.js';
+import { getVisibleUserIds } from '../utils/helpers.js';
 
 export const getActivities = async (req, res, next) => {
   try {
-    const activities = await Activity.find({ user: req.user._id })
+    // The feed follows the same shared-owner rule as the content itself: an
+    // admin sees the activity of every admin (it is all one workspace), a
+    // normal user sees only their own.
+    const activities = await Activity.find({ user: { $in: await getVisibleUserIds(req.user) } })
       .sort({ createdAt: -1 })
       .limit(50);
     res.json({ success: true, count: activities.length, data: activities });

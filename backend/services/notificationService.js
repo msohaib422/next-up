@@ -73,14 +73,31 @@ export const createNotification = async ({ recipient, actor, type, title, messag
 /**
  * The user accounts that may see a record owned by `owner`, mirroring the
  * read rule in getVisibleUserIds: a record owned by a normal user is readable
- * only by that user, a record owned by a collaborator by every normal user.
- * Admin accounts are never recipients.
+ * only by that user, a record owned by an admin by every normal user.
+ * Admin accounts are handled separately, by otherAdminRecipients below.
  */
 const contentRecipients = async (owner) => {
   if (!owner?._id) return [];
   if (owner.role === 'collaborator') return User.find({ role: 'user' }).select('_id');
   return [owner];
 };
+
+/**
+ * Every admin (collaborator) EXCEPT the one who performed the action.
+ *
+ * Admins share one workspace: when one of them changes shared content the
+ * others must hear about it through the same in-app notification system they
+ * already use (bell, notifications page, unread badge) - the acting admin is
+ * excluded so nobody is notified about their own action.
+ */
+const otherAdminRecipients = async (actor) => {
+  if (!actor?._id || actor.role !== 'collaborator') return [];
+  const admins = await User.find({ role: 'collaborator' }).select('_id');
+  return admins.filter((admin) => String(admin._id) !== String(actor._id));
+};
+
+/** "Admin Sohaib" / "An admin" when the actor's name is unknown. */
+const actorName = (actor) => (actor?.name ? `Admin ${actor.name}` : 'An admin');
 
 /** Human-readable name of a content type, as shown in the notification. */
 const contentName = (entityType) => {
@@ -106,7 +123,9 @@ const contentName = (entityType) => {
  * An admin published new content, or edited content that already exists.
  * Every regular user is notified, because getVisibleUserIds() already makes
  * admin-created records visible to all normal users, so they can all act on
- * the notification's link.
+ * the notification's link. The other admins are notified too, because
+ * admin-created content is shared between admins: they all work on, and can
+ * now edit, that one record, so they need to know it changed.
  *
  * Only collaborator actions fan out: content a normal user creates stays
  * private to that user (see getVisibleUserIds), so notifying everyone about it
@@ -121,25 +140,29 @@ export const notifyContentChange = async ({ entityType, entity, actor, action })
     if (!entity?._id) return [];
 
     const recipients = await contentRecipients(actor);
-    if (recipients.length === 0) return [];
+    const admins = await otherAdminRecipients(actor);
+    if (recipients.length === 0 && admins.length === 0) return [];
 
     const isAdd = action === 'added';
     const name = contentName(entityType);
     const link = entityLink(entityType, entity._id);
-    const verb = isAdd ? 'added' : 'updated';
     // Timetable entries are Lectures and have no `title`; the subject names them.
     const entityTitle = entity.title || entity.subject || 'Untitled';
+    const adminVerb = isAdd ? 'created a new' : 'updated a';
 
-    const created = await Promise.all(
-      recipients
-        .filter((recipient) => String(recipient._id) !== String(actor._id))
+    const notifications = [
+      // Users keep the wording they have always had. The actor is filtered out
+      // defensively: an admin is never in this list, but nobody should ever be
+      // notified about their own action.
+      ...recipients
+        .filter((recipient) => recipient?._id && String(recipient._id) !== String(actor._id))
         .map((recipient) =>
           createNotification({
             recipient: recipient._id,
             actor: actor._id,
             type: isAdd ? 'CONTENT_ADDED' : 'CONTENT_UPDATED',
             title: isAdd ? `New ${name} Added` : `${name} Updated`,
-            message: `"${entityTitle}" has been ${verb}.`,
+            message: `"${entityTitle}" has been ${isAdd ? 'added' : 'updated'}.`,
             entityType,
             entityId: entity._id,
             link,
@@ -151,9 +174,28 @@ export const notifyContentChange = async ({ entityType, entity, actor, action })
               ? `added:${entityType}:${entity._id}:${recipient._id}`
               : `updated:${entityType}:${entity._id}:${recipient._id}:${entity.updatedAt}`,
           })
-        )
-    );
-    return created.filter(Boolean);
+        ),
+      // Other admins: same event, worded so it is clear another admin did it.
+      // Namespaced keys keep these apart from the user notifications above,
+      // because dedupeKey is globally unique.
+      ...admins.map((admin) =>
+        createNotification({
+          recipient: admin._id,
+          actor: actor._id,
+          type: isAdd ? 'CONTENT_ADDED' : 'CONTENT_UPDATED',
+          title: isAdd ? `New ${name} Added` : `${name} Updated`,
+          message: `${actorName(actor)} ${adminVerb} ${name.toLowerCase()}: "${entityTitle}".`,
+          entityType,
+          entityId: entity._id,
+          link,
+          metadata: { contentName: name, action, entityTitle, audience: 'admin' },
+          dedupeKey: isAdd
+            ? `admin-added:${entityType}:${entity._id}:${admin._id}`
+            : `admin-updated:${entityType}:${entity._id}:${admin._id}:${entity.updatedAt}`,
+        })
+      ),
+    ];
+    return (await Promise.all(notifications)).filter(Boolean);
   } catch (error) {
     console.error('Error notifying users of content change:', error.message);
     return [];
@@ -177,7 +219,8 @@ export const notifyStatusChange = async ({ entityType, entity, owner, wasComplet
     if (!entity?._id || !owner?._id) return [];
 
     const recipients = await contentRecipients(owner);
-    if (recipients.length === 0) return [];
+    const admins = await otherAdminRecipients(owner);
+    if (recipients.length === 0 && admins.length === 0) return [];
 
     // The caller only invokes this for a real transition, so the new state is
     // simply the opposite of the previous one.
@@ -186,8 +229,8 @@ export const notifyStatusChange = async ({ entityType, entity, owner, wasComplet
     const link = entityLink(entityType, entity._id);
     const entityTitle = entity.title || entity.subject || 'Untitled';
 
-    const created = await Promise.all(
-      recipients
+    const created = await Promise.all([
+      ...recipients
         .filter((recipient) => recipient?._id)
         .map((recipient) =>
           createNotification({
@@ -207,8 +250,23 @@ export const notifyStatusChange = async ({ entityType, entity, owner, wasComplet
             // that is millisecond-resolution, so two toggles in the same
             // millisecond would collide and lose a notification.
           })
-        )
-    );
+        ),
+      // Other admins share the record, so a completion made by one admin is
+      // visible work-in-progress for all of them.
+      ...admins.map((admin) =>
+        createNotification({
+          recipient: admin._id,
+          actor: owner._id,
+          type: isCompleted ? 'CONTENT_COMPLETED' : 'CONTENT_REOPENED',
+          title: isCompleted ? `${name} Completed` : `${name} Reopened`,
+          message: `${actorName(owner)} marked ${name.toLowerCase()} "${entityTitle}" as ${isCompleted ? 'complete' : 'incomplete'}.`,
+          entityType,
+          entityId: entity._id,
+          link,
+          metadata: { contentName: name, status: isCompleted ? 'Completed' : 'Incomplete', entityTitle, audience: 'admin' },
+        })
+      ),
+    ]);
     return created.filter(Boolean);
   } catch (error) {
     console.error('Error notifying users of status change:', error.message);
@@ -229,10 +287,11 @@ export const notifyAnnouncementPinned = async (announcement, owner) => {
     if (!announcement?._id) return [];
 
     const recipients = await contentRecipients(owner);
-    if (recipients.length === 0) return [];
+    const admins = await otherAdminRecipients(owner);
+    if (recipients.length === 0 && admins.length === 0) return [];
 
-    const created = await Promise.all(
-      recipients
+    const created = await Promise.all([
+      ...recipients
         .filter((recipient) => recipient?._id)
         .map((recipient) =>
           createNotification({
@@ -246,8 +305,21 @@ export const notifyAnnouncementPinned = async (announcement, owner) => {
             link: entityLink('Announcement', announcement._id),
             metadata: { contentName: 'Announcement', entityTitle: announcement.title },
           })
-        )
-    );
+        ),
+      ...admins.map((admin) =>
+        createNotification({
+          recipient: admin._id,
+          actor: owner?._id,
+          type: 'CONTENT_PINNED',
+          title: 'Announcement Pinned',
+          message: `${actorName(owner)} pinned announcement "${announcement.title}".`,
+          entityType: 'Announcement',
+          entityId: announcement._id,
+          link: entityLink('Announcement', announcement._id),
+          metadata: { contentName: 'Announcement', entityTitle: announcement.title, audience: 'admin' },
+        })
+      ),
+    ]);
     return created.filter(Boolean);
   } catch (error) {
     console.error('Error notifying users of pinned announcement:', error.message);
@@ -340,20 +412,57 @@ export const notifyContributionSubmitted = async (contribution, actor) => {
  * Admin approved the contribution. The existing workflow publishes the item in
  * the very same action, so a single CONTRIBUTION_PUBLISHED notification keeps
  * the wording accurate without duplicating the approval message.
+ *
+ * Two audiences, one event: the contributor is told their item is live, and
+ * every OTHER admin is told that a new piece of shared content was published.
+ * The published record is owned by the approving admin but readable by all
+ * admins (getVisibleUserIds), so the other admins need to know it exists - the
+ * same rule as notifyContentChange, reached through the approval workflow.
  */
 export const notifyContributionApproved = async (contribution, admin, entity) => {
-  return createNotification({
+  const publishedId = entity?._id || contribution.finalEntity || null;
+  const publishedLink = entityLink(contribution.type, publishedId);
+
+  const contributorNotice = createNotification({
     recipient: contribution.user,
     actor: admin?._id,
     type: 'CONTRIBUTION_PUBLISHED',
     title: 'Contribution Published',
     message: `Your contributed ${label(contribution.type)} "${contribution.title}" has been approved and published.`,
     entityType: contribution.type,
-    entityId: entity?._id || contribution.finalEntity || null,
-    link: entityLink(contribution.type, entity?._id || contribution.finalEntity),
+    entityId: publishedId,
+    link: publishedLink,
     metadata: { contributionType: contribution.type, title: contribution.title, contributionId: contribution._id },
     dedupeKey: `approved:${contribution._id}`,
   });
+
+  const otherAdmins = await otherAdminRecipients(admin);
+  const adminNotices = otherAdmins.map((other) =>
+    createNotification({
+      recipient: other._id,
+      actor: admin?._id,
+      type: 'CONTENT_ADDED',
+      title: `New ${contentName(contribution.type)} Added`,
+      message: `${actorName(admin)} published a contributed ${label(contribution.type)}: "${contribution.title}".`,
+      entityType: contribution.type,
+      entityId: publishedId,
+      link: publishedLink,
+      metadata: {
+        contentName: contentName(contribution.type),
+        action: 'added',
+        entityTitle: contribution.title,
+        audience: 'admin',
+        contributionId: contribution._id,
+      },
+      // Namespaced so it can never collide with the contributor notice or with
+      // a plain admin-created item; still stable, so a retried approval
+      // request cannot produce a second copy.
+      dedupeKey: `admin-approved:${contribution._id}:${other._id}`,
+    })
+  );
+
+  const created = await Promise.all([contributorNotice, ...adminNotices]);
+  return created.filter(Boolean);
 };
 
 export const notifyContributionRejected = async (contribution, admin) => {

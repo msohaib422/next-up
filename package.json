@@ -13,7 +13,8 @@
     "migrate:db": "cd backend && node scripts/migrate-db.mjs",
     "reset:content": "cd backend && node scripts/reset-content.mjs",
     "sync:admins": "cd backend && node scripts/sync-admin-accounts.mjs",
-    "verify": "cd backend && node scripts/verify-all.mjs"
+    "verify": "cd backend && node scripts/verify-all.mjs",
+    "verify:shared-admin": "cd backend && node scripts/verify-shared-admin.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.450.0",

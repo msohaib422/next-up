@@ -1,6 +1,6 @@
 import Lecture from '../models/Lecture.js';
 import { createActivity } from './activityController.js';
-import { getVisibleUserIds } from '../utils/helpers.js';
+import { getVisibleUserIds, manageableRecordQuery } from '../utils/helpers.js';
 import { notifyContentChange } from '../services/notificationService.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
@@ -110,7 +110,10 @@ export const createLecture = async (req, res, next) => {
 
 export const updateLecture = async (req, res, next) => {
   try {
-    const existingLecture = await Lecture.findOne({ _id: req.params.id, user: req.user._id });
+    // Shared admin scope: an admin may act on ANY record owned by an admin
+    // (not only their own), while a normal user stays limited to their own.
+    const manageableQuery = await manageableRecordQuery(req.user, req.params.id);
+    const existingLecture = await Lecture.findOne(manageableQuery);
     if (!existingLecture) {
       return res.status(404).json({ success: false, message: 'Lecture not found' });
     }
@@ -137,8 +140,7 @@ export const updateLecture = async (req, res, next) => {
       updateFields.resourceType = '';
     }
 
-    const lecture = await Lecture.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
+    const lecture = await Lecture.findOneAndUpdate(manageableQuery,
       updateFields,
       { new: true, runValidators: true }
     );
@@ -153,7 +155,10 @@ export const updateLecture = async (req, res, next) => {
 
 export const deleteLecture = async (req, res, next) => {
   try {
-    const lecture = await Lecture.findOne({ _id: req.params.id, user: req.user._id });
+    // Shared admin scope: an admin may act on ANY record owned by an admin
+    // (not only their own), while a normal user stays limited to their own.
+    const manageableQuery = await manageableRecordQuery(req.user, req.params.id);
+    const lecture = await Lecture.findOne(manageableQuery);
     if (!lecture) {
       return res.status(404).json({ success: false, message: 'Lecture not found' });
     }
@@ -165,7 +170,7 @@ export const deleteLecture = async (req, res, next) => {
       });
     }
 
-    await Lecture.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+    await Lecture.findOneAndDelete(manageableQuery);
 
     res.json({ success: true, data: {} });
   } catch (error) {

@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 const SUITES = [
+  ['verify-shared-admin.mjs', 'shared multi-admin visibility, cross-admin edits, admin notifications, privacy'],
   ['verify-production.mjs', 'database, accounts, admin parity, auth, dual-admin email'],
   ['verify-login.mjs', 'real password login for both admins and a normal user'],
   ['verify-reliability.mjs', 'outage handling, reconnection, pooling, rate limiting'],

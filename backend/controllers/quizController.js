@@ -1,7 +1,7 @@
 import Quiz from '../models/Quiz.js';
 import Contribution from '../models/Contribution.js';
 import { createActivity } from './activityController.js';
-import { getVisibleUserIds } from '../utils/helpers.js';
+import { getVisibleUserIds, manageableRecordQuery } from '../utils/helpers.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
 import { fileTooLargeMessage } from '../config/uploadLimits.js';
@@ -140,7 +140,10 @@ export const createQuiz = async (req, res, next) => {
 
 export const updateQuiz = async (req, res, next) => {
   try {
-    const existingQuiz = await Quiz.findOne({ _id: req.params.id, user: req.user._id });
+    // Shared admin scope: an admin may act on ANY record owned by an admin
+    // (not only their own), while a normal user stays limited to their own.
+    const manageableQuery = await manageableRecordQuery(req.user, req.params.id);
+    const existingQuiz = await Quiz.findOne(manageableQuery);
     if (!existingQuiz) {
       return res.status(404).json({ success: false, message: 'Quiz not found' });
     }
@@ -181,8 +184,7 @@ export const updateQuiz = async (req, res, next) => {
       updateFields.attachment = { name: '', url: '', type: '', publicId: '', resourceType: '' };
     }
 
-    const quiz = await Quiz.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
+    const quiz = await Quiz.findOneAndUpdate(manageableQuery,
       updateFields,
       { new: true, runValidators: true }
     );
@@ -207,7 +209,10 @@ export const updateQuiz = async (req, res, next) => {
 
 export const deleteQuiz = async (req, res, next) => {
   try {
-    const quiz = await Quiz.findOne({ _id: req.params.id, user: req.user._id });
+    // Shared admin scope: an admin may act on ANY record owned by an admin
+    // (not only their own), while a normal user stays limited to their own.
+    const manageableQuery = await manageableRecordQuery(req.user, req.params.id);
+    const quiz = await Quiz.findOne(manageableQuery);
     if (!quiz) {
       return res.status(404).json({ success: false, message: 'Quiz not found' });
     }
@@ -221,7 +226,7 @@ export const deleteQuiz = async (req, res, next) => {
 
     await notifyContributorsOfDeletedEntity({ entityType: 'Quiz', entityId: req.params.id, actor: req.user });
 
-    await Quiz.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+    await Quiz.findOneAndDelete(manageableQuery);
 
     // Keep the contributor's record: an approved contribution that is later deleted
     // must show as Deleted, not disappear or fall back to Not Published.

@@ -1,7 +1,7 @@
 import Essential from '../models/Essential.js';
 import Contribution from '../models/Contribution.js';
 import { createActivity } from './activityController.js';
-import { getVisibleUserIds } from '../utils/helpers.js';
+import { getVisibleUserIds, manageableRecordQuery } from '../utils/helpers.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
 import { fileTooLargeMessage } from '../config/uploadLimits.js';
@@ -153,7 +153,10 @@ export const createEssential = async (req, res, next) => {
 
 export const updateEssential = async (req, res, next) => {
   try {
-    const existingEssential = await Essential.findOne({ _id: req.params.id, user: req.user._id });
+    // Shared admin scope: an admin may act on ANY record owned by an admin
+    // (not only their own), while a normal user stays limited to their own.
+    const manageableQuery = await manageableRecordQuery(req.user, req.params.id);
+    const existingEssential = await Essential.findOne(manageableQuery);
     if (!existingEssential) {
       return res.status(404).json({ success: false, message: 'Essential not found' });
     }
@@ -203,8 +206,7 @@ export const updateEssential = async (req, res, next) => {
       updateFields.attachment = { name: '', url: '', type: '', publicId: '', resourceType: '' };
     }
 
-    const essential = await Essential.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
+    const essential = await Essential.findOneAndUpdate(manageableQuery,
       updateFields,
       { new: true, runValidators: true }
     );
@@ -222,7 +224,10 @@ export const updateEssential = async (req, res, next) => {
 
 export const deleteEssential = async (req, res, next) => {
   try {
-    const essential = await Essential.findOne({ _id: req.params.id, user: req.user._id });
+    // Shared admin scope: an admin may act on ANY record owned by an admin
+    // (not only their own), while a normal user stays limited to their own.
+    const manageableQuery = await manageableRecordQuery(req.user, req.params.id);
+    const essential = await Essential.findOne(manageableQuery);
     if (!essential) {
       return res.status(404).json({ success: false, message: 'Essential not found' });
     }
@@ -236,7 +241,7 @@ export const deleteEssential = async (req, res, next) => {
 
     await notifyContributorsOfDeletedEntity({ entityType: 'Essential', entityId: req.params.id, actor: req.user });
 
-    await Essential.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+    await Essential.findOneAndDelete(manageableQuery);
 
     // Keep the contributor's record: an approved contribution that is later deleted
     // must show as Deleted, not disappear or fall back to Not Published.

@@ -1,7 +1,7 @@
 import Task from '../models/Task.js';
 import Contribution from '../models/Contribution.js';
 import { createActivity } from './activityController.js';
-import { getVisibleUserIds } from '../utils/helpers.js';
+import { getVisibleUserIds, manageableRecordQuery } from '../utils/helpers.js';
 import { notifyContentChange, notifyContributionUpdated, notifyContributorsOfDeletedEntity, notifyStatusChange } from '../services/notificationService.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
@@ -151,7 +151,10 @@ export const createTask = async (req, res, next) => {
 
 export const updateTask = async (req, res, next) => {
   try {
-    const existingTask = await Task.findOne({ _id: req.params.id, user: req.user._id });
+    // Shared admin scope: an admin may act on ANY record owned by an admin
+    // (not only their own), while a normal user stays limited to their own.
+    const manageableQuery = await manageableRecordQuery(req.user, req.params.id);
+    const existingTask = await Task.findOne(manageableQuery);
     if (!existingTask) {
       return res.status(404).json({ success: false, message: 'Task not found' });
     }
@@ -182,8 +185,7 @@ export const updateTask = async (req, res, next) => {
       updateFields.attachment = { name: '', url: '', type: '', publicId: '', resourceType: '' };
     }
 
-    const task = await Task.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
+    const task = await Task.findOneAndUpdate(manageableQuery,
       updateFields,
       { new: true, runValidators: true }
     );
@@ -208,7 +210,10 @@ export const updateTask = async (req, res, next) => {
 
 export const deleteTask = async (req, res, next) => {
   try {
-    const task = await Task.findOne({ _id: req.params.id, user: req.user._id });
+    // Shared admin scope: an admin may act on ANY record owned by an admin
+    // (not only their own), while a normal user stays limited to their own.
+    const manageableQuery = await manageableRecordQuery(req.user, req.params.id);
+    const task = await Task.findOne(manageableQuery);
     if (!task) {
       return res.status(404).json({ success: false, message: 'Task not found' });
     }
@@ -222,7 +227,7 @@ export const deleteTask = async (req, res, next) => {
 
     await notifyContributorsOfDeletedEntity({ entityType: 'Task', entityId: req.params.id, actor: req.user });
 
-    await Task.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+    await Task.findOneAndDelete(manageableQuery);
 
     // Keep the contributor's record: an approved contribution that is later deleted
     // must show as Deleted, not disappear or fall back to Not Published.
@@ -239,13 +244,15 @@ export const deleteTask = async (req, res, next) => {
 
 export const completeTask = async (req, res, next) => {
   try {
-    const existingTask = await Task.findOne({ _id: req.params.id, user: req.user._id });
+    // Shared admin scope: an admin may act on ANY record owned by an admin
+    // (not only their own), while a normal user stays limited to their own.
+    const manageableQuery = await manageableRecordQuery(req.user, req.params.id);
+    const existingTask = await Task.findOne(manageableQuery);
     if (!existingTask) {
       return res.status(404).json({ success: false, message: 'Task not found' });
     }
 
-    const task = await Task.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
+    const task = await Task.findOneAndUpdate(manageableQuery,
       { status: 'Completed' },
       { new: true }
     );

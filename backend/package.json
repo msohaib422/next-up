@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "verify:shared-admin": "node scripts/verify-shared-admin.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.450.0",
