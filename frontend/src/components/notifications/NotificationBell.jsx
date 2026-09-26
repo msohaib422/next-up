@@ -7,6 +7,7 @@ import { formatCount, getTypeMeta, timeAgo } from './notificationTypes'
 
 const PANEL_WIDTH = 360
 const VIEWPORT_PADDING = 12
+const MIN_PANEL_HEIGHT = 160
 const HOVER_CLOSE_DELAY = 160
 
 function PopoverSkeleton() {
@@ -33,6 +34,7 @@ export default function NotificationBell() {
   const [pinned, setPinned] = useState(false)
   const [position, setPosition] = useState(null)
   const triggerRef = useRef(null)
+  const anchorRef = useRef(null)
   const panelRef = useRef(null)
   const closeTimer = useRef(null)
 
@@ -50,21 +52,39 @@ export default function NotificationBell() {
   }
 
   // Keep the panel inside the viewport on every screen size.
+  // The panel is anchored to the bell's own wrapper (not the viewport): the
+  // header sets `backdrop-filter`, which turns it into the containing block
+  // for fixed children, so viewport coordinates would be resolved against a
+  // header that is offset by the sidebar and only ~60px tall. All values are
+  // therefore measured in viewport space, then converted to wrapper space.
   useLayoutEffect(() => {
     if (!open) {
       setPosition(null)
       return
     }
     const place = () => {
-      const rect = triggerRef.current?.getBoundingClientRect()
-      if (!rect) return
+      const triggerRect = triggerRef.current?.getBoundingClientRect()
+      const anchorRect = anchorRef.current?.getBoundingClientRect()
+      if (!triggerRect || !anchorRect) return
       const width = Math.min(PANEL_WIDTH, window.innerWidth - VIEWPORT_PADDING * 2)
-      const left = Math.min(Math.max(rect.right - width, VIEWPORT_PADDING), window.innerWidth - width - VIEWPORT_PADDING)
-      const spaceBelow = window.innerHeight - rect.bottom
-      const flipUp = spaceBelow < 360 && rect.top > spaceBelow
-      const top = flipUp ? undefined : rect.bottom + 8
-      const bottom = flipUp ? window.innerHeight - rect.top + 8 : undefined
-      setPosition({ top, bottom, left, width, maxHeight: flipUp ? rect.top - VIEWPORT_PADDING * 2 : spaceBelow - VIEWPORT_PADDING * 2 })
+      // Open toward the left of the bell, then clamp so both edges stay on screen.
+      const left = Math.min(
+        Math.max(triggerRect.right - width, VIEWPORT_PADDING),
+        Math.max(window.innerWidth - width - VIEWPORT_PADDING, VIEWPORT_PADDING)
+      )
+      const spaceBelow = window.innerHeight - triggerRect.bottom
+      const flipUp = spaceBelow < 360 && triggerRect.top > spaceBelow
+      const maxHeight = Math.max(
+        (flipUp ? triggerRect.top : spaceBelow) - VIEWPORT_PADDING * 2,
+        MIN_PANEL_HEIGHT
+      )
+      setPosition({
+        left: left - anchorRect.left,
+        top: flipUp ? undefined : triggerRect.bottom + 8 - anchorRect.top,
+        bottom: flipUp ? anchorRect.bottom - (triggerRect.top - 8) : undefined,
+        width,
+        maxHeight
+      })
     }
     place()
     window.addEventListener('resize', place)
@@ -118,6 +138,7 @@ export default function NotificationBell() {
 
   return (
     <div
+      ref={anchorRef}
       className="relative"
       onMouseEnter={() => { cancelClose(); if (!pinned) setOpen(true) }}
       onMouseLeave={scheduleClose}
@@ -155,7 +176,7 @@ export default function NotificationBell() {
           role="dialog"
           aria-label="Notifications"
           style={position || undefined}
-          className={`fixed z-50 flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800 ${position ? '' : 'right-3 top-16 w-[calc(100vw-24px)] sm:right-6'}`}
+          className={`absolute z-50 flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800 ${position ? '' : 'right-0 top-[calc(100%+0.5rem)] w-[360px] max-w-[calc(100vw-24px)]'}`}
         >
           <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
             <div className="flex min-w-0 items-center gap-2">
