@@ -1,10 +1,11 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useTheme } from '../../hooks/useTheme'
+import { useNotifications } from '../../hooks/useNotifications'
 import {
   LayoutDashboard, CheckSquare, HelpCircle, Megaphone,
   Clock, FileCheck, User, Users, BookOpen,
-  LogOut, Sun, Moon, X, GraduationCap, Send, ClipboardCheck
+  LogOut, Sun, Moon, X, GraduationCap, Send, ClipboardCheck, Bell
 } from 'lucide-react'
 
 const navItems = [
@@ -15,6 +16,7 @@ const navItems = [
   { to: '/essentials', icon: BookOpen, label: 'Essentials' },
   { to: '/announcements', icon: Megaphone, label: 'Announcements' },
   { to: '/timetable', icon: Clock, label: 'Timetable' },
+  { to: '/notifications', icon: Bell, label: 'Notifications' },
   { to: '/contribute', icon: Send, label: 'Contribute', userOnly: true },
   { to: '/approvals', icon: ClipboardCheck, label: 'Approvals', collaboratorOnly: true },
   { to: '/users', icon: Users, label: 'Users', collaboratorOnly: true },
@@ -23,6 +25,7 @@ const navItems = [
 export default function Sidebar({ isOpen, onClose }) {
   const { user, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
+  const { unreadCount } = useNotifications()
   const navigate = useNavigate()
 
   const handleNavClick = () => {
@@ -65,6 +68,11 @@ export default function Sidebar({ isOpen, onClose }) {
             >
               <item.icon className="w-5 h-5" />
               {item.label}
+              {item.to === '/notifications' && unreadCount > 0 && (
+                <span className="ml-auto rounded-full bg-primary-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>

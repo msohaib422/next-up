@@ -19,6 +19,7 @@ import assignmentRoutes from './routes/assignmentRoutes.js';
 import essentialRoutes from './routes/essentialRoutes.js';
 import searchRoutes from './routes/searchRoutes.js';
 import contributionRoutes, { adminContributionRoutes } from './routes/contributionRoutes.js';
+import notificationRoutes from './routes/notificationRoutes.js';
 
 const app = express();
 
@@ -44,6 +45,7 @@ app.use('/api/assignments', assignmentRoutes);
 app.use('/api/essentials', essentialRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/contributions', contributionRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin/contributions', adminContributionRoutes);
 
 app.get('/api/health', (req, res) => {

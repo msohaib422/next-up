@@ -4,6 +4,7 @@ import { createActivity } from './activityController.js';
 import { getVisibleUserIds } from '../utils/helpers.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
+import { notifyContributionUpdated, notifyContributorsOfDeletedEntity } from '../services/notificationService.js';
 
 export const uploadAssignmentFile = [
   (req, res, next) => {
@@ -173,6 +174,8 @@ export const updateAssignment = async (req, res, next) => {
       { new: true, runValidators: true }
     );
 
+    if (assignment) await notifyContributionUpdated({ entityType: 'Assignment', entity: assignment, admin: req.user });
+
     res.json({ success: true, data: assignment });
   } catch (error) {
     next(error);
@@ -192,6 +195,8 @@ export const deleteAssignment = async (req, res, next) => {
         resourceType: assignment.attachment.resourceType || 'image',
       });
     }
+
+    await notifyContributorsOfDeletedEntity({ entityType: 'Assignment', entityId: req.params.id, actor: req.user });
 
     await Assignment.findOneAndDelete({ _id: req.params.id, user: req.user._id });
 

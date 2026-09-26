@@ -4,6 +4,7 @@ import { createActivity } from './activityController.js';
 import { getVisibleUserIds } from '../utils/helpers.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
+import { notifyContributionUpdated, notifyContributorsOfDeletedEntity } from '../services/notificationService.js';
 
 export const uploadQuizFile = [
   (req, res, next) => {
@@ -183,6 +184,8 @@ export const updateQuiz = async (req, res, next) => {
       { new: true, runValidators: true }
     );
 
+    if (quiz) await notifyContributionUpdated({ entityType: 'Quiz', entity: quiz, admin: req.user });
+
     res.json({ success: true, data: quiz });
   } catch (error) {
     next(error);
@@ -202,6 +205,8 @@ export const deleteQuiz = async (req, res, next) => {
         resourceType: quiz.attachment.resourceType || 'image',
       });
     }
+
+    await notifyContributorsOfDeletedEntity({ entityType: 'Quiz', entityId: req.params.id, actor: req.user });
 
     await Quiz.findOneAndDelete({ _id: req.params.id, user: req.user._id });
 

@@ -2,6 +2,7 @@ import Task from '../models/Task.js';
 import Contribution from '../models/Contribution.js';
 import { createActivity } from './activityController.js';
 import { getVisibleUserIds } from '../utils/helpers.js';
+import { notifyContributionUpdated, notifyContributorsOfDeletedEntity } from '../services/notificationService.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
 
@@ -184,6 +185,8 @@ export const updateTask = async (req, res, next) => {
       { new: true, runValidators: true }
     );
 
+    if (task) await notifyContributionUpdated({ entityType: 'Task', entity: task, admin: req.user });
+
     res.json({ success: true, data: task });
   } catch (error) {
     next(error);
@@ -203,6 +206,8 @@ export const deleteTask = async (req, res, next) => {
         resourceType: task.attachment.resourceType || 'image',
       });
     }
+
+    await notifyContributorsOfDeletedEntity({ entityType: 'Task', entityId: req.params.id, actor: req.user });
 
     await Task.findOneAndDelete({ _id: req.params.id, user: req.user._id });
 

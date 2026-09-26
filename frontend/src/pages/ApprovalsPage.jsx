@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
 import {
@@ -147,6 +148,8 @@ export default function ApprovalsPage() {
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [review, setReview] = useState(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const processedHighlight = useRef(null)
 
   const load = async () => {
     try {
@@ -161,6 +164,25 @@ export default function ApprovalsPage() {
   }
 
   useEffect(() => { load() }, [])
+
+  // Highlight a contribution opened from a notification
+  useEffect(() => {
+    if (loading) return
+    const highlightId = searchParams.get('highlight')
+    if (!highlightId || highlightId === processedHighlight.current) return
+    processedHighlight.current = highlightId
+    const timer = setTimeout(() => {
+      const element = document.getElementById(`contribution-${highlightId}`)
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        element.classList.add('highlight-glow')
+        setTimeout(() => element.classList.remove('highlight-glow'), 3000)
+      }
+      searchParams.delete('highlight')
+      setSearchParams(searchParams, { replace: true })
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [loading, items, searchParams, setSearchParams])
 
   const [processingId, setProcessingId] = useState(null)
 
@@ -208,7 +230,7 @@ export default function ApprovalsPage() {
 
       <section aria-labelledby="approval-list-heading">
         <div className="flex items-center justify-between gap-4"><div><h2 id="approval-list-heading" className="text-xl font-semibold text-gray-900 dark:text-white">Submitted contributions</h2><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Open a submission to review its complete content before taking action.</p></div></div>
-        <div className="mt-4">{loading ? <div className="rounded-xl border border-gray-200 bg-white py-10 dark:border-gray-700 dark:bg-gray-800"><LoadingSpinner /></div> : filtered.length === 0 ? <Card><EmptyState icon={Inbox} title="No Contributions Found" description="There are no contributions matching the selected filters." /></Card> : <div className="space-y-3">{filtered.map((item) => { const Icon = typeIcon[item.type] || Layers; const content = item.content || {}; return <Card key={item._id} className="p-5 transition-shadow hover:shadow-md"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-300"><Icon className="h-4 w-4" /></div><h3 className="font-semibold text-gray-900 dark:text-white">{item.title || content.title || 'Untitled contribution'}</h3><Badge color={statusColor[item.status]}>{item.status}</Badge></div><div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500 dark:text-gray-400"><span className="inline-flex items-center gap-1"><User className="h-3.5 w-3.5" />{item.user?.name || 'Unknown contributor'}</span>{item.user?.email && <span>Email: <a href={`mailto:${item.user.email}`} className="text-primary-600 hover:underline dark:text-primary-400">{item.user.email}</a></span>}<span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />Submitted {formatDate(item.submittedAt || item.createdAt)}</span><span>{item.type === 'Essential' ? 'Essentials' : item.type}</span></div>{item.rejectionReason && <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300"><strong>Reason:</strong> {item.rejectionReason}</p>}</div><div className="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end"><Button variant="secondary" size="sm" onClick={() => openReview(item)}><Eye className="h-4 w-4" />{item.status === 'Pending' ? 'View / Review' : 'View'}</Button>{item.status === 'Pending' && <><Button size="sm" onClick={() => approveContribution(item)} loading={processingId === item._id} disabled={Boolean(processingId)}><CheckCircle2 className="h-4 w-4" />Approve</Button><Button variant="danger" size="sm" onClick={() => openReview(item, 'reject')} disabled={Boolean(processingId)}><XCircle className="h-4 w-4" />Reject</Button></>}</div></div></Card> })}</div>}</div>
+        <div className="mt-4">{loading ? <div className="rounded-xl border border-gray-200 bg-white py-10 dark:border-gray-700 dark:bg-gray-800"><LoadingSpinner /></div> : filtered.length === 0 ? <Card><EmptyState icon={Inbox} title="No Contributions Found" description="There are no contributions matching the selected filters." /></Card> : <div className="space-y-3">{filtered.map((item) => { const Icon = typeIcon[item.type] || Layers; const content = item.content || {}; return <Card key={item._id} id={`contribution-${item._id}`} className="p-5 transition-shadow hover:shadow-md"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-300"><Icon className="h-4 w-4" /></div><h3 className="font-semibold text-gray-900 dark:text-white">{item.title || content.title || 'Untitled contribution'}</h3><Badge color={statusColor[item.status]}>{item.status}</Badge></div><div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500 dark:text-gray-400"><span className="inline-flex items-center gap-1"><User className="h-3.5 w-3.5" />{item.user?.name || 'Unknown contributor'}</span>{item.user?.email && <span>Email: <a href={`mailto:${item.user.email}`} className="text-primary-600 hover:underline dark:text-primary-400">{item.user.email}</a></span>}<span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />Submitted {formatDate(item.submittedAt || item.createdAt)}</span><span>{item.type === 'Essential' ? 'Essentials' : item.type}</span></div>{item.rejectionReason && <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300"><strong>Reason:</strong> {item.rejectionReason}</p>}</div><div className="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end"><Button variant="secondary" size="sm" onClick={() => openReview(item)}><Eye className="h-4 w-4" />{item.status === 'Pending' ? 'View / Review' : 'View'}</Button>{item.status === 'Pending' && <><Button size="sm" onClick={() => approveContribution(item)} loading={processingId === item._id} disabled={Boolean(processingId)}><CheckCircle2 className="h-4 w-4" />Approve</Button><Button variant="danger" size="sm" onClick={() => openReview(item, 'reject')} disabled={Boolean(processingId)}><XCircle className="h-4 w-4" />Reject</Button></>}</div></div></Card> })}</div>}</div>
       </section>
       {review && <ReviewModal item={review.item} initialReject={review.action === 'reject'} onClose={() => setReview(null)} onDone={load} />}
     </div>

@@ -18,6 +18,7 @@ import SearchPage from './pages/SearchPage'
 import UsersPage from './pages/UsersPage'
 import ContributePage from './pages/ContributePage'
 import ApprovalsPage from './pages/ApprovalsPage'
+import NotificationsPage from './pages/NotificationsPage'
 
 export default function App() {
   const { loading } = useAuth()
@@ -39,6 +40,7 @@ export default function App() {
       <Route path="/contribute" element={<ProtectedRoute role="user"><Layout><ContributePage /></Layout></ProtectedRoute>} />
       <Route path="/approvals" element={<ProtectedRoute role="collaborator"><Layout><ApprovalsPage /></Layout></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><Layout><ProfilePage /></Layout></ProtectedRoute>} />
+      <Route path="/notifications" element={<ProtectedRoute><Layout><NotificationsPage /></Layout></ProtectedRoute>} />
       <Route path="/search" element={<ProtectedRoute><Layout><SearchPage /></Layout></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

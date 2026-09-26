@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
 import { CheckSquare, HelpCircle, FileCheck, BookOpen, Megaphone, Send, ArrowRight, Clock, CheckCircle2, XCircle, Layers, Paperclip, X } from 'lucide-react'
@@ -131,13 +132,41 @@ export default function ContributePage() {
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState(null)
   const [filter, setFilter] = useState('all')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const processedHighlight = useRef(null)
   const load = async () => {
     try { const response = await api.get('/contributions'); setItems(response.data.data || []); setStats(response.data.stats || {}) }
     catch { toast.error('Could not load your contributions. Please refresh and try again.') }
     finally { setLoading(false) }
   }
   useEffect(() => { load() }, [])
+
   const filtered = useMemo(() => filter === 'all' ? items : items.filter(item => item.status === filter), [items, filter])
+
+  // Highlight a contribution opened from a notification
+  useEffect(() => {
+    if (loading) return
+    const highlightId = searchParams.get('highlight')
+    if (!highlightId || highlightId === processedHighlight.current) return
+    // A status filter may be hiding the target row; fall back to "All" so the
+    // notification always lands on a visible card.
+    if (filter !== 'all' && !filtered.some((item) => item._id === highlightId)) {
+      setFilter('all')
+      return
+    }
+    processedHighlight.current = highlightId
+    const timer = setTimeout(() => {
+      const element = document.getElementById(`contribution-${highlightId}`)
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        element.classList.add('highlight-glow')
+        setTimeout(() => element.classList.remove('highlight-glow'), 3000)
+      }
+      searchParams.delete('highlight')
+      setSearchParams(searchParams, { replace: true })
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [loading, items, filtered, filter, searchParams, setSearchParams])
 
   return <div className="mx-auto max-w-7xl space-y-8">
     <section aria-labelledby="contribution-summary-heading">
@@ -152,7 +181,7 @@ export default function ContributePage() {
 
     <section aria-labelledby="contribution-history-heading">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><h2 id="contribution-history-heading" className="text-xl font-semibold text-gray-900 dark:text-white">Your contribution history</h2><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">A read-only record of your submissions and moderation decisions.</p></div><div className="flex flex-wrap gap-2" role="tablist" aria-label="Filter contributions by status">{['all', 'Pending', 'Approved', 'Rejected'].map(value => <Button key={value} size="sm" variant={filter === value ? 'primary' : 'secondary'} onClick={() => setFilter(value)}>{value === 'all' ? 'All' : value}</Button>)}</div></div>
-      <div className="mt-4">{loading ? <div className="rounded-xl border border-gray-200 bg-white py-10 dark:border-gray-700 dark:bg-gray-800"><LoadingSpinner /></div> : filtered.length === 0 ? <Card><EmptyState title="No Contributions Yet" description="Your contributions will appear here after you submit them." /></Card> : <div className="space-y-3">{filtered.map(item => <Card key={item._id} className="p-5"><div className="flex flex-wrap items-start justify-between gap-4"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold text-gray-900 dark:text-white">{item.title}</h3><Badge color={statusColor[item.status]}>{item.status}</Badge></div><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{item.type} · Submitted {new Date(item.submittedAt || item.createdAt).toLocaleDateString()}</p>{item.rejectionReason && <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300"><strong>Reason:</strong> {item.rejectionReason}</p>}</div><Badge color={item.status === 'Approved' ? 'success' : item.status === 'Rejected' ? 'danger' : item.status === 'Deleted' ? 'neutral' : 'warning'}>{item.status === 'Pending' ? 'Awaiting review' : item.status === 'Approved' ? 'Published' : item.status === 'Deleted' ? 'Deleted' : 'Not published'}</Badge></div></Card>)}</div>}</div>
+      <div className="mt-4">{loading ? <div className="rounded-xl border border-gray-200 bg-white py-10 dark:border-gray-700 dark:bg-gray-800"><LoadingSpinner /></div> : filtered.length === 0 ? <Card><EmptyState title="No Contributions Yet" description="Your contributions will appear here after you submit them." /></Card> : <div className="space-y-3">{filtered.map(item => <Card key={item._id} id={`contribution-${item._id}`} className="p-5"><div className="flex flex-wrap items-start justify-between gap-4"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold text-gray-900 dark:text-white">{item.title}</h3><Badge color={statusColor[item.status]}>{item.status}</Badge></div><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{item.type} · Submitted {new Date(item.submittedAt || item.createdAt).toLocaleDateString()}</p>{item.rejectionReason && <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300"><strong>Reason:</strong> {item.rejectionReason}</p>}</div><Badge color={item.status === 'Approved' ? 'success' : item.status === 'Rejected' ? 'danger' : item.status === 'Deleted' ? 'neutral' : 'warning'}>{item.status === 'Pending' ? 'Awaiting review' : item.status === 'Approved' ? 'Published' : item.status === 'Deleted' ? 'Deleted' : 'Not published'}</Badge></div></Card>)}</div>}</div>
     </section>
     {selected && <ContributionForm type={selected} onClose={() => setSelected(null)} onSubmitted={load} />}
   </div>
