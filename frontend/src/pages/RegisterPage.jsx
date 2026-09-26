@@ -99,7 +99,7 @@ export default function RegisterPage() {
         <div className="text-center mb-8">
           <GraduationCap className="w-12 h-12 text-primary-600 mx-auto mb-3" />
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">NextUp</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">University Productivity System</p>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Never Miss What’s Next</p>
         </div>
 
         {submitted ? (

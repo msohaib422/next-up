@@ -113,6 +113,7 @@ export const register = async (req, res, next) => {
         role: 'user',
         status: 'Pending Approval',
         lastApplicationAt: new Date(),
+        isReapplication: false,
       });
 
       const mail = await deliverRegistrationSubmitted(user, { isReapplication: false });
@@ -168,6 +169,9 @@ export const register = async (req, res, next) => {
           reviewedAt: null,
           reviewedBy: null,
           lastApplicationAt: new Date(),
+          // The only place this flag is ever set: the account is reused after a
+          // rejection, so the queued application is a re-application.
+          isReapplication: true,
         },
       },
       { new: true, runValidators: true }

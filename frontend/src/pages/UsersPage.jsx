@@ -164,7 +164,7 @@ export default function UsersPage() {
       setUsers((prev) =>
         prev.map((u) =>
           u._id === updated._id
-            ? { ...u, status: updated.status, rejectionReason: updated.rejectionReason ?? '' }
+            ? { ...u, status: updated.status, rejectionReason: updated.rejectionReason ?? '', isReapplication: false }
             : u
         )
       )
@@ -240,7 +240,10 @@ export default function UsersPage() {
                 {filteredUsers.map((user) => {
                   const status = statusOf(user)
                   const isPending = status === 'Pending Approval'
-                  const isReapplication = isPending && Boolean(user.lastApplicationAt)
+                  // "Re-applied" is a server-owned fact: the flag is set only
+                  // when a previously rejected account submitted a new
+                  // application, so a first-time signup never shows it.
+                  const isReapplication = isPending && user.isReapplication === true
                   const isHighlighted = user._id === highlightedId
                   return (
                   <tr

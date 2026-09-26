@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
-import { CheckSquare, HelpCircle, FileCheck, BookOpen, Megaphone, Send, ArrowRight, Clock, CheckCircle2, XCircle, Layers, Paperclip, X } from 'lucide-react'
+import { CheckSquare, HelpCircle, FileCheck, BookOpen, Megaphone, Send, ArrowRight, Clock, CheckCircle2, XCircle, Layers } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -11,6 +11,7 @@ import LoadingSpinner from '../components/ui/LoadingSpinner'
 import Modal from '../components/ui/Modal'
 import Input from '../components/ui/Input'
 import Select from '../components/ui/Select'
+import FileUploadField from '../components/ui/FileUploadField'
 
 const TYPES = [
   { type: 'Task', Icon: CheckSquare, description: 'Add a focused piece of work to help everyone stay on track.' },
@@ -33,13 +34,11 @@ function ContributionForm({ type, onClose, onSubmitted }) {
   const [uploading, setUploading] = useState(false)
   const [file, setFile] = useState(null)
   const [attachment, setAttachment] = useState(null)
-  const fileInputRef = useRef(null)
   const dated = ['Task', 'Quiz', 'Assignment'].includes(type)
   const modes = type === 'Quiz' ? ['Date', 'Upcoming Lecture', 'Surprise'] : ['Date', 'Upcoming Lecture', 'As Possible']
   const update = (key, value) => setForm(prev => ({ ...prev, [key]: value }))
 
-  const handleFileChange = (event) => {
-    const selected = event.target.files?.[0]
+  const handleFileChange = (selected) => {
     if (!selected) return
     if (!ALLOWED_FILE_TYPES.includes(selected.type)) {
       setErrors(prev => ({ ...prev, file: 'Only PDF, JPG, JPEG, PNG, WEBP files are allowed.' }))
@@ -57,7 +56,6 @@ function ContributionForm({ type, onClose, onSubmitted }) {
   const handleRemoveFile = () => {
     setFile(null)
     setAttachment(null)
-    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const uploadFile = async () => {
@@ -105,18 +103,15 @@ function ContributionForm({ type, onClose, onSubmitted }) {
       {dated && <Input label="Course / Subject" value={form.subject} onChange={e => update('subject', e.target.value)} placeholder="e.g. Mathematics" error={errors.subject} />}
       {type === 'Essential' && <Input label="Course" value={form.course} onChange={e => update('course', e.target.value)} placeholder="e.g. Computer Science" error={errors.course} />}
       <div><label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="contribution-description">Description</label><textarea id="contribution-description" className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" rows="4" value={form.description} onChange={e => update('description', e.target.value)} placeholder="Add useful context for reviewers" /></div>
-      {type === 'Task' && <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Attachment</label>
-        <div className="flex items-center gap-2">
-          <label className="flex min-w-0 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 cursor-pointer">
-            <Paperclip className="w-4 h-4 shrink-0" />
-            <span className="truncate">{file ? file.name : (attachment?.name || 'Choose PDF or Image')}</span>
-            <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={handleFileChange} className="hidden" />
-          </label>
-          {(file || attachment) && <button type="button" onClick={handleRemoveFile} className="text-gray-400 hover:text-red-500" aria-label="Remove attachment"><X className="w-4 h-4" /></button>}
-        </div>
-        {errors.file && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.file}</p>}
-      </div>}
+      <FileUploadField
+        file={file}
+        attachment={attachment}
+        onSelect={handleFileChange}
+        onRemove={handleRemoveFile}
+        accept=".pdf,.jpg,.jpeg,.png,.webp"
+        id={`contribution-attachment-${type}`}
+        error={errors.file}
+      />
       {dated && <><Select label="Deadline" value={form.deadlineMode} onChange={e => update('deadlineMode', e.target.value)} options={[{ value: '', label: 'Select deadline' }, ...modes.map(mode => ({ value: mode, label: mode }))]} />{form.deadlineMode === 'Date' && <Input label="Due date" type="date" min={minSelectableDate} value={form.date} onChange={e => update('date', e.target.value)} error={errors.date} />}{errors.deadlineMode && <p className="-mt-2 text-xs text-red-600">{errors.deadlineMode}</p>}</>}
       {type === 'Announcement' && <><Select label="Announcement type" value={form.type} onChange={e => update('type', e.target.value)} options={['General', 'Academic', 'Assignment', 'Quiz', 'Task', 'Exam', 'Event'].map(value => ({ value, label: value }))} /><Input label="Date" type="date" min={minSelectableDate} value={form.date} onChange={e => update('date', e.target.value)} error={errors.date} /><Input label="Link (optional)" type="url" value={form.link} onChange={e => update('link', e.target.value)} placeholder="https://" /></>}
       {dated && <Select label="Priority" value={form.priority} onChange={e => update('priority', e.target.value)} options={['High', 'Medium', 'Low'].map(value => ({ value, label: value }))} />}

@@ -186,6 +186,9 @@ export const approveUser = async (req, res, next) => {
     user.rejectionReason = '';
     user.reviewedAt = new Date();
     user.reviewedBy = req.user._id;
+    // The re-application has been decided, so the "Re-applied" marker no longer
+    // describes anything. A later application starts from this clean state.
+    user.isReapplication = false;
     await user.save();
 
     const [, mail] = await Promise.all([
@@ -232,6 +235,7 @@ export const rejectUser = async (req, res, next) => {
     user.rejectionReason = reason;
     user.reviewedAt = new Date();
     user.reviewedBy = req.user._id;
+    user.isReapplication = false;
     await user.save();
 
     const [, mail] = await Promise.all([

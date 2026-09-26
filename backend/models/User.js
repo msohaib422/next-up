@@ -65,6 +65,17 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // True ONLY when the account that is currently queued was previously
+    // rejected and has now submitted a new application. lastApplicationAt
+    // cannot be used for this: it is also stamped on a brand-new signup, so
+    // treating "has lastApplicationAt" as "re-applied" flagged every new
+    // registration. This flag is the single source of truth and is cleared as
+    // soon as the application is decided, so the badge only ever describes a
+    // live re-application.
+    isReapplication: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

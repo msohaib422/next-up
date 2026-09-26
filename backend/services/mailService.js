@@ -263,7 +263,7 @@ const layout = ({ heading, intro, rows = [], body = '', action, footer }) => {
       <tr>
         <td style="padding:24px 28px;border-bottom:1px solid #e5e7eb;">
           <span style="font-size:16px;font-weight:700;color:#111827;">${BRAND}</span>
-          <span style="display:block;margin-top:2px;font-size:13px;color:#6b7280;">University Productivity System</span>
+          <span style="display:block;margin-top:2px;font-size:13px;color:#6b7280;">Never Miss What’s Next</span>
         </td>
       </tr>
       <tr>
