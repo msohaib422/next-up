@@ -5,6 +5,7 @@ import { getVisibleUserIds } from '../utils/helpers.js';
 import { notifyContentChange, notifyContributionUpdated, notifyContributorsOfDeletedEntity, notifyStatusChange } from '../services/notificationService.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
+import { fileTooLargeMessage } from '../config/uploadLimits.js';
 
 export const uploadTaskFile = [
   (req, res, next) => {
@@ -13,7 +14,7 @@ export const uploadTaskFile = [
       if (err) {
         console.error('[Upload] Multer error:', err.message, err.code);
         if (err.code === 'LIMIT_FILE_SIZE') {
-          return res.status(400).json({ success: false, message: 'File is too large. Maximum size is 10 MB.' });
+          return res.status(400).json({ success: false, message: fileTooLargeMessage });
         }
         return res.status(400).json({ success: false, message: err.message || 'File upload failed.' });
       }
@@ -57,7 +58,7 @@ export const uploadTaskFile = [
       } else if (error.http_code === 401 || error.message?.includes('authentication failed')) {
         message = 'Upload service authentication failed. Please contact support.';
       } else if (error.message?.includes('File too large') || error.code === 'LIMIT_FILE_SIZE') {
-        message = 'File is too large. Maximum size is 10 MB.';
+        message = fileTooLargeMessage;
       } else {
         message = error.message || 'File upload to storage failed.';
       }

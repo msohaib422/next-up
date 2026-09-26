@@ -21,10 +21,12 @@ import {
  *   SMTP_SECURE optional, defaults to true only on port 465
  *   FRONTEND_URL  absolute base URL of the deployed web app, used to build the
  *                  "Login" button in the approval email and the "Review
- *                  Registration" button in the admin email.
- *                  ADMIN_REVIEW_URL is still honoured as a fallback so existing
- *                  deployments keep working. No URL is ever hardcoded, and a
- *                  localhost value is ignored in production.
+ *                  Registration" button in the admin email. No URL is ever
+ *                  hardcoded, and a localhost value is ignored in production.
+ *
+ * Admin-only email goes to every configured administrator in a single message.
+ * The recipient list comes from ADMIN_EMAIL_1 / ADMIN_EMAIL_2 / ADMIN_EMAILS via
+ * config/adminRecipients.js - it is never written here.
  *   EMAIL_SUPPRESSED_ADDRESSES  comma-separated addresses that must never be
  *                  emailed again, for an address known to be bad.
  *
@@ -66,13 +68,12 @@ const describeConfig = () => ({
   host: process.env.SMTP_HOST || null,
   port: Number(process.env.SMTP_PORT) || 587,
   user: process.env.SMTP_USER || null,
-  from: process.env.SMTP_FROM || process.env.MAIL_FROM || null,
+  from: process.env.SMTP_FROM || process.env.SMTP_USER || null,
   secure: isSecure(),
 });
 
-// SMTP_FROM is the documented name; MAIL_FROM is kept as a fallback so an
-// existing deployment does not silently stop sending.
-const fromAddress = () => process.env.SMTP_FROM || process.env.MAIL_FROM || process.env.SMTP_USER || null;
+// SMTP_FROM is the documented name for the From address.
+const fromAddress = () => process.env.SMTP_FROM || process.env.SMTP_USER || null;
 
 function isSecure() {
   if (process.env.SMTP_SECURE !== undefined && process.env.SMTP_SECURE !== '') {
@@ -82,9 +83,7 @@ function isSecure() {
 }
 
 const missingVars = () =>
-  ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS']
-    .filter((key) => !process.env[key])
-    .concat(process.env.SMTP_FROM || process.env.MAIL_FROM ? [] : ['SMTP_FROM']);
+  ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM'].filter((key) => !process.env[key]);
 
 export const isMailConfigured = () => missingVars().length === 0;
 
@@ -160,15 +159,13 @@ const isProduction = () => process.env.NODE_ENV === 'production' || Boolean(proc
 /**
  * Absolute base URL of the deployed frontend, taken from the environment only.
  *
- * FRONTEND_URL is the documented name; ADMIN_REVIEW_URL predates it and is
- * still accepted so an existing deployment does not lose its links. A
- * localhost value is deliberately ignored in production so a dev setting can
- * never leak a dead link to a real user.
+ * FRONTEND_URL is the single documented name; the older APP_URL / CLIENT_URL /
+ * ADMIN_REVIEW_URL aliases are gone, so there is one place to set the deployed
+ * origin. A localhost value is deliberately ignored in production so a dev
+ * setting can never leak a dead link to a real user.
  */
 const publicBaseUrl = () => {
-  const configured =
-    process.env.FRONTEND_URL || process.env.APP_URL || process.env.CLIENT_URL || process.env.ADMIN_REVIEW_URL || '';
-  const base = String(configured).trim().replace(/\/+$/, '');
+  const base = String(process.env.FRONTEND_URL || '').trim().replace(/\/+$/, '');
   if (!base) return '';
   if (isProduction() && isLocalHost(base)) {
     console.warn('[mail] FRONTEND_URL points at localhost and is ignored in production - email links will be omitted.');
@@ -303,64 +300,122 @@ const toPlainText = ({ heading, intro, rows = [], action }) =>
 /**
  * Send one email. Never throws, so the registration/approval workflow always
  * completes, but the outcome is never silent: it is logged, recorded against
- * the recipient as Pending / Sent / Failed, and returned as a structured result
+ * each recipient as Pending / Sent / Failed, and returned as a structured result
  * the caller can surface or react to.
  *
- * Resolves to { sent: boolean, status: 'sent' | 'skipped' | 'failed', reason? }
+ * `to` may be a single address or a list. A list is delivered as ONE SMTP
+ * transaction with every address in the `To` header, which is what makes "one
+ * event, one email, both administrators" true rather than the workflow being
+ * run twice. The delivery record is still kept per address, so one recipient
+ * being suppressed never hides the others.
+ *
+ * Resolves to
+ *   { sent, status: 'sent' | 'skipped' | 'failed', reason?, messageId? }
+ * and, for a list, a `results` array with one entry per address considered.
  */
 export const sendMail = async ({ to, subject, heading, intro, rows, bodyHtml, bodyText, action, footer, context, relatedUser = null, allowSuppressed = false }) => {
   const html = layout({ heading, intro, rows, body: bodyHtml, action, footer });
   const text = bodyText || toPlainText({ heading, intro, rows, action });
   const where = context ? ` (${context})` : '';
-  const recipient = String(to || '').trim().toLowerCase();
 
-  if (!isUsableAddress(recipient)) {
-    const reason = 'the recipient address is not a valid email address';
-    console.warn(`[mail] SKIPPED "${subject}" to=${to || 'unknown'}${where}: ${reason}`);
-    return { sent: false, status: 'skipped', reason };
+  const requested = (Array.isArray(to) ? to : [to])
+    .map((address) => String(address || '').trim().toLowerCase())
+    .filter(Boolean);
+
+  // De-duplicate, so the same address listed twice is still one recipient.
+  const recipients = [...new Set(requested)];
+
+  if (!recipients.length) {
+    const reason = 'there are no recipient addresses configured';
+    console.warn(`[mail] SKIPPED "${subject}"${where}: ${reason}`);
+    return { sent: false, status: 'skipped', reason, results: [] };
   }
 
   if (!isMailConfigured()) {
     const reason = `SMTP not configured - missing ${missingVars().join(', ')}`;
-    console.warn(`[mail] SKIPPED "${subject}" to=${recipient}${where}: ${reason}`);
-    return { sent: false, status: 'skipped', reason };
+    console.warn(`[mail] SKIPPED "${subject}" to=${recipients.join(', ')}${where}: ${reason}`);
+    return {
+      sent: false,
+      status: 'skipped',
+      reason,
+      results: recipients.map((email) => ({ email, sent: false, status: 'skipped', reason })),
+    };
   }
 
-  // Out of rotation: an address the server refused, one that bounced, or one on
-  // the configured do-not-send list is never tried again by an automatic send.
-  // `allowSuppressed` is set only by the operator resend below, so the one way
-  // to try such an address is a person deliberately asking.
-  const attempt = await beginAttempt({
-    email: recipient,
-    subject,
-    context,
-    relatedUserId: relatedUser?._id || null,
-    bypassSuppression: allowSuppressed === true,
-  });
-  if (attempt.skip) {
-    console.warn(`[mail] SKIPPED "${subject}" to=${recipient}${where}: ${attempt.reason}`);
-    return { sent: false, status: 'skipped', reason: attempt.reason };
+  const results = [];
+
+  /*
+   * Vet every address BEFORE opening a single SMTP conversation.
+   *
+   * A syntactically invalid address is dropped here rather than passed to the
+   * mail server, so one bad entry cannot make the server reject the whole
+   * message and cost the valid recipients their copy. An address that is out of
+   * rotation - refused by the server before, bounced, or on the configured
+   * do-not-send list - is dropped for the same reason, and stays dropped on
+   * every later event. `allowSuppressed` is set only by the operator resend
+   * below, so the one way to try such an address is a person deliberately
+   * asking.
+   */
+  const deliverable = [];
+  for (const email of recipients) {
+    if (!isUsableAddress(email)) {
+      const reason = 'the recipient address is not a valid email address';
+      console.warn(`[mail] SKIPPED "${subject}" to=${email}${where}: ${reason}`);
+      results.push({ email, sent: false, status: 'skipped', reason });
+      continue;
+    }
+
+    const attempt = await beginAttempt({
+      email,
+      subject,
+      context,
+      relatedUserId: relatedUser?._id || null,
+      bypassSuppression: allowSuppressed === true,
+    });
+    if (attempt.skip) {
+      console.warn(`[mail] SKIPPED "${subject}" to=${email}${where}: ${attempt.reason}`);
+      results.push({ email, sent: false, status: 'skipped', reason: attempt.reason });
+      continue;
+    }
+
+    deliverable.push(email);
   }
+
+  if (!deliverable.length) {
+    return {
+      sent: false,
+      status: 'skipped',
+      reason: 'every recipient is out of rotation or invalid',
+      results,
+    };
+  }
+
+  const label = deliverable.join(', ');
 
   try {
+    // A single sendMail call. Nodemailer accepts a list and puts every address
+    // in one message's To header, so both administrators receive the identical
+    // email from a single operation.
     const info = await getTransporter().sendMail({
       from: fromAddress(),
-      to: recipient,
+      to: deliverable,
       subject,
       html,
       text,
     });
-    await completeAttempt({ email: recipient, ok: true });
-    console.log(`[mail] SENT "${subject}" to=${recipient}${where} (messageId=${info?.messageId || 'n/a'})`);
-    return { sent: true, status: 'sent', messageId: info?.messageId || null };
+    await Promise.all(deliverable.map((email) => completeAttempt({ email, ok: true })));
+    console.log(`[mail] SENT "${subject}" to=${label}${where} (messageId=${info?.messageId || 'n/a'})`);
+    deliverable.forEach((email) => results.push({ email, sent: true, status: 'sent' }));
+    return { sent: true, status: 'sent', messageId: info?.messageId || null, results };
   } catch (error) {
     const reason = classifyError(error);
     const permanent = isPermanentRecipientError(error);
-    await completeAttempt({ email: recipient, ok: false, reason, permanent });
+    await Promise.all(deliverable.map((email) => completeAttempt({ email, ok: false, reason, permanent })));
     // The reason is a fixed, human-written string, so no secret can reach it.
-    console.error(`[mail] FAILED "${subject}" to=${recipient}${where}: ${reason}`);
+    console.error(`[mail] FAILED "${subject}" to=${label}${where}: ${reason}`);
     console.error('[mail] details:', JSON.stringify(redact({ code: error?.code, command: error?.command, responseCode: error?.responseCode })));
-    return { sent: false, status: 'failed', reason };
+    deliverable.forEach((email) => results.push({ email, sent: false, status: 'failed', reason }));
+    return { sent: false, status: 'failed', reason, results };
   }
 };
 
@@ -400,50 +455,63 @@ export const sendRegistrationReceivedEmail = async (user, { allowSuppressed = fa
   });
 };
 
-/** Sent to every administrator when a new registration arrives. */
-export const sendAdminNewRegistrationEmail = async (user, admins, { allowSuppressed = false } = {}) => {
-  if (!admins?.length) {
-    console.warn('[mail] no administrator accounts found - nobody was notified of the new registration');
+/**
+ * Sent to every administrator when a new registration arrives.
+ *
+ * `recipients` is a list and it becomes ONE email: a single SMTP transaction
+ * with every administrator in the To header. The workflow around it is not run
+ * once per administrator - there is one registration, one notification, and one
+ * message - so adding a third administrator does not triple the work.
+ *
+ * The returned counts are per address, so a caller can still report how many
+ * copies actually went out.
+ */
+export const sendAdminNewRegistrationEmail = async (user, recipients, { allowSuppressed = false } = {}) => {
+  const addresses = (recipients || []).map((recipient) => (typeof recipient === 'string' ? recipient : recipient?.email));
+
+  if (!addresses.filter(Boolean).length) {
+    console.warn('[mail] no administrator recipients configured - nobody was notified of the new registration');
     return { sent: 0, failed: 0, skipped: 0, results: [] };
   }
-  const results = await Promise.all(
-    admins.map((admin) =>
-      sendMail({
-        to: admin.email,
-        context: 'admin-new-registration',
-        relatedUser: user,
-        allowSuppressed,
-        subject: 'New registration awaiting your approval',
-        heading: 'New user registration',
-        intro: 'A new user has registered and is waiting for your approval before they can access the system.',
-        rows: [
-          ['Name', user.name],
-          ['Email', user.email],
-          ['Registered on', formatWhen(user.createdAt)],
-          ['Current status', 'Pending Approval'],
-        ],
-        bodyHtml:
-          '<p style="margin:0 0 12px;">A new registration is waiting for you on the Admin &rarr; Users page. You will be asked to sign in first if you are not already signed in, and you will land straight on that registration.</p>' +
-          '<p style="margin:0;">Approve it to let the applicant in, or reject it to let them submit a new application later.</p>',
-        // Deep link into the existing Users page. If the admin is not signed in,
-        // the app sends them through the sign-in screen and then back here, so
-        // the link is a login entry point rather than a dead end.
-        action: (() => {
-          const link = appLink(`/users?highlight=${user?._id || ''}`);
-          return link ? { label: 'View Registration', ...link } : undefined;
-        })(),
-      })
-    )
-  );
 
+  const result = await sendMail({
+    to: addresses,
+    context: 'admin-new-registration',
+    relatedUser: user,
+    allowSuppressed,
+    subject: 'New registration awaiting your approval',
+    heading: 'New user registration',
+    intro: 'A new user has registered and is waiting for your approval before they can access the system.',
+    rows: [
+      ['Name', user.name],
+      ['Email', user.email],
+      ['Registered on', formatWhen(user.createdAt)],
+      ['Current status', 'Pending Approval'],
+    ],
+    bodyHtml:
+      '<p style="margin:0 0 12px;">A new registration is waiting for you on the Admin &rarr; Users page. You will be asked to sign in first if you are not already signed in, and you will land straight on that registration.</p>' +
+      '<p style="margin:0;">Approve it to let the applicant in, or reject it to let them submit a new application later.</p>',
+    // Deep link into the existing Users page. If the admin is not signed in,
+    // the app sends them through the sign-in screen and then back here, so the
+    // link is a login entry point rather than a dead end.
+    action: (() => {
+      const link = appLink(`/users?highlight=${user?._id || ''}`);
+      return link ? { label: 'View Registration', ...link } : undefined;
+    })(),
+  });
+
+  const results = result.results || [];
   const summary = {
     sent: results.filter((r) => r.sent).length,
     failed: results.filter((r) => r.status === 'failed').length,
     skipped: results.filter((r) => r.status === 'skipped').length,
     results,
   };
+
   if (summary.failed > 0) {
-    console.error(`[mail] admin new-registration alert: ${summary.failed} of ${results.length} administrator emails failed`);
+    console.error(
+      `[mail] admin new-registration alert: ${summary.failed} of ${results.length} administrator addresses failed`
+    );
   }
   return summary;
 };
@@ -547,7 +615,7 @@ const RESENDERS = {
     sendRegistrationRejectedEmail(subject, subject.rejectionReason || '', { allowSuppressed: true }),
   'account-deleted': (subject) => sendAccountDeletedEmail(subject, { allowSuppressed: true }),
   'admin-new-registration': (subject, recipientEmail) =>
-    sendAdminNewRegistrationEmail(subject, [{ email: recipientEmail }], { allowSuppressed: true }),
+    sendAdminNewRegistrationEmail(subject, [recipientEmail], { allowSuppressed: true }),
 };
 
 /**

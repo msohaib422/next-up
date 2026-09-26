@@ -1,5 +1,6 @@
 import User from '../models/User.js';
 import { generateToken } from '../utils/helpers.js';
+import { resolveAdminRecipients } from '../config/adminRecipients.js';
 import { createNotification, notifyAdminsOfRegistrationSubmitted } from '../services/notificationService.js';
 import {
   sendRegistrationReceivedEmail,
@@ -22,7 +23,11 @@ const ALREADY_PENDING_MESSAGE =
  *   - one in-app notification for every administrator (so the admin sees it in
  *     the existing bell / notifications area)
  *   - one registration-received email to this applicant only
- *   - one admin alert email per administrator for this one registration
+ *   - ONE admin alert email, addressed to every configured administrator
+ *
+ * The admin alert is a single message to a list of recipients, not one message
+ * per administrator: one event produces one email operation, so the number of
+ * administrators never multiplies the work or the mail.
  *
  * There is no loop over unrelated users and no retry: the addresses involved
  * are exactly the people this event is about.
@@ -51,11 +56,17 @@ const deliverRegistrationSubmitted = async (user, { isReapplication }) => {
 
   // Emails are best-effort and never block the registration itself, but the
   // outcome is reported so a delivery failure is never mistaken for success.
+  //
+  // The administrator list is resolved once, from configuration, and handed to
+  // the mail service as a single recipient list.
   const [userMail, adminMail] = await Promise.all([
     sendRegistrationReceivedEmail(user),
-    User.find({ role: 'collaborator' })
-      .select('email')
-      .then((admins) => sendAdminNewRegistrationEmail(user, admins)),
+    resolveAdminRecipients()
+      .catch((error) => {
+        console.error('[register] could not resolve the administrator recipient list:', error.message);
+        return [];
+      })
+      .then((recipients) => sendAdminNewRegistrationEmail(user, recipients)),
   ]);
 
   const [notifiedAdmins] = await Promise.all([adminNotifications, applicantNotification]);
