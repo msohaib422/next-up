@@ -8,7 +8,6 @@ import Input from '../components/ui/Input'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import UserModal from '../components/UserModal'
-import EmailDeliveryPanel from '../components/EmailDeliveryPanel'
 
 // Accounts created before the approval workflow have no status field; they are
 // approved accounts and must keep behaving exactly as before.
@@ -48,10 +47,6 @@ export default function UsersPage() {
   // Delete is a one-shot action: a double click must not fire two requests.
   const [deletingId, setDeletingId] = useState(null)
   const [deleteError, setDeleteError] = useState('')
-  // Collapsed by default: the email delivery detail is there when needed, and
-  // expanding it is what fetches it, so arriving here sends no email and makes
-  // no extra request.
-  const [deliveryOpen, setDeliveryOpen] = useState(false)
   const highlightedId = searchParams.get('highlight')
   const rowRefs = useRef({})
 
@@ -329,11 +324,6 @@ export default function UsersPage() {
           </div>
         </div>
       )}
-
-      <EmailDeliveryPanel
-        collapsed={!deliveryOpen}
-        onToggle={() => setDeliveryOpen((prev) => !prev)}
-      />
 
       <UserModal
         isOpen={showModal}

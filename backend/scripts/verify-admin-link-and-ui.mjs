@@ -152,14 +152,18 @@ check('registration uses the toggle for both password fields', pwFields === 2, `
 check('registration no longer hardcodes type="password"', !/type="password"/.test(registerPage));
 check('registration validation unchanged', /password !== confirmPassword/.test(registerPage) && /password\.length < 6/.test(registerPage));
 
-section('7 - Email delivery panel is on the existing Users page');
+section('7 - The Email Delivery section is gone from the Users page');
 const users = read('pages/UsersPage.jsx');
-check('Users page renders the delivery panel', /EmailDeliveryPanel/.test(users));
+check('Users page no longer renders the delivery panel', !/EmailDeliveryPanel/.test(users));
+check('Users page has no leftover delivery open state', !/deliveryOpen/.test(users));
+check('the delivery panel component is deleted', !fs.existsSync(path.join(frontendSrc, 'components/EmailDeliveryPanel.jsx')));
 check('no new page or route for email management', !/path="\/emails"/.test(app) && !/EmailPage/.test(app));
-const panel = read('components/EmailDeliveryPanel.jsx');
-check('panel only fetches when opened', /if \(!collapsed && !loaded\) load\(\)/.test(panel));
-check('panel exposes Stop, Resume and Re-send', /'stop'/.test(panel) && /'resume'/.test(panel) && /'resend'/.test(panel));
-check('panel states that nothing retries automatically', /Nothing here retries/i.test(panel));
+// Email itself is untouched: the workflow still sends, and the suppression
+// rules the panel used to expose still run on the server.
+const routes = fs.readFileSync(path.join(here, '../routes/userRoutes.js'), 'utf8');
+const statusSvc = fs.readFileSync(path.join(here, '../services/emailStatusService.js'), 'utf8');
+check('email delivery tracking still exists on the server', /\/admin\/email-deliveries/.test(routes));
+check('address suppression still runs', /isSuppressedByEnv/.test(statusSvc) && /markUndeliverable/.test(statusSvc));
 
 section('Cleanup');
 // Remove this run's account, its delivery record and the in-app notifications
