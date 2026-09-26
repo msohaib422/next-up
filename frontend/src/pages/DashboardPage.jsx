@@ -7,7 +7,7 @@ import EmptyState from '../components/ui/EmptyState'
 import {
   CheckSquare, Clock, HelpCircle, Megaphone,
   AlertTriangle, CheckCircle2, Users, FileCheck,
-  Pin, BookOpen, CalendarCheck, CalendarClock,
+  Pin, BookOpen, CalendarCheck,
   ChevronRight
 } from 'lucide-react'
 import {
@@ -1056,12 +1056,10 @@ function UserDashboard() {
   )
 
   const deadlineStats = useMemo(() => {
-    const dueSoon = futureWork.filter(w => daysUntil(w._date) <= 7)
     return {
       overdue: overdueItems,
-      dueSoon,
     }
-  }, [futureWork, overdueItems])
+  }, [overdueItems])
 
   // Unified upcoming list: newest additions first across dated items, key
   // dates, and work using a non-date schedule mode. Completed items never enter it.
@@ -1166,12 +1164,6 @@ function UserDashboard() {
       tone: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/60',
       icon: AlertTriangle,
       text: `${deadlineStats.overdue.length} overdue`,
-    }
-  } else if (deadlineStats.dueSoon.length > 0) {
-    attentionPill = {
-      tone: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-900/60',
-      icon: CalendarClock,
-      text: `${deadlineStats.dueSoon.length} due this week`,
     }
   } else if (upcomingItems.length > 0) {
     attentionPill = {
