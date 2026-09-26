@@ -172,9 +172,20 @@ export default function NotificationsPage() {
                       {!notification.read && <span className="h-2 w-2 rounded-full bg-primary-600" aria-label="Unread" />}
                     </div>
                     <p className="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-400">{notification.message}</p>
-                    <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500" title={formatDateTime(notification.createdAt)}>
-                      {timeAgo(notification.createdAt)}
-                    </p>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                      <p className="text-xs text-gray-400 dark:text-gray-500" title={formatDateTime(notification.createdAt)}>
+                        {timeAgo(notification.createdAt)}
+                      </p>
+                      {/* Optional per-notification action, rendered from
+                          metadata.actionLabel and pointing at the same link the
+                          row already navigates to. */}
+                      {notification.link && notification.metadata?.actionLabel && (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-primary-50 px-1.5 py-0.5 text-xs font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
+                          {notification.metadata.actionLabel}
+                          <ChevronRight className="h-3 w-3" />
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <div className="flex shrink-0 items-center gap-[15px] self-center">

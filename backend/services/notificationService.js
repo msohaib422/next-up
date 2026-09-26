@@ -255,6 +255,58 @@ export const notifyAnnouncementPinned = async (announcement, owner) => {
   }
 };
 
+/**
+ * A registration was submitted (brand new, or re-applied by someone who was
+ * previously rejected) -> every admin (collaborator) gets one in-app
+ * notification, so the admin is told through the existing notification system
+ * (bell popover, notifications page, unread badge) in addition to the email
+ * that mailService already sends.
+ *
+ * This is the same fan-out shape as notifyContributionSubmitted, and it reuses
+ * the REGISTRATION_SUBMITTED type the notification UI already renders. The
+ * dedupe key includes the moment the application was submitted, so a genuine
+ * re-application produces a new notice while a repeated submission of the same
+ * application can never produce a second copy.
+ */
+export const notifyAdminsOfRegistrationSubmitted = async (user, { isReapplication = false } = {}) => {
+  try {
+    if (!user?._id) return [];
+    const submittedAt = user.lastApplicationAt ? new Date(user.lastApplicationAt).getTime() : 0;
+    const applicantName = user.name || 'A new user';
+    const applicantEmail = user.email || '';
+
+    const admins = await User.find({ role: 'collaborator' }).select('_id');
+    const created = await Promise.all(
+      admins
+        .filter((admin) => String(admin._id) !== String(user._id))
+        .map((admin) =>
+          createNotification({
+            recipient: admin._id,
+            actor: user._id,
+            type: 'REGISTRATION_SUBMITTED',
+            title: isReapplication ? 'New Application Received' : 'New Registration Received',
+            message: `${applicantName} (${applicantEmail}) submitted a registration and is awaiting approval.`,
+            entityType: 'User',
+            entityId: user._id,
+            link: `/users?highlight=${user._id}`,
+            metadata: {
+              status: user.status || 'Pending Approval',
+              userName: applicantName,
+              userEmail: applicantEmail,
+              isReapplication: Boolean(isReapplication),
+              actionLabel: 'View/Review',
+            },
+            dedupeKey: `registration-submitted:${user._id}:${submittedAt}:${admin._id}`,
+          })
+        )
+    );
+    return created.filter(Boolean);
+  } catch (error) {
+    console.error('Error notifying admins of new registration:', error.message);
+    return [];
+  }
+};
+
 /** User submitted a contribution -> every admin (collaborator) is notified once. */
 export const notifyContributionSubmitted = async (contribution, actor) => {
   try {

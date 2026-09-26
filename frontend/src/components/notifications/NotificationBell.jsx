@@ -222,6 +222,7 @@ export default function NotificationBell() {
                 {recent.map((notification) => {
                   const meta = getTypeMeta(notification.type)
                   const Icon = meta.icon
+                  const actionLabel = notification.link ? notification.metadata?.actionLabel : ''
                   return (
                     <li key={notification.id}>
                       <button
@@ -244,7 +245,18 @@ export default function NotificationBell() {
                             {!notification.read && <span className="h-2 w-2 shrink-0 rounded-full bg-primary-600" aria-label="Unread" />}
                           </span>
                           <span className="mt-0.5 line-clamp-2 block text-xs leading-5 text-gray-500 dark:text-gray-400">{notification.message}</span>
-                          <span className="mt-1 block text-[11px] text-gray-400 dark:text-gray-500">{timeAgo(notification.createdAt)}</span>
+                          <span className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-gray-400 dark:text-gray-500">
+                            <span>{timeAgo(notification.createdAt)}</span>
+                            {/* Optional per-notification action, rendered from
+                                metadata.actionLabel and pointing at the same
+                                link the row already navigates to. */}
+                            {actionLabel && (
+                              <span className="inline-flex items-center gap-0.5 rounded-md bg-primary-50 px-1.5 py-0.5 font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
+                                {actionLabel}
+                                <ArrowRight className="h-3 w-3" />
+                              </span>
+                            )}
+                          </span>
                         </span>
                       </button>
                     </li>

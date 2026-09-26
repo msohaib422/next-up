@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
-import { Plus, Users, Pencil, Trash2, Search, Check, X, Clock } from 'lucide-react'
+import { Plus, Users, Pencil, Trash2, Search, Check, X, Clock, RotateCcw } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
 import EmptyState from '../components/ui/EmptyState'
@@ -20,12 +21,18 @@ const STATUS_STYLES = {
 
 const PENDING_RANK = { 'Pending Approval': 0, Approved: 1, Rejected: 2 }
 
+// Mirrors the server sort: within a status the most recently submitted
+// application first. A re-application restamps lastApplicationAt, so it is
+// treated as newer than a plain signup that has waited longer.
+const appliedAt = (user) => new Date(user.lastApplicationAt || user.createdAt || 0)
+
 const formatDate = (value) =>
   value
     ? new Date(value).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
     : '—'
 
 export default function UsersPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -37,8 +44,27 @@ export default function UsersPage() {
   const [review, setReview] = useState(null)
   const [reviewReason, setReviewReason] = useState('')
   const [reviewSubmitting, setReviewSubmitting] = useState(false)
+  // Delete is a one-shot action: a double click must not fire two requests.
+  const [deletingId, setDeletingId] = useState(null)
+  const [deleteError, setDeleteError] = useState('')
+  const highlightedId = searchParams.get('highlight')
+  const rowRefs = useRef({})
 
   useEffect(() => { fetchUsers() }, [])
+
+  // The admin notification links here with ?highlight=<id>, so bring that
+  // registration into view and clear the marker once it is on screen.
+  useEffect(() => {
+    if (!highlightedId) return
+    const row = rowRefs.current[highlightedId]
+    if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    const timer = setTimeout(() => {
+      const next = new URLSearchParams(searchParams)
+      next.delete('highlight')
+      setSearchParams(next, { replace: true })
+    }, 4000)
+    return () => clearTimeout(timer)
+  }, [highlightedId, searchParams, setSearchParams])
 
   const filteredUsers = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -50,11 +76,11 @@ export default function UsersPage() {
         return searchableText.includes(query)
       })
 
-    // Pending registrations first, then most recently registered.
+    // Pending registrations first, then most recently submitted.
     return [...matched].sort(
       (a, b) =>
         (PENDING_RANK[statusOf(a)] ?? 3) - (PENDING_RANK[statusOf(b)] ?? 3) ||
-        new Date(b.createdAt) - new Date(a.createdAt)
+        appliedAt(b) - appliedAt(a)
     )
   }, [search, users])
 
@@ -91,15 +117,26 @@ export default function UsersPage() {
   }
 
   const handleDelete = async (id) => {
+    if (deletingId) return
+    setDeletingId(id)
+    setDeleteError('')
     try {
-      await api.delete(`/users/admin/users/${id}`)
-      toast.success('User deleted successfully')
+      const res = await api.delete(`/users/admin/users/${id}`)
+      toast.success(res.data.message || 'User deleted successfully')
       setUsers(prev => prev.filter(u => u._id !== id))
       setDeleteConfirm(null)
     } catch (err) {
       const msg = err.response?.data?.message || 'Failed to delete user'
+      setDeleteError(msg)
       toast.error(msg)
+    } finally {
+      setDeletingId(null)
     }
+  }
+
+  const openDelete = (user) => {
+    setDeleteError('')
+    setDeleteConfirm(user)
   }
 
   const openReview = (user, action) => {
@@ -203,16 +240,33 @@ export default function UsersPage() {
                 {filteredUsers.map((user) => {
                   const status = statusOf(user)
                   const isPending = status === 'Pending Approval'
+                  const isReapplication = isPending && Boolean(user.lastApplicationAt)
+                  const isHighlighted = user._id === highlightedId
                   return (
                   <tr
                     key={user._id}
+                    ref={(node) => { rowRefs.current[user._id] = node }}
                     className={`transition-colors ${
-                      isPending
-                        ? 'bg-amber-50/50 hover:bg-amber-50 dark:bg-amber-900/10 dark:hover:bg-amber-900/20'
-                        : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                      isHighlighted
+                        ? 'bg-primary-50 ring-2 ring-inset ring-primary-500 dark:bg-primary-900/20'
+                        : isPending
+                          ? 'bg-amber-50/50 hover:bg-amber-50 dark:bg-amber-900/10 dark:hover:bg-amber-900/20'
+                          : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
                     }`}
                   >
-                    <td className="px-4 py-3 text-gray-900 dark:text-gray-100 font-medium">{user.name}</td>
+                    <td className="px-4 py-3 text-gray-900 dark:text-gray-100 font-medium">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span>{user.name}</span>
+                        {isReapplication && (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full bg-primary-50 px-2 py-0.5 text-[11px] font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300"
+                            title="This applicant was previously rejected and has submitted a new application"
+                          >
+                            <RotateCcw className="h-3 w-3" /> Re-applied
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-400">{user.email}</td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap">{formatDate(user.createdAt)}</td>
                     <td className="px-4 py-3 text-center">
@@ -253,8 +307,9 @@ export default function UsersPage() {
                           <Pencil className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => setDeleteConfirm(user)}
-                          className="p-1.5 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-colors"
+                          onClick={() => openDelete(user)}
+                          disabled={Boolean(deletingId)}
+                          className="p-1.5 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           title="Delete user"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -293,7 +348,8 @@ export default function UsersPage() {
                 <>
                   Reject <span className="font-medium text-gray-900 dark:text-gray-100">{review.user.name}</span>?
                   They will not be able to access the system, and will be notified by email. The registration
-                  record is kept so this decision remains on record.
+                  record is kept so this decision remains on record, and they will be able to submit a new
+                  application later with the same email address.
                 </>
               )}
             </p>
@@ -333,12 +389,24 @@ export default function UsersPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Delete User</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
               Are you sure you want to delete <span className="font-medium text-gray-900 dark:text-gray-100">{deleteConfirm.name}</span>? This action cannot be undone.
             </p>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-5">
+              They will no longer be able to sign in, and an email will be sent to{' '}
+              <span className="font-medium text-gray-900 dark:text-gray-100 break-all">{deleteConfirm.email}</span>{' '}
+              letting them know their account has been removed.
+            </p>
+            {deleteError && (
+              <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">
+                {deleteError}
+              </p>
+            )}
             <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
-              <Button variant="danger" onClick={() => handleDelete(deleteConfirm._id)}>Delete</Button>
+              <Button variant="ghost" onClick={() => setDeleteConfirm(null)} disabled={Boolean(deletingId)}>Cancel</Button>
+              <Button variant="danger" onClick={() => handleDelete(deleteConfirm._id)} loading={deletingId === deleteConfirm._id}>
+                Delete
+              </Button>
             </div>
           </div>
         </div>

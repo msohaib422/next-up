@@ -3,7 +3,11 @@ import bcrypt from 'bcryptjs';
 import { generateToken } from '../utils/helpers.js';
 import { deleteFromCloudinary } from '../services/cloudinary.js';
 import { createNotification } from '../services/notificationService.js';
-import { sendRegistrationApprovedEmail, sendRegistrationRejectedEmail } from '../services/mailService.js';
+import {
+  sendRegistrationApprovedEmail,
+  sendRegistrationRejectedEmail,
+  sendAccountDeletedEmail,
+} from '../services/mailService.js';
 
 export const getProfile = async (req, res, next) => {
   try {
@@ -90,10 +94,14 @@ export const getAllUsers = async (req, res, next) => {
     const users = await User.find({ role: 'user' }).select('-password').sort({ createdAt: -1 });
 
     const priority = { 'Pending Approval': 0, Approved: 1, Rejected: 2 };
+    // Within a status, the most recently submitted application comes first. A
+    // re-application restamps lastApplicationAt, so it is treated as newer than
+    // a plain signup that has been queued longer.
+    const appliedAt = (user) => new Date(user.lastApplicationAt || user.createdAt || 0);
     users.sort(
       (a, b) =>
         (priority[a.status || 'Approved'] ?? 3) - (priority[b.status || 'Approved'] ?? 3) ||
-        new Date(b.createdAt) - new Date(a.createdAt)
+        appliedAt(b) - appliedAt(a)
     );
 
     res.json({ success: true, count: users.length, data: users });
@@ -304,9 +312,34 @@ export const deleteUser = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Cannot delete collaborator accounts' });
     }
 
+    // Captured BEFORE the row disappears: the account-deletion notice is sent
+    // after the delete, and once the record is gone there is no address left to
+    // read. Only this one person's details are held - no other user is touched.
+    const removedAccount = {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      status: user.status || 'Approved',
+      createdAt: user.createdAt,
+    };
+
     await User.findByIdAndDelete(id);
 
-    res.json({ success: true, message: 'User deleted successfully' });
+    // The account is already gone at this point, so a delivery problem must not
+    // undo or block the deletion. sendMail never throws: it reports 'skipped'
+    // or 'failed' and the address is suppressed for later if it is undeliverable.
+    const mail = await sendAccountDeletedEmail(removedAccount);
+    if (mail?.status === 'failed') {
+      console.error(
+        `[delete] user ${removedAccount._id} was deleted, but the account-deletion email could not be delivered: ${mail.reason}`
+      );
+    }
+
+    res.json({
+      success: true,
+      message: 'User deleted successfully',
+      email: { recipient: mail?.status || 'skipped' },
+    });
   } catch (error) {
     next(error);
   }

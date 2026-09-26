@@ -36,12 +36,16 @@ export function AuthProvider({ children }) {
     return userData
   }
 
-  const register = async (name, email, password) => {
-    // Registration no longer signs the user in: the account is created as
-    // Pending Approval and the server issues no token, so the applicant stays
-    // on the public pages until an administrator approves them.
-    const res = await api.post('/auth/register', { name, email, password })
-    return res.data.data
+  // Registration does not sign the user in: the account is stored as
+  // 'Pending Approval' and the server issues no token, so the applicant stays
+  // on the public pages until an administrator approves them.
+  //
+  // `options.reapply` asks the server to move an existing rejected account back
+  // to 'Pending Approval' instead of creating anything new. The server owns that
+  // decision: it is the only place that knows whether the address was rejected.
+  const register = async (name, email, password, options = {}) => {
+    const res = await api.post('/auth/register', { name, email, password, ...options })
+    return { ...res.data.data, isReapplication: Boolean(res.data.isReapplication) }
   }
 
   const logout = () => {

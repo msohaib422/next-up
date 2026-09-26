@@ -57,14 +57,28 @@ const userSchema = new mongoose.Schema(
       ref: 'User',
       default: null,
     },
+    // When a rejected applicant submits a fresh application, the account record
+    // is reused (never duplicated) and this is stamped. It lets an administrator
+    // see that a re-application is newer than a plain signup waiting in the
+    // queue, without changing when the account was first created.
+    lastApplicationAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );
 
+// Single hashing implementation, shared by the save hook below and by the
+// re-application flow, which updates the record without going through save().
+userSchema.statics.hashPassword = async function hashPassword(plain) {
+  const salt = await bcrypt.genSalt(10);
+  return bcrypt.hash(plain, salt);
+};
+
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
+  this.password = await this.constructor.hashPassword(this.password);
   next();
 });
 

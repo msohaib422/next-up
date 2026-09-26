@@ -13,9 +13,14 @@ const approvalError = (res, user) =>
     success: false,
     message:
       user.status === 'Rejected'
-        ? 'Your registration was not approved. Please contact your administrator.'
+        ? 'Your previous registration application was not approved. You can review your information and submit a new application for approval.'
         : 'Your registration is awaiting administrator approval.',
-    data: { status: user.status || 'Pending Approval' },
+    // Lets the client offer the right way forward: a rejected account can
+    // re-apply, a pending one only has to wait.
+    data: {
+      status: user.status || 'Pending Approval',
+      canApplyAgain: user.status === 'Rejected',
+    },
   });
 
 const authenticate = async (req, res, next, { requireApproved }) => {

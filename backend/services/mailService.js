@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { beginAttempt, completeAttempt, isUsableAddress } from './emailStatusService.js';
 
 /**
  * Outbound email for the registration approval workflow.
@@ -10,13 +11,26 @@ import nodemailer from 'nodemailer';
  *   SMTP_PASS   app password / token for that mailbox  (SECRET - never logged)
  *   SMTP_FROM   the From address shown to recipients
  *   SMTP_SECURE optional, defaults to true only on port 465
- *   ADMIN_REVIEW_URL  absolute base URL so the admin "Review Registration"
- *                     button can link straight to the Users page
+ *   FRONTEND_URL  absolute base URL of the deployed web app, used to build the
+ *                  "Login" button in the approval email and the "Review
+ *                  Registration" button in the admin email.
+ *                  ADMIN_REVIEW_URL is still honoured as a fallback so existing
+ *                  deployments keep working. No URL is ever hardcoded, and a
+ *                  localhost value is ignored in production.
  *
  * A missing or broken mail server must never stop a registration or an
  * approval decision, so sending is best-effort like createActivity and the
  * notification service. It is never silent though: every attempt is logged
  * with its outcome, and callers receive a structured result they can surface.
+ *
+ * The outcome of every attempt is also recorded per recipient
+ * (Pending / Sent / Failed), and an address the server permanently refuses is
+ * suppressed so it is never retried on a later event.
+ *
+ * Emails are only ever sent from a controller in response to a real event, and
+ * only to the specific person that event is about. There is no code path that
+ * walks the user list, and there is no retry loop: an address that the mail
+ * server refuses is suppressed (see emailStatusService) instead of retried.
  */
 
 let transporter = null;
@@ -107,6 +121,63 @@ const classifyError = (error) => {
     return `SMTP connection failed (${code})`;
   }
   return `SMTP send failed (${code || 'unknown'})`;
+};
+
+/**
+ * Distinguish "this recipient will never work" from "the network hiccupped".
+ *
+ * A 5xx reply (or an explicit "no such user") is permanent: retrying the same
+ * address later is pointless, so the address is suppressed. Connection and
+ * timeout problems are transient and only count towards the failure streak.
+ */
+const isPermanentRecipientError = (error) => {
+  const code = String(error?.code || '').trim();
+  const text = String(error?.response || error?.message || '');
+  const combined = `${code} ${text}`;
+  if (/^5\d\d$/.test(code) || /(^|\s)5\d\d[\s-]/.test(text)) return true;
+  return /EENOBACKUP|user unknown|does not exist|no such user|mailbox (is )?unavailable|invalid (recipient|address|mailbox)|unrouteable|recipient not found|blocked/i.test(combined);
+};
+
+/* ------------------------------------------------------------------ *
+ * Public application URLs
+ * ------------------------------------------------------------------ */
+
+const isLocalHost = (value) => /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(value);
+
+const isProduction = () => process.env.NODE_ENV === 'production' || Boolean(process.env.VERCEL);
+
+/**
+ * Absolute base URL of the deployed frontend, taken from the environment only.
+ *
+ * FRONTEND_URL is the documented name; ADMIN_REVIEW_URL predates it and is
+ * still accepted so an existing deployment does not lose its links. A
+ * localhost value is deliberately ignored in production so a dev setting can
+ * never leak a dead link to a real user.
+ */
+const publicBaseUrl = () => {
+  const configured =
+    process.env.FRONTEND_URL || process.env.APP_URL || process.env.CLIENT_URL || process.env.ADMIN_REVIEW_URL || '';
+  const base = String(configured).trim().replace(/\/+$/, '');
+  if (!base) return '';
+  if (isProduction() && isLocalHost(base)) {
+    console.warn('[mail] FRONTEND_URL points at localhost and is ignored in production - email links will be omitted.');
+    return '';
+  }
+  return base;
+};
+
+/** Build an absolute link into the web app, or undefined when unconfigured. */
+const appLink = (path) => {
+  const base = publicBaseUrl();
+  if (!base) return undefined;
+  const suffix = String(path || '');
+  return { url: suffix ? `${base}${suffix.startsWith('/') ? suffix : `/${suffix}`}` : base };
+};
+
+/** Primary "sign in" action used by the approval email. */
+const loginAction = () => {
+  const action = appLink('/login');
+  return action ? { label: 'Login to UniProductive', ...action } : undefined;
 };
 
 /**
@@ -219,8 +290,9 @@ const toPlainText = ({ heading, intro, rows = [], action }) =>
 
 /**
  * Send one email. Never throws, so the registration/approval workflow always
- * completes, but the outcome is never silent: it is logged and returned as a
- * structured result the caller can surface or react to.
+ * completes, but the outcome is never silent: it is logged, recorded against
+ * the recipient as Pending / Sent / Failed, and returned as a structured result
+ * the caller can surface or react to.
  *
  * Resolves to { sent: boolean, status: 'sent' | 'skipped' | 'failed', reason? }
  */
@@ -228,27 +300,45 @@ export const sendMail = async ({ to, subject, heading, intro, rows, bodyHtml, bo
   const html = layout({ heading, intro, rows, body: bodyHtml, action, footer });
   const text = bodyText || toPlainText({ heading, intro, rows, action });
   const where = context ? ` (${context})` : '';
+  const recipient = String(to || '').trim().toLowerCase();
+
+  if (!isUsableAddress(recipient)) {
+    const reason = 'the recipient address is not a valid email address';
+    console.warn(`[mail] SKIPPED "${subject}" to=${to || 'unknown'}${where}: ${reason}`);
+    return { sent: false, status: 'skipped', reason };
+  }
 
   if (!isMailConfigured()) {
     const reason = `SMTP not configured - missing ${missingVars().join(', ')}`;
-    console.warn(`[mail] SKIPPED "${subject}" to=${to}${where}: ${reason}`);
+    console.warn(`[mail] SKIPPED "${subject}" to=${recipient}${where}: ${reason}`);
     return { sent: false, status: 'skipped', reason };
+  }
+
+  // Suppression: an address the server has already refused is never tried
+  // again, so one bad address cannot turn into repeated attempts later on.
+  const attempt = await beginAttempt({ email: recipient, subject, context });
+  if (attempt.skip) {
+    console.warn(`[mail] SKIPPED "${subject}" to=${recipient}${where}: ${attempt.reason}`);
+    return { sent: false, status: 'skipped', reason: attempt.reason };
   }
 
   try {
     const info = await getTransporter().sendMail({
       from: fromAddress(),
-      to,
+      to: recipient,
       subject,
       html,
       text,
     });
-    console.log(`[mail] SENT "${subject}" to=${to}${where} (messageId=${info?.messageId || 'n/a'})`);
+    await completeAttempt({ email: recipient, ok: true });
+    console.log(`[mail] SENT "${subject}" to=${recipient}${where} (messageId=${info?.messageId || 'n/a'})`);
     return { sent: true, status: 'sent', messageId: info?.messageId || null };
   } catch (error) {
     const reason = classifyError(error);
+    const permanent = isPermanentRecipientError(error);
+    await completeAttempt({ email: recipient, ok: false, reason, permanent });
     // The reason is a fixed, human-written string, so no secret can reach it.
-    console.error(`[mail] FAILED "${subject}" to=${to}${where}: ${reason}`);
+    console.error(`[mail] FAILED "${subject}" to=${recipient}${where}: ${reason}`);
     console.error('[mail] details:', JSON.stringify(redact({ code: error?.code, command: error?.command, responseCode: error?.responseCode })));
     return { sent: false, status: 'failed', reason };
   }
@@ -310,8 +400,8 @@ export const sendAdminNewRegistrationEmail = async (user, admins) => {
         ],
         bodyHtml: '<p style="margin:0;">Review this registration on the Admin &rarr; Users page to approve or decline it.</p>',
         action: (() => {
-          const base = (process.env.ADMIN_REVIEW_URL || '').replace(/\/$/, '');
-          return base ? { label: 'Review Registration', url: `${base}/users` } : undefined;
+          const link = appLink('/users');
+          return link ? { label: 'Review Registration', ...link } : undefined;
         })(),
       })
     )
@@ -343,7 +433,11 @@ export const sendRegistrationApprovedEmail = async (user) => {
       ['Status', 'Approved'],
     ],
     bodyHtml:
-      '<p style="margin:0;">Sign in with the email address and password you registered with to get started.</p>',
+      '<p style="margin:0;">Your account is active. Use the button below to sign in with the email address and password you registered with, and you will have full access to the system straight away.</p>',
+    // Absolute link to the real sign-in page, taken from the deployment
+    // configuration. Omitted entirely when no public URL is configured, rather
+    // than falling back to a hardcoded localhost address.
+    action: loginAction(),
   });
 };
 
@@ -361,6 +455,43 @@ export const sendRegistrationRejectedEmail = async (user, reason) => {
       ['Status', 'Rejected'],
       ...(reason ? [['Reason', reason]] : []),
     ],
-    bodyHtml: `<p style="margin:0;">If you believe this was a mistake, or you have updated the details above, please contact your administrator.</p>`,
+    bodyHtml:
+      '<p style="margin:0 0 12px;">You can review your information and submit a new application for approval at any time using the same email address. Your new application will be reviewed from scratch.</p>' +
+      '<p style="margin:0;">If you believe this was a mistake, please contact your administrator.</p>',
+    action: (() => {
+      // Only the intent is carried in the link; the address is not put in a URL
+      // that could end up in logs or referrer headers.
+      const link = appLink('/register?reapply=1');
+      return link ? { label: 'Apply Again', ...link } : undefined;
+    })(),
+  });
+};
+
+/**
+ * Sent to a removed account after an administrator deletes it.
+ *
+ * `user` here is a plain snapshot captured before the database row was removed,
+ * because there is no account left to read the address from afterwards. No
+ * internal detail (ids, roles, status values) is exposed.
+ */
+export const sendAccountDeletedEmail = async (user) => {
+  return sendMail({
+    to: user.email,
+    context: 'account-deleted',
+    subject: 'Your UniProductive account has been removed',
+    heading: 'Your account has been removed',
+    intro: `Hello ${user.name}, an administrator has removed your UniProductive account from the system.`,
+    rows: [
+      ['Name', user.name],
+      ['Email', user.email],
+      ...(user.createdAt ? [['Registered on', formatWhen(user.createdAt)]] : []),
+    ],
+    bodyHtml:
+      '<p style="margin:0 0 12px;">Your account is no longer part of UniProductive, and you can no longer sign in or access the system with it.</p>' +
+      '<p style="margin:0;">If you need access again, please contact your administrator to request a new registration.</p>',
+    action: (() => {
+      const link = appLink('/register');
+      return link ? { label: 'Register Again', ...link } : undefined;
+    })(),
   });
 };
