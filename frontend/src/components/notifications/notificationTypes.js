@@ -1,5 +1,5 @@
 import {
-  Inbox, CheckCircle2, XCircle, Send, Megaphone, PencilLine, Trash2, Bell,
+  Inbox, CheckCircle2, XCircle, Send, Megaphone, PencilLine, Trash2, Bell, PlusCircle, RotateCcw,
 } from 'lucide-react'
 
 /**
@@ -36,6 +36,26 @@ export const NOTIFICATION_TYPES = {
     label: 'Removed',
     icon: Trash2,
     iconClass: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+  },
+  CONTENT_ADDED: {
+    label: 'Added',
+    icon: PlusCircle,
+    iconClass: 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-300',
+  },
+  CONTENT_UPDATED: {
+    label: 'Updated',
+    icon: PencilLine,
+    iconClass: 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-300',
+  },
+  CONTENT_COMPLETED: {
+    label: 'Completed',
+    icon: CheckCircle2,
+    iconClass: 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-300',
+  },
+  CONTENT_REOPENED: {
+    label: 'Incomplete',
+    icon: RotateCcw,
+    iconClass: 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-300',
   },
 }
 

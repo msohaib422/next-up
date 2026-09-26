@@ -4,7 +4,7 @@ import { createActivity } from './activityController.js';
 import { getVisibleUserIds } from '../utils/helpers.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
-import { notifyContentChange, notifyContributionUpdated, notifyContributorsOfDeletedEntity } from '../services/notificationService.js';
+import { notifyContentChange, notifyContributionUpdated, notifyContributorsOfDeletedEntity, notifyStatusChange } from '../services/notificationService.js';
 
 export const uploadAssignmentFile = [
   (req, res, next) => {
@@ -178,7 +178,14 @@ export const updateAssignment = async (req, res, next) => {
 
     if (assignment) {
       await notifyContributionUpdated({ entityType: 'Assignment', entity: assignment, admin: req.user });
-      await notifyContentChange({ entityType: 'Assignment', entity: assignment, actor: req.user, action: 'updated' });
+      // Only a real complete <-> incomplete flip is worth a notification, and it
+      // replaces the generic "updated" one so a single request never notifies twice.
+      const wasCompleted = existingAssignment.status === 'Completed';
+      if (wasCompleted !== (assignment.status === 'Completed')) {
+        await notifyStatusChange({ entityType: 'Assignment', entity: assignment, owner: req.user, wasCompleted });
+      } else {
+        await notifyContentChange({ entityType: 'Assignment', entity: assignment, actor: req.user, action: 'updated' });
+      }
     }
 
     res.json({ success: true, data: assignment });
@@ -220,6 +227,11 @@ export const deleteAssignment = async (req, res, next) => {
 
 export const completeAssignment = async (req, res, next) => {
   try {
+    const existingAssignment = await Assignment.findOne({ _id: req.params.id, user: req.user._id });
+    if (!existingAssignment) {
+      return res.status(404).json({ success: false, message: 'Assignment not found' });
+    }
+
     const assignment = await Assignment.findOneAndUpdate(
       { _id: req.params.id, user: req.user._id },
       { status: 'Completed' },
@@ -230,6 +242,10 @@ export const completeAssignment = async (req, res, next) => {
     }
 
     await createActivity(req.user._id, 'assignment_completed', `Completed assignment: ${assignment.title}`, '', 'Assignment', assignment._id);
+
+    if (existingAssignment.status !== 'Completed') {
+      await notifyStatusChange({ entityType: 'Assignment', entity: assignment, owner: req.user, wasCompleted: false });
+    }
 
     res.json({ success: true, data: assignment });
   } catch (error) {

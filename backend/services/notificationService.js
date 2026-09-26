@@ -148,6 +148,64 @@ export const notifyContentChange = async ({ entityType, entity, actor, action })
   }
 };
 
+/**
+ * An item flipped between complete and incomplete.
+ *
+ * Recipients follow the same visibility rule the read endpoints use
+ * (getVisibleUserIds): a record owned by a normal user is readable only by
+ * that user, while a record owned by a collaborator is readable by every
+ * normal user. Admin accounts are never recipients.
+ *
+ * Call this only for a real transition (wasCompleted !== isCompleted), so
+ * Pending -> In Progress and Completed -> Completed stay silent. Failures are
+ * swallowed for the same reason as everywhere else in this service.
+ */
+export const notifyStatusChange = async ({ entityType, entity, owner, wasCompleted }) => {
+  try {
+    if (!entity?._id || !owner?._id) return [];
+
+    const recipients = owner.role === 'collaborator'
+      ? await User.find({ role: 'user' }).select('_id')
+      : [owner];
+    if (recipients.length === 0) return [];
+
+    // The caller only invokes this for a real transition, so the new state is
+    // simply the opposite of the previous one.
+    const isCompleted = !wasCompleted;
+    const name = contentName(entityType);
+    const link = entityLink(entityType, entity._id);
+    const entityTitle = entity.title || entity.subject || 'Untitled';
+
+    const created = await Promise.all(
+      recipients
+        .filter((recipient) => recipient?._id)
+        .map((recipient) =>
+          createNotification({
+            recipient: recipient._id,
+            actor: owner._id,
+            type: isCompleted ? 'CONTENT_COMPLETED' : 'CONTENT_REOPENED',
+            title: isCompleted ? `${name} Completed` : `${name} Reopened`,
+            message: `"${entityTitle}" has been marked as ${isCompleted ? 'complete' : 'incomplete'}.`,
+            entityType,
+            entityId: entity._id,
+            link,
+            metadata: { contentName: name, status: isCompleted ? 'Completed' : 'Incomplete', entityTitle },
+            // Deliberately no dedupeKey here. The call site runs once per
+            // request, so a single status change already yields exactly one
+            // notification, and a stable key would swallow the next real
+            // toggle. A key built from entity.updatedAt is not safe either:
+            // that is millisecond-resolution, so two toggles in the same
+            // millisecond would collide and lose a notification.
+          })
+        )
+    );
+    return created.filter(Boolean);
+  } catch (error) {
+    console.error('Error notifying users of status change:', error.message);
+    return [];
+  }
+};
+
 /** User submitted a contribution -> every admin (collaborator) is notified once. */
 export const notifyContributionSubmitted = async (contribution, actor) => {
   try {

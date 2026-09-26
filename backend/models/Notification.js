@@ -12,6 +12,9 @@ export const NOTIFICATION_TYPES = [
   // An admin published new content, or changed content that already exists.
   'CONTENT_ADDED',
   'CONTENT_UPDATED',
+  // An item was marked complete, or moved back to incomplete.
+  'CONTENT_COMPLETED',
+  'CONTENT_REOPENED',
 ];
 
 const notificationSchema = new mongoose.Schema(
@@ -67,9 +70,12 @@ const notificationSchema = new mongoose.Schema(
       default: {},
     },
     // Server-side guard against duplicate notifications for the same event.
+    // Left undefined when unused: a sparse index skips a *missing* field, not
+    // one stored as null, so a null default would let only a single un-keyed
+    // notification exist before every later insert hit a duplicate key error.
     dedupeKey: {
       type: String,
-      default: null,
+      default: undefined,
     },
   },
   { timestamps: true }
@@ -77,7 +83,12 @@ const notificationSchema = new mongoose.Schema(
 
 notificationSchema.index({ recipient: 1, createdAt: -1 });
 notificationSchema.index({ recipient: 1, read: 1, createdAt: -1 });
-notificationSchema.index({ dedupeKey: 1 }, { unique: true, sparse: true });
+// Uniqueness applies to real dedupe keys only, so notifications without one
+// are never treated as duplicates of each other.
+notificationSchema.index(
+  { dedupeKey: 1 },
+  { unique: true, partialFilterExpression: { dedupeKey: { $type: 'string' } } }
+);
 
 const Notification = mongoose.model('Notification', notificationSchema);
 

@@ -2,7 +2,7 @@ import Task from '../models/Task.js';
 import Contribution from '../models/Contribution.js';
 import { createActivity } from './activityController.js';
 import { getVisibleUserIds } from '../utils/helpers.js';
-import { notifyContentChange, notifyContributionUpdated, notifyContributorsOfDeletedEntity } from '../services/notificationService.js';
+import { notifyContentChange, notifyContributionUpdated, notifyContributorsOfDeletedEntity, notifyStatusChange } from '../services/notificationService.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
 
@@ -189,7 +189,14 @@ export const updateTask = async (req, res, next) => {
 
     if (task) {
       await notifyContributionUpdated({ entityType: 'Task', entity: task, admin: req.user });
-      await notifyContentChange({ entityType: 'Task', entity: task, actor: req.user, action: 'updated' });
+      // Only a real complete <-> incomplete flip is worth a notification, and it
+      // replaces the generic "updated" one so a single request never notifies twice.
+      const wasCompleted = existingTask.status === 'Completed';
+      if (wasCompleted !== (task.status === 'Completed')) {
+        await notifyStatusChange({ entityType: 'Task', entity: task, owner: req.user, wasCompleted });
+      } else {
+        await notifyContentChange({ entityType: 'Task', entity: task, actor: req.user, action: 'updated' });
+      }
     }
 
     res.json({ success: true, data: task });
@@ -231,6 +238,11 @@ export const deleteTask = async (req, res, next) => {
 
 export const completeTask = async (req, res, next) => {
   try {
+    const existingTask = await Task.findOne({ _id: req.params.id, user: req.user._id });
+    if (!existingTask) {
+      return res.status(404).json({ success: false, message: 'Task not found' });
+    }
+
     const task = await Task.findOneAndUpdate(
       { _id: req.params.id, user: req.user._id },
       { status: 'Completed' },
@@ -241,6 +253,10 @@ export const completeTask = async (req, res, next) => {
     }
 
     await createActivity(req.user._id, 'task_completed', `Completed task: ${task.title}`, '', 'Task', task._id);
+
+    if (existingTask.status !== 'Completed') {
+      await notifyStatusChange({ entityType: 'Task', entity: task, owner: req.user, wasCompleted: false });
+    }
 
     res.json({ success: true, data: task });
   } catch (error) {

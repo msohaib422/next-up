@@ -4,7 +4,7 @@ import { createActivity } from './activityController.js';
 import { getVisibleUserIds } from '../utils/helpers.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
-import { notifyContentChange, notifyContributionUpdated, notifyContributorsOfDeletedEntity } from '../services/notificationService.js';
+import { notifyContentChange, notifyContributionUpdated, notifyContributorsOfDeletedEntity, notifyStatusChange } from '../services/notificationService.js';
 
 export const uploadQuizFile = [
   (req, res, next) => {
@@ -188,7 +188,14 @@ export const updateQuiz = async (req, res, next) => {
 
     if (quiz) {
       await notifyContributionUpdated({ entityType: 'Quiz', entity: quiz, admin: req.user });
-      await notifyContentChange({ entityType: 'Quiz', entity: quiz, actor: req.user, action: 'updated' });
+      // Only a real complete <-> incomplete flip is worth a notification, and it
+      // replaces the generic "updated" one so a single request never notifies twice.
+      const wasCompleted = existingQuiz.status === 'Completed';
+      if (wasCompleted !== (quiz.status === 'Completed')) {
+        await notifyStatusChange({ entityType: 'Quiz', entity: quiz, owner: req.user, wasCompleted });
+      } else {
+        await notifyContentChange({ entityType: 'Quiz', entity: quiz, actor: req.user, action: 'updated' });
+      }
     }
 
     res.json({ success: true, data: quiz });
