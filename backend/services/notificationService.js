@@ -20,6 +20,8 @@ const ENTITY_ROUTES = {
   Assignment: '/assignments',
   Essential: '/essentials',
   Announcement: '/announcements',
+  // Timetable entries are stored as Lectures.
+  Lecture: '/timetable',
 };
 
 const label = (type) => {
@@ -65,6 +67,84 @@ export const createNotification = async ({ recipient, actor, type, title, messag
   } catch (error) {
     console.error('Error creating notification:', error.message);
     return null;
+  }
+};
+
+/** Human-readable name of a content type, as shown in the notification. */
+const contentName = (entityType) => {
+  switch (entityType) {
+    case 'Essential':
+      return 'Essential';
+    case 'Announcement':
+      return 'Announcement';
+    case 'Task':
+      return 'Task';
+    case 'Quiz':
+      return 'Quiz';
+    case 'Assignment':
+      return 'Assignment';
+    case 'Lecture':
+      return 'Timetable Entry';
+    default:
+      return 'Item';
+  }
+};
+
+/**
+ * An admin published new content, or edited content that already exists.
+ * Every regular user is notified, because getVisibleUserIds() already makes
+ * admin-created records visible to all normal users, so they can all act on
+ * the notification's link.
+ *
+ * Only collaborator actions fan out: content a normal user creates stays
+ * private to that user (see getVisibleUserIds), so notifying everyone about it
+ * would leak a record they cannot open.
+ *
+ * `action` is 'added' or 'updated'. Failures are swallowed on purpose, same as
+ * createActivity, so a notification can never break the underlying write.
+ */
+export const notifyContentChange = async ({ entityType, entity, actor, action }) => {
+  try {
+    if (actor?.role !== 'collaborator') return [];
+    if (!entity?._id) return [];
+
+    const recipients = await User.find({ role: 'user' }).select('_id');
+    if (recipients.length === 0) return [];
+
+    const isAdd = action === 'added';
+    const name = contentName(entityType);
+    const link = entityLink(entityType, entity._id);
+    const verb = isAdd ? 'added' : 'updated';
+    // Timetable entries are Lectures and have no `title`; the subject names them.
+    const entityTitle = entity.title || entity.subject || 'Untitled';
+
+    const created = await Promise.all(
+      recipients
+        .filter((recipient) => String(recipient._id) !== String(actor._id))
+        .map((recipient) =>
+          createNotification({
+            recipient: recipient._id,
+            actor: actor._id,
+            type: isAdd ? 'CONTENT_ADDED' : 'CONTENT_UPDATED',
+            title: isAdd ? `New ${name} Added` : `${name} Updated`,
+            message: `"${entityTitle}" has been ${verb}.`,
+            entityType,
+            entityId: entity._id,
+            link,
+            metadata: { contentName: name, action, entityTitle },
+            // A create is a one-off event, so a stable key means a retried
+            // request can never notify twice. An update may legitimately
+            // happen many times, so its key is scoped to the exact write.
+            dedupeKey: isAdd
+              ? `added:${entityType}:${entity._id}:${recipient._id}`
+              : `updated:${entityType}:${entity._id}:${recipient._id}:${entity.updatedAt}`,
+          })
+        )
+    );
+    return created.filter(Boolean);
+  } catch (error) {
+    console.error('Error notifying users of content change:', error.message);
+    return [];
   }
 };
 

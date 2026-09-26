@@ -4,7 +4,7 @@ import { createActivity } from './activityController.js';
 import { getVisibleUserIds } from '../utils/helpers.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
-import { notifyContributionUpdated, notifyContributorsOfDeletedEntity } from '../services/notificationService.js';
+import { notifyContentChange, notifyContributionUpdated, notifyContributorsOfDeletedEntity } from '../services/notificationService.js';
 
 export const uploadAssignmentFile = [
   (req, res, next) => {
@@ -129,6 +129,8 @@ export const createAssignment = async (req, res, next) => {
 
     await createActivity(req.user._id, 'assignment_created', `Created assignment: ${title}`, '', 'Assignment', assignment._id);
 
+    await notifyContentChange({ entityType: 'Assignment', entity: assignment, actor: req.user, action: 'added' });
+
     res.status(201).json({ success: true, data: assignment });
   } catch (error) {
     next(error);
@@ -174,7 +176,10 @@ export const updateAssignment = async (req, res, next) => {
       { new: true, runValidators: true }
     );
 
-    if (assignment) await notifyContributionUpdated({ entityType: 'Assignment', entity: assignment, admin: req.user });
+    if (assignment) {
+      await notifyContributionUpdated({ entityType: 'Assignment', entity: assignment, admin: req.user });
+      await notifyContentChange({ entityType: 'Assignment', entity: assignment, actor: req.user, action: 'updated' });
+    }
 
     res.json({ success: true, data: assignment });
   } catch (error) {

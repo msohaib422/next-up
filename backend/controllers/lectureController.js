@@ -1,6 +1,7 @@
 import Lecture from '../models/Lecture.js';
 import { createActivity } from './activityController.js';
 import { getVisibleUserIds } from '../utils/helpers.js';
+import { notifyContentChange } from '../services/notificationService.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
 
@@ -98,6 +99,8 @@ export const createLecture = async (req, res, next) => {
 
     await createActivity(req.user._id, 'lecture_added', `Added timetable: ${subject}`, '', 'Lecture', lecture._id);
 
+    await notifyContentChange({ entityType: 'Lecture', entity: lecture, actor: req.user, action: 'added' });
+
     res.status(201).json({ success: true, data: lecture });
   } catch (error) {
     next(error);
@@ -138,6 +141,8 @@ export const updateLecture = async (req, res, next) => {
       updateFields,
       { new: true, runValidators: true }
     );
+
+    if (lecture) await notifyContentChange({ entityType: 'Lecture', entity: lecture, actor: req.user, action: 'updated' });
 
     res.json({ success: true, data: lecture });
   } catch (error) {

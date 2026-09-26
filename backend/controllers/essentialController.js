@@ -4,7 +4,7 @@ import { createActivity } from './activityController.js';
 import { getVisibleUserIds } from '../utils/helpers.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
-import { notifyContributionUpdated, notifyContributorsOfDeletedEntity } from '../services/notificationService.js';
+import { notifyContentChange, notifyContributionUpdated, notifyContributorsOfDeletedEntity } from '../services/notificationService.js';
 
 export const uploadEssentialFile = [
   (req, res, next) => {
@@ -142,6 +142,8 @@ export const createEssential = async (req, res, next) => {
 
     await createActivity(req.user._id, 'essential', `New essential: ${title}`, '', 'Essential', essential._id);
 
+    await notifyContentChange({ entityType: 'Essential', entity: essential, actor: req.user, action: 'added' });
+
     res.status(201).json({ success: true, data: essential });
   } catch (error) {
     next(error);
@@ -206,7 +208,10 @@ export const updateEssential = async (req, res, next) => {
       { new: true, runValidators: true }
     );
 
-    if (essential) await notifyContributionUpdated({ entityType: 'Essential', entity: essential, admin: req.user });
+    if (essential) {
+      await notifyContributionUpdated({ entityType: 'Essential', entity: essential, admin: req.user });
+      await notifyContentChange({ entityType: 'Essential', entity: essential, actor: req.user, action: 'updated' });
+    }
 
     res.json({ success: true, data: essential });
   } catch (error) {

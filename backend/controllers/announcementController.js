@@ -4,7 +4,7 @@ import { createActivity } from './activityController.js';
 import { getVisibleUserIds } from '../utils/helpers.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
-import { notifyContributionUpdated, notifyContributorsOfDeletedEntity } from '../services/notificationService.js';
+import { notifyContentChange, notifyContributionUpdated, notifyContributorsOfDeletedEntity } from '../services/notificationService.js';
 
 export const uploadAnnouncementFile = [
   (req, res, next) => {
@@ -145,6 +145,8 @@ export const createAnnouncement = async (req, res, next) => {
 
     await createActivity(req.user._id, 'announcement', `New announcement: ${title}`, '', 'Announcement', announcement._id);
 
+    await notifyContentChange({ entityType: 'Announcement', entity: announcement, actor: req.user, action: 'added' });
+
     res.status(201).json({ success: true, data: announcement });
   } catch (error) {
     next(error);
@@ -190,7 +192,10 @@ export const updateAnnouncement = async (req, res, next) => {
       { new: true, runValidators: true }
     );
 
-    if (announcement) await notifyContributionUpdated({ entityType: 'Announcement', entity: announcement, admin: req.user });
+    if (announcement) {
+      await notifyContributionUpdated({ entityType: 'Announcement', entity: announcement, admin: req.user });
+      await notifyContentChange({ entityType: 'Announcement', entity: announcement, actor: req.user, action: 'updated' });
+    }
 
     res.json({ success: true, data: announcement });
   } catch (error) {

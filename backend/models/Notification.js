@@ -9,6 +9,9 @@ export const NOTIFICATION_TYPES = [
   'CONTRIBUTION_REJECTED',
   'CONTRIBUTION_UPDATED',
   'CONTRIBUTION_DELETED',
+  // An admin published new content, or changed content that already exists.
+  'CONTENT_ADDED',
+  'CONTENT_UPDATED',
 ];
 
 const notificationSchema = new mongoose.Schema(

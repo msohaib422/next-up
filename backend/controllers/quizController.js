@@ -4,7 +4,7 @@ import { createActivity } from './activityController.js';
 import { getVisibleUserIds } from '../utils/helpers.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
-import { notifyContributionUpdated, notifyContributorsOfDeletedEntity } from '../services/notificationService.js';
+import { notifyContentChange, notifyContributionUpdated, notifyContributorsOfDeletedEntity } from '../services/notificationService.js';
 
 export const uploadQuizFile = [
   (req, res, next) => {
@@ -129,6 +129,8 @@ export const createQuiz = async (req, res, next) => {
 
     await createActivity(req.user._id, 'quiz_created', `Created quiz: ${title}`, '', 'Quiz', quiz._id);
 
+    await notifyContentChange({ entityType: 'Quiz', entity: quiz, actor: req.user, action: 'added' });
+
     res.status(201).json({ success: true, data: quiz });
   } catch (error) {
     next(error);
@@ -184,7 +186,10 @@ export const updateQuiz = async (req, res, next) => {
       { new: true, runValidators: true }
     );
 
-    if (quiz) await notifyContributionUpdated({ entityType: 'Quiz', entity: quiz, admin: req.user });
+    if (quiz) {
+      await notifyContributionUpdated({ entityType: 'Quiz', entity: quiz, admin: req.user });
+      await notifyContentChange({ entityType: 'Quiz', entity: quiz, actor: req.user, action: 'updated' });
+    }
 
     res.json({ success: true, data: quiz });
   } catch (error) {
