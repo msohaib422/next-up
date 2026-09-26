@@ -85,9 +85,16 @@ const notifsInRun = (filter = {}) =>
   Notification.countDocuments({ createdAt: { $gte: RUN_START }, ...filter });
 
 // Every collaborator that really exists in this database.
-const adminEmails = (await User.find({ role: 'collaborator' }).select('email')).map((u) => u.email.toLowerCase());
+const allAdminEmails = (await User.find({ role: 'collaborator' }).select('email')).map((u) => u.email.toLowerCase());
 const adminIds = (await User.find({ role: 'collaborator' }).select('_id')).map((u) => u._id);
-console.log(`  collaborators in this database: ${adminEmails.length}`);
+// A collaborator on the configured do-not-send list is deliberately skipped by
+// the alert fan-out, so it is not counted as a recipient.
+const envSuppressed = new Set(
+  String(process.env.EMAIL_SUPPRESSED_ADDRESSES || '').split(',').map((v) => v.trim().toLowerCase()).filter(Boolean)
+);
+const adminEmails = allAdminEmails.filter((e) => !envSuppressed.has(e));
+const suppressedAdmins = allAdminEmails.filter((e) => envSuppressed.has(e));
+console.log(`  collaborators: ${allAdminEmails.length} (${suppressedAdmins.length} on the do-not-send list: ${suppressedAdmins.join(', ') || 'none'})`);
 
 // Clear anything a previous run of this script left behind, so repeated runs
 // start from the same state. Runs BEFORE the test admin is created, and only
@@ -99,6 +106,9 @@ await Promise.all([
   Notification.deleteMany({ 'metadata.userEmail': /@test\.local$/ }),
   EmailDelivery.deleteMany({ email: /@test\.local$|@invalid\.example$/ }),
 ]);
+// Also clear anything the other verification suites may have interrupted, so
+// repeated runs never accumulate test data in a real administrator's bell.
+await Notification.deleteMany({ 'metadata.userEmail': /^(ef|wf|vf|dbg)[a-z0-9]+@|^x@y\.com$|^not-a-real-address$/ });
 console.log('  cleared leftovers from previous runs');
 
 const admin = await User.create({
@@ -111,6 +121,7 @@ const admin = await User.create({
 adminEmails.push(admin.email.toLowerCase());
 adminIds.push(String(admin._id));
 const ADMIN_COUNT = adminEmails.length;
+const ALL_ADMIN_COUNT = allAdminEmails.length + 1; // + the test admin created below
 
 const makeUser = async (over = {}) => {
   const email = `${uniq()}@test.local`;
@@ -127,9 +138,14 @@ check('status is Pending Approval', a.res.body?.data?.status === 'Pending Approv
 check('no token issued (not signed in)', !a.res.body?.token);
 check('applicant got exactly 1 registration email', mailsMatching(a.email, REGISTRATION_MAIL).length === 1, `got ${mailsMatching(a.email, REGISTRATION_MAIL).length}`);
 check('no approval/rejection email to a pending user', mailsMatching(a.email, APPROVAL_MAIL).length + mailsMatching(a.email, REJECTION_MAIL).length === 0);
-check('admin email reported for every collaborator', a.res.body?.email?.administratorsNotified === ADMIN_COUNT, `${a.res.body?.email?.administratorsNotified} vs ${ADMIN_COUNT}`);
-check('admin alert email sent once per collaborator', adminMailsMatching(/new registration awaiting/i).length === ADMIN_COUNT);
-check('admin in-app notification per collaborator', a.res.body?.email?.administratorNotifications === ADMIN_COUNT, `${a.res.body?.email?.administratorNotifications} vs ${ADMIN_COUNT}`);
+check('admin email reported for every deliverable collaborator', a.res.body?.email?.administratorsNotified === ADMIN_COUNT, `${a.res.body?.email?.administratorsNotified} vs ${ADMIN_COUNT}`);
+check('admin alert email sent once per deliverable collaborator', adminMailsMatching(/new registration awaiting/i).length === ADMIN_COUNT, `${adminMailsMatching(/new registration awaiting/i).length} vs ${ADMIN_COUNT}`);
+check('admin in-app notification for every collaborator, stopped or not', a.res.body?.email?.administratorNotifications === ALL_ADMIN_COUNT, `${a.res.body?.email?.administratorNotifications} vs ${ALL_ADMIN_COUNT}`);
+// A collaborator on the do-not-send list is skipped for email but still gets the
+// in-app notification, which costs nothing and keeps the admin informed.
+for (const stopped of suppressedAdmins) {
+  check(`${stopped} on the do-not-send list received no email`, sent.every((m) => m.to !== stopped), 'was emailed');
+}
 const adminNotif = await Notification.findOne({ recipient: admin._id, type: 'REGISTRATION_SUBMITTED' }).sort({ createdAt: -1 });
 check('admin has REGISTRATION_SUBMITTED notification', !!adminNotif);
 check('notification message carries name', adminNotif?.message.includes(base.name), adminNotif?.message);
@@ -216,8 +232,8 @@ check('exactly 1 more registration email to the applicant', mailsMatching(c.emai
 // One event notifies every collaborator, so the fan-out is per-collaborator.
 const adminNotifInRun = () =>
   notifsInRun({ type: 'REGISTRATION_SUBMITTED', recipient: { $in: adminIds.map((id) => new mongoose.Types.ObjectId(id)) } });
-check('exactly 1 more admin alert email per collaborator', adminMailsMatching(/new registration awaiting/i).length === beforeD.adminReg + ADMIN_COUNT, `${adminMailsMatching(/new registration awaiting/i).length} vs ${beforeD.adminReg}+${ADMIN_COUNT}`);
-check('exactly 1 more admin notification per collaborator', (await adminNotifInRun()) === beforeD.adminNotifs + ADMIN_COUNT, `${await adminNotifInRun()} vs ${beforeD.adminNotifs}+${ADMIN_COUNT}`);
+check('exactly 1 more admin alert email per deliverable collaborator', adminMailsMatching(/new registration awaiting/i).length === beforeD.adminReg + ADMIN_COUNT, `${adminMailsMatching(/new registration awaiting/i).length} vs ${beforeD.adminReg}+${ADMIN_COUNT}`);
+check('exactly 1 more admin notification per collaborator', (await adminNotifInRun()) === beforeD.adminNotifs + ALL_ADMIN_COUNT, `${await adminNotifInRun()} vs ${beforeD.adminNotifs}+${ALL_ADMIN_COUNT}`);
 // The applicant gets their own notice too, and nobody else does.
 check('applicant got exactly 1 registration notification for the re-application', (await notifsInRun({ recipient: new mongoose.Types.ObjectId(String(c.id)), type: 'REGISTRATION_SUBMITTED' })) === 2, 'initial + re-application');
 const newNotif = await Notification.findOne({ recipient: admin._id, type: 'REGISTRATION_SUBMITTED' }).sort({ createdAt: -1 });
@@ -319,7 +335,15 @@ check('transient errors reported as failed', [r1, r2, r3].every((r) => r.status 
 check('4th attempt is skipped, so no infinite retry', r4.status === 'skipped', r4.status);
 const flakyRec = await EmailDelivery.findOne({ email: flaky });
 check('streak counted to the limit then suppressed', flakyRec?.suppressed === true && flakyRec?.failureCount === 3, JSON.stringify({ n: flakyRec?.failureCount, s: flakyRec?.suppressed }));
-check('transient error did not suppress anyone else', (await EmailDelivery.countDocuments({ suppressed: true })) === 2);
+// Only the two addresses this section made fail should be suppressed. Scoped to
+// this script's own address namespace so a record from another run cannot
+// influence the result.
+const collateral = await EmailDelivery.countDocuments({
+  suppressed: true,
+  email: { $nin: [dead, flaky] },
+  $or: [{ email: /@test\.local$/ }, { email: /@invalid\.example$/ }],
+});
+check('transient error did not suppress anyone else', collateral === 0, `${collateral} other suppressed`);
 
 // A success must clear the streak, so a temporary outage does not blacklist an
 // address forever.
@@ -344,8 +368,11 @@ const adminMails = sent.filter((m) => adminEmails.includes(m.to));
 const strayAdminMails = adminMails.filter((m) => !/new registration awaiting/i.test(m.subject));
 check('every admin email is a new-registration alert', strayAdminMails.length === 0, strayAdminMails.map((m) => m.subject).join(', '));
 const eventsRun = await notifsInRun({ type: 'REGISTRATION_SUBMITTED', recipient: { $in: adminIds.map((id) => new mongoose.Types.ObjectId(id)) } });
-check('one admin notification per collaborator per registration event', eventsRun % ADMIN_COUNT === 0, `${eventsRun} notifications / ${ADMIN_COUNT} collaborators`);
-check('admin email count matches admin notification count', adminMails.length === eventsRun, `emails=${adminMails.length} notifications=${eventsRun}`);
+check('one admin notification per collaborator per registration event', eventsRun % ALL_ADMIN_COUNT === 0, `${eventsRun} notifications / ${ALL_ADMIN_COUNT} collaborators`);
+// Email fan-out is narrower than the notification fan-out by exactly the
+// collaborators that are stopped: a suppressed address must never be mailed.
+check('admin emails = deliverable collaborators only', adminMails.length === (eventsRun / ALL_ADMIN_COUNT) * ADMIN_COUNT, `emails=${adminMails.length} notifications=${eventsRun} admins=${ALL_ADMIN_COUNT} deliverable=${ADMIN_COUNT}`);
+check('no stopped collaborator was emailed at all', suppressedAdmins.every((e) => !adminMails.some((m) => m.to === e)), suppressedAdmins.join(', '));
 console.log(`  (emails: ${sent.length}, distinct recipients: ${new Set(sent.map((m) => m.to)).size}, users in db: ${await User.countDocuments()})`);
 
 section('Admin list ordering');
@@ -361,7 +388,11 @@ section('Cleanup');
 const testIds = (await User.find({ email: /@test\.local$/ }).select('_id')).map((u) => u._id);
 await Promise.all([
   User.deleteMany({ _id: { $in: testIds } }),
+  // Both the applicants' own notices and the ones this run created for real
+  // administrators, so a run leaves no test traffic in a real bell.
   Notification.deleteMany({ recipient: { $in: testIds } }),
+  Notification.deleteMany({ 'metadata.userEmail': /@test\.local$/ }),
+  Notification.deleteMany({ 'metadata.userEmail': /^(ef|wf|vf|dbg)[a-z0-9]+@|^x@y\.com$|^not-a-real-address$/ }),
   EmailDelivery.deleteMany({ email: /@test\.local$|@invalid\.example$/ }),
 ]);
 console.log('  cleaned up test data');

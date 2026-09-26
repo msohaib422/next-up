@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
-import { GraduationCap, Mail, Lock, User, Clock, CheckCircle2, ShieldOff, RotateCcw, AlertCircle } from 'lucide-react'
+import { GraduationCap, Mail, User, Clock, CheckCircle2, ShieldOff, RotateCcw, AlertCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Input from '../components/ui/Input'
+import PasswordInput from '../components/ui/PasswordInput'
 import Button from '../components/ui/Button'
 
 /**
@@ -97,7 +98,7 @@ export default function RegisterPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <GraduationCap className="w-12 h-12 text-primary-600 mx-auto mb-3" />
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">UniProductive</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">NextUp</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">University Productivity System</p>
         </div>
 
@@ -209,22 +210,20 @@ export default function RegisterPage() {
                   Keep the same email address so we know which application to replace.
                 </p>
               )}
-              <Input
+              <PasswordInput
                 label="Password"
-                type="password"
-                icon={Lock}
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="new-password"
                 required
               />
-              <Input
+              <PasswordInput
                 label="Confirm Password"
-                type="password"
-                icon={Lock}
                 placeholder="••••••••"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
+                autoComplete="new-password"
                 required
               />
               <Button type="submit" loading={loading} className="w-full">

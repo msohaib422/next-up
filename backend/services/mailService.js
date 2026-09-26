@@ -1,5 +1,13 @@
 import nodemailer from 'nodemailer';
-import { beginAttempt, completeAttempt, isUsableAddress } from './emailStatusService.js';
+import User from '../models/User.js';
+import {
+  beginAttempt,
+  completeAttempt,
+  isUsableAddress,
+  markUndeliverable,
+  listDeliveries,
+  recordManualRetry,
+} from './emailStatusService.js';
 
 /**
  * Outbound email for the registration approval workflow.
@@ -17,6 +25,8 @@ import { beginAttempt, completeAttempt, isUsableAddress } from './emailStatusSer
  *                  ADMIN_REVIEW_URL is still honoured as a fallback so existing
  *                  deployments keep working. No URL is ever hardcoded, and a
  *                  localhost value is ignored in production.
+ *   EMAIL_SUPPRESSED_ADDRESSES  comma-separated addresses that must never be
+ *                  emailed again, for an address known to be bad.
  *
  * A missing or broken mail server must never stop a registration or an
  * approval decision, so sending is best-effort like createActivity and the
@@ -24,13 +34,14 @@ import { beginAttempt, completeAttempt, isUsableAddress } from './emailStatusSer
  * with its outcome, and callers receive a structured result they can surface.
  *
  * The outcome of every attempt is also recorded per recipient
- * (Pending / Sent / Failed), and an address the server permanently refuses is
- * suppressed so it is never retried on a later event.
+ * (Pending / Sent / Failed), and an address that is refused, that bounced, or
+ * that the operator has taken out of rotation is skipped on every later event.
  *
  * Emails are only ever sent from a controller in response to a real event, and
- * only to the specific person that event is about. There is no code path that
- * walks the user list, and there is no retry loop: an address that the mail
- * server refuses is suppressed (see emailStatusService) instead of retried.
+ * only to the specific people that event is about. There is no code path that
+ * walks the user list, no scheduler, no queue and no retry loop: an address
+ * that cannot receive mail is skipped (see emailStatusService) rather than
+ * retried, and the only way it is tried again is an explicit admin resend.
  */
 
 let transporter = null;
@@ -177,7 +188,7 @@ const appLink = (path) => {
 /** Primary "sign in" action used by the approval email. */
 const loginAction = () => {
   const action = appLink('/login');
-  return action ? { label: 'Login to UniProductive', ...action } : undefined;
+  return action ? { label: 'Login to NextUp', ...action } : undefined;
 };
 
 /**
@@ -225,7 +236,8 @@ const escapeHtml = (value) =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-const BRAND = 'UniProductive';
+/** Product name used in every email header, subject and greeting. */
+const BRAND = 'NextUp';
 
 /**
  * Shared, consistently styled email shell. Every workflow email uses this so
@@ -296,7 +308,7 @@ const toPlainText = ({ heading, intro, rows = [], action }) =>
  *
  * Resolves to { sent: boolean, status: 'sent' | 'skipped' | 'failed', reason? }
  */
-export const sendMail = async ({ to, subject, heading, intro, rows, bodyHtml, bodyText, action, footer, context }) => {
+export const sendMail = async ({ to, subject, heading, intro, rows, bodyHtml, bodyText, action, footer, context, relatedUser = null, allowSuppressed = false }) => {
   const html = layout({ heading, intro, rows, body: bodyHtml, action, footer });
   const text = bodyText || toPlainText({ heading, intro, rows, action });
   const where = context ? ` (${context})` : '';
@@ -314,9 +326,17 @@ export const sendMail = async ({ to, subject, heading, intro, rows, bodyHtml, bo
     return { sent: false, status: 'skipped', reason };
   }
 
-  // Suppression: an address the server has already refused is never tried
-  // again, so one bad address cannot turn into repeated attempts later on.
-  const attempt = await beginAttempt({ email: recipient, subject, context });
+  // Out of rotation: an address the server refused, one that bounced, or one on
+  // the configured do-not-send list is never tried again by an automatic send.
+  // `allowSuppressed` is set only by the operator resend below, so the one way
+  // to try such an address is a person deliberately asking.
+  const attempt = await beginAttempt({
+    email: recipient,
+    subject,
+    context,
+    relatedUserId: relatedUser?._id || null,
+    bypassSuppression: allowSuppressed === true,
+  });
   if (attempt.skip) {
     console.warn(`[mail] SKIPPED "${subject}" to=${recipient}${where}: ${attempt.reason}`);
     return { sent: false, status: 'skipped', reason: attempt.reason };
@@ -354,14 +374,16 @@ const formatWhen = (value) =>
  * ------------------------------------------------------------------ */
 
 /** Sent to the person who just registered. */
-export const sendRegistrationReceivedEmail = async (user) => {
+export const sendRegistrationReceivedEmail = async (user, { allowSuppressed = false } = {}) => {
   return sendMail({
     to: user.email,
     context: 'registration-received',
-    subject: 'Your UniProductive registration has been received',
+    relatedUser: user,
+    allowSuppressed,
+    subject: 'Your NextUp registration has been received',
     heading: `Welcome, ${user.name}`,
     intro:
-      'Thank you for registering with UniProductive. Your registration has been successfully received and is currently waiting for administrator confirmation.',
+      'Thank you for registering with NextUp. Your registration has been successfully received and is currently waiting for administrator confirmation.',
     rows: [
       ['Name', user.name],
       ['Email', user.email],
@@ -379,7 +401,7 @@ export const sendRegistrationReceivedEmail = async (user) => {
 };
 
 /** Sent to every administrator when a new registration arrives. */
-export const sendAdminNewRegistrationEmail = async (user, admins) => {
+export const sendAdminNewRegistrationEmail = async (user, admins, { allowSuppressed = false } = {}) => {
   if (!admins?.length) {
     console.warn('[mail] no administrator accounts found - nobody was notified of the new registration');
     return { sent: 0, failed: 0, skipped: 0, results: [] };
@@ -389,6 +411,8 @@ export const sendAdminNewRegistrationEmail = async (user, admins) => {
       sendMail({
         to: admin.email,
         context: 'admin-new-registration',
+        relatedUser: user,
+        allowSuppressed,
         subject: 'New registration awaiting your approval',
         heading: 'New user registration',
         intro: 'A new user has registered and is waiting for your approval before they can access the system.',
@@ -398,10 +422,15 @@ export const sendAdminNewRegistrationEmail = async (user, admins) => {
           ['Registered on', formatWhen(user.createdAt)],
           ['Current status', 'Pending Approval'],
         ],
-        bodyHtml: '<p style="margin:0;">Review this registration on the Admin &rarr; Users page to approve or decline it.</p>',
+        bodyHtml:
+          '<p style="margin:0 0 12px;">A new registration is waiting for you on the Admin &rarr; Users page. You will be asked to sign in first if you are not already signed in, and you will land straight on that registration.</p>' +
+          '<p style="margin:0;">Approve it to let the applicant in, or reject it to let them submit a new application later.</p>',
+        // Deep link into the existing Users page. If the admin is not signed in,
+        // the app sends them through the sign-in screen and then back here, so
+        // the link is a login entry point rather than a dead end.
         action: (() => {
-          const link = appLink('/users');
-          return link ? { label: 'Review Registration', ...link } : undefined;
+          const link = appLink(`/users?highlight=${user?._id || ''}`);
+          return link ? { label: 'View Registration', ...link } : undefined;
         })(),
       })
     )
@@ -420,13 +449,15 @@ export const sendAdminNewRegistrationEmail = async (user, admins) => {
 };
 
 /** Sent to the user once an administrator approves their registration. */
-export const sendRegistrationApprovedEmail = async (user) => {
+export const sendRegistrationApprovedEmail = async (user, { allowSuppressed = false } = {}) => {
   return sendMail({
     to: user.email,
     context: 'registration-approved',
-    subject: 'Your UniProductive registration has been approved',
+    relatedUser: user,
+    allowSuppressed,
+    subject: 'Your NextUp registration has been approved',
     heading: 'Your registration has been approved',
-    intro: `Good news, ${user.name}. An administrator has approved your registration and you can now access the UniProductive system.`,
+    intro: `Good news, ${user.name}. An administrator has approved your registration and you can now access the NextUp system.`,
     rows: [
       ['Name', user.name],
       ['Email', user.email],
@@ -442,11 +473,13 @@ export const sendRegistrationApprovedEmail = async (user) => {
 };
 
 /** Sent to the user when their registration is declined. */
-export const sendRegistrationRejectedEmail = async (user, reason) => {
+export const sendRegistrationRejectedEmail = async (user, reason, { allowSuppressed = false } = {}) => {
   return sendMail({
     to: user.email,
     context: 'registration-rejected',
-    subject: 'Your UniProductive registration was not approved',
+    relatedUser: user,
+    allowSuppressed,
+    subject: 'Your NextUp registration was not approved',
     heading: 'Your registration was not approved',
     intro: `Hello ${user.name}, an administrator has reviewed your registration and it was not approved at this time.`,
     rows: [
@@ -474,20 +507,23 @@ export const sendRegistrationRejectedEmail = async (user, reason) => {
  * because there is no account left to read the address from afterwards. No
  * internal detail (ids, roles, status values) is exposed.
  */
-export const sendAccountDeletedEmail = async (user) => {
+export const sendAccountDeletedEmail = async (user, { allowSuppressed = false } = {}) => {
   return sendMail({
     to: user.email,
     context: 'account-deleted',
-    subject: 'Your UniProductive account has been removed',
+    allowSuppressed,
+    // A plain snapshot: the record is already gone by the time this is sent.
+    relatedUser: { _id: user._id, name: user.name, email: user.email, createdAt: user.createdAt },
+    subject: 'Your NextUp account has been removed',
     heading: 'Your account has been removed',
-    intro: `Hello ${user.name}, an administrator has removed your UniProductive account from the system.`,
+    intro: `Hello ${user.name}, an administrator has removed your NextUp account from the system.`,
     rows: [
       ['Name', user.name],
       ['Email', user.email],
       ...(user.createdAt ? [['Registered on', formatWhen(user.createdAt)]] : []),
     ],
     bodyHtml:
-      '<p style="margin:0 0 12px;">Your account is no longer part of UniProductive, and you can no longer sign in or access the system with it.</p>' +
+      '<p style="margin:0 0 12px;">Your account is no longer part of NextUp, and you can no longer sign in or access the system with it.</p>' +
       '<p style="margin:0;">If you need access again, please contact your administrator to request a new registration.</p>',
     action: (() => {
       const link = appLink('/register');
@@ -495,3 +531,108 @@ export const sendAccountDeletedEmail = async (user) => {
     })(),
   });
 };
+
+/* ------------------------------------------------------------------ *
+ * Operator controls
+ *
+ * Both of the following are deliberately manual. Nothing in the running system
+ * calls them on a timer, on startup, or as a side effect of another request.
+ * ------------------------------------------------------------------ */
+
+/** Rebuilds the recorded message for a context, so a resend is the real email. */
+const RESENDERS = {
+  'registration-received': (subject) => sendRegistrationReceivedEmail(subject, { allowSuppressed: true }),
+  'registration-approved': (subject) => sendRegistrationApprovedEmail(subject, { allowSuppressed: true }),
+  'registration-rejected': (subject) =>
+    sendRegistrationRejectedEmail(subject, subject.rejectionReason || '', { allowSuppressed: true }),
+  'account-deleted': (subject) => sendAccountDeletedEmail(subject, { allowSuppressed: true }),
+  'admin-new-registration': (subject, recipientEmail) =>
+    sendAdminNewRegistrationEmail(subject, [{ email: recipientEmail }], { allowSuppressed: true }),
+};
+
+/**
+ * Contexts where the recipient is also the person the email is about, so the
+ * account can be found from the address when no id was recorded. An admin alert
+ * is the exception: it is delivered to the administrator but written about the
+ * applicant, so only a recorded id can identify the right subject.
+ */
+const RECIPIENT_IS_SUBJECT = new Set([
+  'registration-received',
+  'registration-approved',
+  'registration-rejected',
+  'account-deleted',
+]);
+
+/**
+ * Re-send the last transactional email to one address, because an
+ * administrator explicitly asked for it.
+ *
+ * This is the only path allowed to attempt an address which is already
+ * suppressed or undeliverable, which is the point: the automatic sends all
+ * skip such an address, so recovery is a deliberate human decision. Nothing
+ * calls this except the admin resend endpoint, and it sends exactly one message
+ * to exactly one address.
+ */
+export const resendLastEmailTo = async (email) => {
+  const recipient = String(email || '').trim().toLowerCase();
+  if (!isUsableAddress(recipient)) {
+    return { ok: false, reason: 'That is not a valid email address.' };
+  }
+
+  const record = (await listDeliveries({ limit: 500 })).find((row) => row.email === recipient);
+  if (!record) {
+    return { ok: false, reason: 'There is no delivery record for that address, so there is nothing to resend.' };
+  }
+
+  const resend = RESENDERS[record.lastContext];
+  if (!resend) {
+    return { ok: false, reason: 'The last email to that address is not a resendable registration email.' };
+  }
+
+  // The message is about the user it was written for, which is not always the
+  // recipient (an admin alert is delivered to the administrator but written
+  // about the applicant). Prefer the recorded id, and fall back to the address
+  // itself for the contexts where they are the same person.
+  const subject = record.relatedUserId
+    ? await User.findById(record.relatedUserId).lean()
+    : RECIPIENT_IS_SUBJECT.has(record.lastContext)
+      ? await User.findOne({ email: recipient }).lean()
+      : null;
+
+  if (!subject && record.lastContext !== 'account-deleted') {
+    return { ok: false, reason: 'The account this email was about no longer exists, so it cannot be rebuilt.' };
+  }
+
+  await recordManualRetry(recipient);
+  // The one attempt that is allowed past suppression. It does not clear the
+  // recorded state, so if this bounces the address is still marked undeliverable
+  // and nothing will try it again on its own.
+  console.log(
+    `[mail] MANUAL RESEND requested for ${recipient} (context=${record.lastContext}` +
+      `${record.blocked ? ', address is currently stopped' : ''})`
+  );
+
+  const result =
+    record.lastContext === 'account-deleted'
+      ? await resend({ _id: record.relatedUserId, name: 'there', email: recipient, createdAt: new Date() })
+      : await resend(subject, recipient);
+
+  return {
+    ok: Boolean(result?.sent),
+    status: result?.status || 'failed',
+    reason: result?.reason || '',
+    stillStopped: record.blocked,
+  };
+};
+
+/**
+ * Report a non-delivery (bounce) for an address.
+ *
+ * Plain SMTP cannot tell us that a message we handed over was later refused:
+ * by then the conversation is over and the report is delivered to our own
+ * mailbox instead. This is where that report is fed back in, and the address is
+ * taken out of rotation.
+ */
+export const reportBounce = async ({ email, reason, detail }) => markUndeliverable({ email, reason, detail });
+
+export { listDeliveries };

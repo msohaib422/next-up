@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import Modal from './ui/Modal'
 import Input from './ui/Input'
+import PasswordInput from './ui/PasswordInput'
 import Button from './ui/Button'
 
 export default function UserModal({ isOpen, onClose, onSave, user }) {
@@ -77,13 +78,13 @@ export default function UserModal({ isOpen, onClose, onSave, user }) {
           placeholder="user@example.com"
           error={errors.email}
         />
-        <Input
+        <PasswordInput
           label={user ? 'New Password (leave blank to keep current)' : 'Password'}
-          type="password"
           value={form.password}
           onChange={(e) => setForm({ ...form, password: e.target.value })}
           placeholder={user ? 'Enter new password' : 'Enter password'}
           error={errors.password}
+          autoComplete="new-password"
         />
       </form>
     </Modal>

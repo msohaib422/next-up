@@ -7,7 +7,16 @@ import {
   sendRegistrationApprovedEmail,
   sendRegistrationRejectedEmail,
   sendAccountDeletedEmail,
+  listDeliveries,
+  reportBounce,
+  resendLastEmailTo,
 } from '../services/mailService.js';
+import {
+  markUndeliverable,
+  resumeAddress,
+  getDeliveryStatus,
+  isUsableAddress,
+} from '../services/emailStatusService.js';
 
 export const getProfile = async (req, res, next) => {
   try {
@@ -340,6 +349,97 @@ export const deleteUser = async (req, res, next) => {
       message: 'User deleted successfully',
       email: { recipient: mail?.status || 'skipped' },
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/* ------------------------------------------------------------------ *
+ * Email delivery controls (admin only)
+ *
+ * These are the operator's hands on a failing address. They are never invoked
+ * automatically: there is no startup sweep, no scheduled job and no retry
+ * queue, so a broken address stays broken until a person looks at it.
+ * ------------------------------------------------------------------ */
+
+/** GET /api/users/admin/email-deliveries - what happened to each address. */
+export const listEmailDeliveries = async (req, res, next) => {
+  try {
+    res.json({ success: true, data: await listDeliveries({ limit: req.query.limit }) });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/users/admin/email-deliveries/stop
+ * Take an address out of rotation for good. Use it as soon as a delivery
+ * problem is known, instead of waiting for the server to refuse it.
+ */
+export const stopEmailingAddress = async (req, res, next) => {
+  try {
+    const { email, reason } = req.body || {};
+    if (!isUsableAddress(email)) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid email address' });
+    }
+    await markUndeliverable({ email, reason: 'an administrator stopped email to this address' });
+    res.json({ success: true, message: `${email} will no longer be emailed.` });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** POST /api/users/admin/email-deliveries/resume - put an address back. */
+export const resumeEmailingAddress = async (req, res, next) => {
+  try {
+    const { email } = req.body || {};
+    if (!isUsableAddress(email)) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid email address' });
+    }
+    await resumeAddress(email);
+    res.json({ success: true, message: `${email} will receive email again.`, data: await getDeliveryStatus(email) });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/users/admin/email-deliveries/resend
+ * Explicit, single-message resend of the last email to one address. This is the
+ * only way a failed or suppressed address is ever retried.
+ */
+export const resendEmail = async (req, res, next) => {
+  try {
+    const { email } = req.body || {};
+    if (!isUsableAddress(email)) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid email address' });
+    }
+    const result = await resendLastEmailTo(email);
+    if (!result.ok) {
+      return res.status(400).json({ success: false, message: result.reason, data: { status: result.status } });
+    }
+    res.json({ success: true, message: `Email re-sent to ${email}.`, data: { status: result.status } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/users/admin/email-deliveries/bounce
+ *
+ * The feedback channel SMTP does not give us for free: a message that was
+ * accepted and then bounced is reported here, and the address stops being used.
+ * Intended for a delivery provider's webhook or a bounce-forwarding rule, and
+ * usable by hand from the admin panel.
+ */
+export const reportEmailBounce = async (req, res, next) => {
+  try {
+    const { email, reason, detail } = req.body || {};
+    if (!isUsableAddress(email)) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid email address' });
+    }
+    await reportBounce({ email, reason: reason || 'the address bounced', detail: detail || '' });
+    res.json({ success: true, message: `${email} recorded as undeliverable.`, data: await getDeliveryStatus(email) });
   } catch (error) {
     next(error);
   }
