@@ -1,15 +1,17 @@
 import Lecture from '../models/Lecture.js';
 import { createActivity } from './activityController.js';
-import { getVisibleUserIds } from '../utils/helpers.js';
+import { getVisibleUserIds, getWritableUserIds } from '../utils/helpers.js';
+import { notifyContentChange } from '../services/notificationService.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
+import { fileTooLargeMessage } from '../config/uploadLimits.js';
 
 export const uploadLectureFile = [
   (req, res, next) => {
     upload.single('file')(req, res, (err) => {
       if (err) {
         if (err.code === 'LIMIT_FILE_SIZE') {
-          return res.status(400).json({ success: false, message: 'File is too large. Maximum size is 10 MB.' });
+          return res.status(400).json({ success: false, message: fileTooLargeMessage });
         }
         return res.status(400).json({ success: false, message: err.message || 'File upload failed.' });
       }
@@ -42,7 +44,7 @@ export const uploadLectureFile = [
       } else if (error.http_code === 401 || error.message?.includes('authentication failed')) {
         message = 'Upload service authentication failed. Please contact support.';
       } else if (error.message?.includes('File too large') || error.code === 'LIMIT_FILE_SIZE') {
-        message = 'File is too large. Maximum size is 10 MB.';
+        message = fileTooLargeMessage;
       } else {
         message = error.message || 'File upload to storage failed.';
       }
@@ -98,6 +100,8 @@ export const createLecture = async (req, res, next) => {
 
     await createActivity(req.user._id, 'lecture_added', `Added timetable: ${subject}`, '', 'Lecture', lecture._id);
 
+    await notifyContentChange({ entityType: 'Lecture', entity: lecture, actor: req.user, action: 'added' });
+
     res.status(201).json({ success: true, data: lecture });
   } catch (error) {
     next(error);
@@ -106,7 +110,7 @@ export const createLecture = async (req, res, next) => {
 
 export const updateLecture = async (req, res, next) => {
   try {
-    const existingLecture = await Lecture.findOne({ _id: req.params.id, user: req.user._id });
+    const existingLecture = await Lecture.findOne({ _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } });
     if (!existingLecture) {
       return res.status(404).json({ success: false, message: 'Lecture not found' });
     }
@@ -134,10 +138,12 @@ export const updateLecture = async (req, res, next) => {
     }
 
     const lecture = await Lecture.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
+      { _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } },
       updateFields,
       { new: true, runValidators: true }
     );
+
+    if (lecture) await notifyContentChange({ entityType: 'Lecture', entity: lecture, actor: req.user, action: 'updated' });
 
     res.json({ success: true, data: lecture });
   } catch (error) {
@@ -147,7 +153,7 @@ export const updateLecture = async (req, res, next) => {
 
 export const deleteLecture = async (req, res, next) => {
   try {
-    const lecture = await Lecture.findOne({ _id: req.params.id, user: req.user._id });
+    const lecture = await Lecture.findOne({ _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } });
     if (!lecture) {
       return res.status(404).json({ success: false, message: 'Lecture not found' });
     }
@@ -159,7 +165,7 @@ export const deleteLecture = async (req, res, next) => {
       });
     }
 
-    await Lecture.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+    await Lecture.findOneAndDelete({ _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } });
 
     res.json({ success: true, data: {} });
   } catch (error) {

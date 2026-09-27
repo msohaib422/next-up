@@ -7,7 +7,7 @@ import EmptyState from '../components/ui/EmptyState'
 import {
   CheckSquare, Clock, HelpCircle, Megaphone,
   AlertTriangle, CheckCircle2, Users, FileCheck,
-  Pin, BookOpen, CalendarCheck, CalendarClock,
+  Pin, BookOpen, CalendarCheck,
   ChevronRight
 } from 'lucide-react'
 import {
@@ -250,7 +250,10 @@ function AdminDashboard() {
         const [usersRes, tasksRes, assignmentsRes, quizzesRes, annRes] = await Promise.all([
           api.get('/users/admin/users').catch(() => ({ data: { data: [] } })),
           api.get('/tasks').catch(() => ({ data: { data: [] } })),
-          api.get('/assignments/my').catch(() => ({ data: { data: [] } })),
+          // Shared endpoint, not /assignments/my: the admin dashboard reports
+          // on the whole admin workspace, so it must not be limited to the
+          // assignments created by the signed-in admin.
+          api.get('/assignments').catch(() => ({ data: { data: [] } })),
           api.get('/quizzes').catch(() => ({ data: { data: [] } })),
           api.get('/announcements').catch(() => ({ data: { data: [] } })),
         ])
@@ -411,10 +414,12 @@ function AdminDashboard() {
 
       {/* ── Two-Column: Recent + Coming Up ─────────────────── */}
       {/* Default stretch keeps both cards equal height; Recent defines
-          the row height and Coming Up scrolls internally when full. */}
+          the row height and Coming Up scrolls internally when full.
+          The shared min-height keeps the pair at its intended size when
+          neither card has anything to show. */}
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Recent */}
-        <Card className="overflow-hidden flex flex-col">
+        <Card className="overflow-hidden flex flex-col min-h-[20rem]">
           <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/50 flex-shrink-0">
             <h2 className="text-base font-semibold text-gray-900 dark:text-white">
               Recent
@@ -445,7 +450,7 @@ function AdminDashboard() {
         </Card>
 
         {/* Coming Up */}
-        <Card className="overflow-hidden flex flex-col">
+        <Card className="overflow-hidden flex flex-col min-h-[20rem]">
           <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/50 flex-shrink-0">
             <h2 className="text-base font-semibold text-gray-900 dark:text-white">
               Coming Up
@@ -563,6 +568,9 @@ function AdminDashboard() {
 const RECENT_LIMIT = 8
 const ANNOUNCEMENT_SCROLL_MAX = '24rem'
 const RECENT_SCROLL_MAX = '14rem'
+// Minimum body height for the scrollable list sections, so a section that is
+// empty (or holds one row) still occupies the same box as a full one.
+const LIST_BODY_MIN = 'min-h-[14rem]'
 
 // Type tag colors — shared with the admin dashboard lists
 const TYPE_BADGE_PROPS = {
@@ -671,7 +679,7 @@ const getRecentMeta = (item) => {
 
 function SectionHeader({ title, subtitle, action }) {
   return (
-    <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/50 flex items-start justify-between gap-3">
+    <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/50 flex items-start justify-between gap-3 flex-shrink-0">
       <div className="min-w-0">
         <h2 className="text-base font-semibold text-gray-900 dark:text-white">{title}</h2>
         {subtitle && (
@@ -683,9 +691,11 @@ function SectionHeader({ title, subtitle, action }) {
   )
 }
 
-function CardEmpty({ icon: Icon, title, description, tone = 'text-gray-400' }) {
+// An empty section must still occupy the same box as a filled one, so the
+// placeholder always fills the card body instead of collapsing to its text.
+function CardEmpty({ icon: Icon, title, description, tone = 'text-gray-400', className = '' }) {
   return (
-    <div className="flex flex-col items-center justify-center text-center px-5 py-10">
+    <div className={`flex-1 w-full flex flex-col items-center justify-center text-center px-5 py-10 ${className}`}>
       <div className="w-11 h-11 rounded-full bg-gray-100 dark:bg-gray-700/60 flex items-center justify-center mb-3">
         <Icon className={`w-5 h-5 ${tone}`} />
       </div>
@@ -1046,12 +1056,10 @@ function UserDashboard() {
   )
 
   const deadlineStats = useMemo(() => {
-    const dueSoon = futureWork.filter(w => daysUntil(w._date) <= 7)
     return {
       overdue: overdueItems,
-      dueSoon,
     }
-  }, [futureWork, overdueItems])
+  }, [overdueItems])
 
   // Unified upcoming list: newest additions first across dated items, key
   // dates, and work using a non-date schedule mode. Completed items never enter it.
@@ -1156,12 +1164,6 @@ function UserDashboard() {
       tone: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/60',
       icon: AlertTriangle,
       text: `${deadlineStats.overdue.length} overdue`,
-    }
-  } else if (deadlineStats.dueSoon.length > 0) {
-    attentionPill = {
-      tone: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-900/60',
-      icon: CalendarClock,
-      text: `${deadlineStats.dueSoon.length} due this week`,
     }
   } else if (upcomingItems.length > 0) {
     attentionPill = {
@@ -1273,9 +1275,14 @@ function UserDashboard() {
       </div>
 
       {/* ── Main content ───────────────────────────────────── */}
-      <div className="grid lg:grid-cols-3 gap-6 items-start">
+      {/* Both columns are grids with the same row template: a fixed 20rem row
+          for the top card and a flexible row for the bottom card. Because the
+          two columns are the same height, the flexible row is the same height in
+          both — so Announcements and Quick access match exactly, with or without
+          data. */}
+      <div className="grid lg:grid-cols-3 gap-6 items-stretch">
         {/* Left column — Upcoming + Announcements */}
-        <div className="min-w-0 lg:col-span-2 space-y-6">
+        <div className="min-w-0 lg:col-span-2 grid grid-rows-[20rem_1fr] gap-6">
           <Card className="overflow-hidden flex flex-col h-80">
             <SectionHeader title="Upcoming" />
             {upcomingItems.length === 0 ? (
@@ -1298,7 +1305,7 @@ function UserDashboard() {
             )}
           </Card>
 
-          <Card className="overflow-hidden">
+          <Card className="overflow-hidden flex flex-col">
             <SectionHeader title="Announcements" />
             {topAnnouncements.length === 0 ? (
               <CardEmpty
@@ -1307,9 +1314,13 @@ function UserDashboard() {
                 description="Updates from your university will appear here."
               />
             ) : (
+              /* Fills the card body (flex-1) so the section keeps the height it
+                 has when it is empty, and only scrolls when it overflows.
+                 maxHeight keeps the same scroll cap as before on stacked
+                 (small screen) layouts, where the row has no fixed height. */
               <div
-                className="h-[24rem] overflow-y-auto overscroll-contain divide-y divide-gray-100 dark:divide-gray-700/50"
-                style={{ height: ANNOUNCEMENT_SCROLL_MAX }}
+                className="flex-1 min-h-0 overflow-y-auto overscroll-contain divide-y divide-gray-100 dark:divide-gray-700/50"
+                style={{ maxHeight: ANNOUNCEMENT_SCROLL_MAX }}
               >
                 {topAnnouncements.map(ann => (
                   <button
@@ -1351,7 +1362,9 @@ function UserDashboard() {
         </div>
 
         {/* Right column — Completed activity + Quick access */}
-        <div className="min-w-0 space-y-6">
+        {/* Same row template as the left column, so the second row (Quick
+            access) is exactly as tall as the second row there (Announcements). */}
+        <div className="min-w-0 grid grid-rows-[20rem_1fr] gap-6">
           <Card className="p-5 flex flex-col h-80">
             <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-4 flex-shrink-0">
               Completed Activity
@@ -1436,10 +1449,11 @@ function UserDashboard() {
             icon={Clock}
             title="No recent activity"
             description="Tasks, assignments, quizzes and announcements appear here as they change."
+            className={LIST_BODY_MIN}
           />
         ) : (
           <div
-            className="overflow-y-auto overscroll-contain divide-y divide-gray-100 dark:divide-gray-700/50"
+            className={`overflow-y-auto overscroll-contain divide-y divide-gray-100 dark:divide-gray-700/50 ${LIST_BODY_MIN}`}
             style={{ maxHeight: RECENT_SCROLL_MAX }}
           >
             {visibleRecent.map(item => (
@@ -1471,10 +1485,11 @@ function UserDashboard() {
             tone="text-green-500"
             title="Nothing completed yet"
             description="Completed tasks, assignments, and quizzes will appear here."
+            className={LIST_BODY_MIN}
           />
         ) : (
           <div
-            className="overflow-y-auto overscroll-contain divide-y divide-gray-100 dark:divide-gray-700/50"
+            className={`overflow-y-auto overscroll-contain divide-y divide-gray-100 dark:divide-gray-700/50 ${LIST_BODY_MIN}`}
             style={{ maxHeight: RECENT_SCROLL_MAX }}
           >
             {completedItems.map(item => (
