@@ -22,6 +22,12 @@ import contributionRoutes, { adminContributionRoutes } from './routes/contributi
 
 const app = express();
 
+// On Vercel every request arrives through the platform's proxy, so req.ip would
+// otherwise be the proxy's address. That makes the rate limiter below treat all
+// visitors as one shared client, and Vercel rejects a permissive trust proxy
+// value, so 1 (hop) is used instead.
+app.set('trust proxy', 1);
+
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
@@ -57,7 +63,9 @@ app.use((req, res, next) => {
 
 app.use(errorHandler);
 
-connectDB();
+connectDB().catch((err) => {
+  console.error('MongoDB connection failed:', err.message);
+});
 
 if (!process.env.VERCEL) {
   const PORT = process.env.PORT || 5000;
