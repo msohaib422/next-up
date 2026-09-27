@@ -67,11 +67,11 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold mb-6">Profile</h1>
 
       <form onSubmit={handleSave} className="space-y-6">
-        <Card className="p-6">
+        <Card className="p-4 sm:p-6">
           <h2 className="text-lg font-semibold mb-4">Profile Information</h2>
           <div className="space-y-4">
             <Input
@@ -92,7 +92,7 @@ export default function ProfilePage() {
           </div>
         </Card>
 
-        <Card className="p-6">
+        <Card className="p-4 sm:p-6">
           <h2 className="text-lg font-semibold mb-4">Change Password</h2>
           <div className="space-y-4">
             <div className="relative">
@@ -165,6 +165,7 @@ export default function ProfilePage() {
             type="submit"
             loading={saving}
             disabled={!hasChanges || saving}
+            className="w-full sm:w-auto"
           >
             <Save className="h-4 w-4" />
             Save Changes

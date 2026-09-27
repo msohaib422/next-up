@@ -17,19 +17,19 @@ export default function Header({ onMenuToggle }) {
 
   return (
     <header className="sticky top-0 z-30 bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-700">
-      <div className="flex items-center gap-4 h-16 px-4 lg:px-6">
-        <button onClick={onMenuToggle} className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+      <div className="flex items-center gap-2 sm:gap-4 h-16 px-4 lg:px-6">
+        <button onClick={onMenuToggle} className="lg:hidden shrink-0 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
           <Menu className="w-5 h-5" />
         </button>
 
-        <div className="flex items-center gap-4 ml-auto">
-          <span className="text-sm text-gray-500 dark:text-gray-400 hidden md:block">
+        <div className="flex items-center gap-2 sm:gap-4 ml-auto min-w-0 shrink-0">
+          <span className="text-sm text-gray-500 dark:text-gray-400 hidden md:block truncate">
             {format(time, 'EEE, MMM d · h:mm a')}
           </span>
           <NotificationBell />
           <button
             onClick={() => navigate('/profile')}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 shrink-0"
           >
             {user?.profileImage ? (
               <img src={user.profileImage} alt="" className="w-8 h-8 rounded-full object-cover" />

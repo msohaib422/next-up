@@ -36,7 +36,9 @@ export default function Sidebar({ isOpen, onClose }) {
         <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={onClose} />
       )}
 
-      <aside className={`fixed top-0 left-0 z-50 h-full w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col transition-transform duration-300 lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      {/* w-64 on wide screens, never wider than 85vw so the drawer always fits
+          the smallest phone in portrait or landscape. */}
+      <aside className={`fixed top-0 left-0 z-50 h-full w-64 max-w-[85vw] bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col transition-transform duration-300 lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
           <div className="flex items-center gap-2">
             <GraduationCap className="w-8 h-8 text-primary-600" />

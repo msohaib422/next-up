@@ -72,7 +72,9 @@ export default function TimetablePage() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between mb-4 shrink-0">
+      {/* The title keeps the first line and the actions move below it on narrow
+          screens, so a long timetable name is not cut short. */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white truncate">
             {imageLecture ? imageLecture.subject : 'Timetable'}
@@ -138,17 +140,17 @@ export default function TimetablePage() {
           <img
             src={imageLecture.fileUrl}
             alt={imageLecture.fileName || 'Timetable'}
-            className="w-full h-full object-cover rounded-lg"
+            className="w-full h-full max-w-full object-cover rounded-lg"
           />
         ) : (
           <a
             href={imageLecture.fileUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-4 py-3 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+            className="inline-flex max-w-full items-center gap-2 px-4 py-3 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
           >
-            <FileText className="w-5 h-5" />
-            {imageLecture.fileName || 'View attachment'}
+            <FileText className="w-5 h-5 shrink-0" />
+            <span className="truncate min-w-0">{imageLecture.fileName || 'View attachment'}</span>
           </a>
         )}
       </div>

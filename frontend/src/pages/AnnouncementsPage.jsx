@@ -262,10 +262,10 @@ export default function AnnouncementsPage() {
   }
 
   const renderAnnouncementCard = (ann) => (
-    <Card id={`item-${ann._id}`} key={ann._id} className="p-4 flex flex-col h-full" onClick={isAdmin ? () => { setEditingAnnouncement(ann); setShowModal(true) } : () => setViewingAnnouncement(ann)}>
-      <div className="flex items-center justify-between mb-2">
+    <Card id={`item-${ann._id}`} key={ann._id} className="p-4 flex flex-col h-full min-w-0" onClick={isAdmin ? () => { setEditingAnnouncement(ann); setShowModal(true) } : () => setViewingAnnouncement(ann)}>
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
         <Badge bgColor={TYPE_BG_COLOR[ann.type]} textColor={TYPE_TEXT_COLOR[ann.type]} size="sm">{ann.type}</Badge>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           {isAdmin && (
             <button
               onClick={(e) => handleTogglePin(e, ann)}
@@ -290,13 +290,13 @@ export default function AnnouncementsPage() {
         <span className="font-normal">Date:</span> <span className="font-normal">{format(new Date(ann.date), 'MMM d, yyyy')}</span>
       </p>
       {ann.attachment?.name && (
-        <div className="flex items-center gap-2 mt-2 pt-1">
+        <div className="flex items-center gap-2 mt-2 pt-1 min-w-0">
           <button
             onClick={(e) => { e.stopPropagation(); handleAttachmentOpen(ann.attachment) }}
             className="flex items-center gap-1.5 text-[13px] text-primary-600 dark:text-primary-400 hover:underline min-w-0"
           >
             <Paperclip className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">{ann.attachment.name}</span>
+            <span className="truncate min-w-0">{ann.attachment.name}</span>
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); handleDownload(ann.attachment) }}
@@ -309,20 +309,20 @@ export default function AnnouncementsPage() {
         </div>
       )}
       {ann.link && (
-        <div className="mt-2 pt-1">
+        <div className="mt-2 pt-1 min-w-0">
           <button
             onClick={(e) => { e.stopPropagation(); window.open(ann.link, '_blank', 'noopener,noreferrer') }}
-            className="flex items-center gap-1.5 text-[13px] text-primary-600 dark:text-primary-400 hover:underline min-w-0"
+            className="flex max-w-full items-center gap-1.5 text-[13px] text-primary-600 dark:text-primary-400 hover:underline min-w-0"
           >
             <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">{ann.link}</span>
+            <span className="truncate min-w-0">{ann.link}</span>
           </button>
         </div>
       )}
       <div className="flex-1" />
       <div className="flex items-center gap-2 mt-3 pt-3 border-t dark:border-gray-700">
         {ann.createdBy && (
-          <p className="text-xs text-gray-400 dark:text-gray-500">
+          <p className="text-xs text-gray-400 dark:text-gray-500 min-w-0 break-words">
             Posted by: {ann.createdBy}
           </p>
         )}
@@ -366,11 +366,11 @@ export default function AnnouncementsPage() {
         )}
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-[2] min-w-0">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
+        <div className="w-full sm:flex-[2_1_16rem] sm:min-w-0">
           <Input icon={Search} placeholder="Search announcements..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <div className="relative w-[220px] shrink-0">
+        <div className="relative w-full sm:w-auto sm:basis-[220px] sm:grow-0 sm:shrink-0">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Calendar className="h-5 w-5 text-gray-400" />
           </div>
@@ -382,7 +382,7 @@ export default function AnnouncementsPage() {
             className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 pl-10 pr-3 py-2 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-colors"
           />
         </div>
-        <div className="w-36 shrink-0">
+        <div className="w-full sm:w-auto sm:basis-36 sm:grow-0 sm:shrink-0">
           <Select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
@@ -394,7 +394,7 @@ export default function AnnouncementsPage() {
         </div>
         <button
           onClick={() => setSavedFilter(!savedFilter)}
-          className={`flex items-center gap-1 text-sm px-3 py-2 rounded-lg border transition-colors ${
+          className={`flex shrink-0 items-center justify-center gap-1 text-sm px-3 py-2 rounded-lg border transition-colors ${
             savedFilter
               ? 'border-yellow-400 bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-600'
               : 'border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
@@ -406,7 +406,7 @@ export default function AnnouncementsPage() {
         {hasActiveFilters && (
           <button
             onClick={() => { setSearch(''); setDateFilter(''); setTypeFilter('all'); setSavedFilter(false) }}
-            className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            className="flex shrink-0 items-center justify-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           >
             <X className="w-4 h-4" /> Clear
           </button>

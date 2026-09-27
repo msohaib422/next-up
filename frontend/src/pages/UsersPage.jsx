@@ -226,7 +226,10 @@ export default function UsersPage() {
       ) : (
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            {/* A minimum width keeps every column readable; the overflow is
+                contained by this wrapper, so narrow screens scroll the table
+                itself instead of the whole page. */}
+            <table className="w-full min-w-[44rem] text-sm">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                   <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Name</th>
@@ -337,7 +340,7 @@ export default function UsersPage() {
 
       {review && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6">
+          <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-xl p-5 sm:p-6 max-h-[85vh] overflow-y-auto">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
               {review.action === 'approve' ? 'Approve registration' : 'Reject registration'}
             </h3>
@@ -390,7 +393,7 @@ export default function UsersPage() {
 
       {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6">
+          <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-xl p-5 sm:p-6 max-h-[85vh] overflow-y-auto">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Delete User</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
               Are you sure you want to delete <span className="font-medium text-gray-900 dark:text-gray-100">{deleteConfirm.name}</span>? This action cannot be undone.

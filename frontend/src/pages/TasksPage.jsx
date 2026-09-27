@@ -290,12 +290,12 @@ export default function TasksPage() {
     <Card
       id={`item-${task._id}`}
       key={task._id}
-      className="p-4 flex flex-col h-full"
+      className="p-4 flex flex-col h-full min-w-0"
       onClick={isAdmin
         ? () => { setEditingTask(task); setShowModal(true) }
         : () => setViewingTask(task)}
     >
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 mb-2">
         <Badge color={priorityColor(task.priority)} bgColor={priorityBgColor(task.priority)} textColor={priorityTextColor(task.priority)} size="sm">{task.priority}</Badge>
         <Badge color={statusColor(task.status)} bgColor={statusBgColor(task.status)} textColor={statusTextColor(task.status)} size="sm">{task.status}</Badge>
         {getDeadlineBadge(task)}
@@ -304,13 +304,13 @@ export default function TasksPage() {
       {task.subject && <p className="text-sm text-gray-700 dark:text-gray-300 mb-1"><span className="font-bold">Course:</span> <span className="font-normal">{task.subject}</span></p>}
       {task.description?.trim() && <p className="text-sm text-gray-500 dark:text-gray-400 mb-1 line-clamp-2"><span className="font-normal">Description:</span> <span className="font-normal">{task.description}</span></p>}
       {task.attachment?.name && (
-        <div className="flex items-center gap-2 mt-2 pt-1">
+        <div className="flex items-center gap-2 mt-2 pt-1 min-w-0">
           <button
             onClick={(e) => { e.stopPropagation(); handleAttachmentOpen(task.attachment) }}
             className="flex items-center gap-1.5 text-[13px] text-primary-600 dark:text-primary-400 hover:underline min-w-0"
           >
             <Paperclip className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">{task.attachment.name}</span>
+            <span className="truncate min-w-0">{task.attachment.name}</span>
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); handleDownload(task.attachment) }}
@@ -361,11 +361,14 @@ export default function TasksPage() {
         )}
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-[2] min-w-0">
+      {/* Below sm every control is full width; from sm up they share one row
+          and wrap to a second line rather than overflowing when the fixed
+          widths no longer fit. On lg+ the row is exactly as it was. */}
+      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
+        <div className="w-full sm:flex-[2_1_16rem] sm:min-w-0">
           <Input icon={Search} placeholder="Search tasks..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <div className="relative w-[220px] shrink-0">
+        <div className="relative w-full sm:w-auto sm:basis-[220px] sm:grow-0 sm:shrink-0">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Calendar className="h-5 w-5 text-gray-400" />
           </div>
@@ -377,7 +380,7 @@ export default function TasksPage() {
             className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 pl-10 pr-3 py-2 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-colors"
           />
         </div>
-        <div className="w-36 shrink-0">
+        <div className="w-full sm:w-auto sm:basis-36 sm:grow-0 sm:shrink-0">
           <Select
             value={subjectFilter}
             onChange={(e) => setSubjectFilter(e.target.value)}
@@ -387,7 +390,7 @@ export default function TasksPage() {
             ]}
           />
         </div>
-        <div className="w-32 shrink-0">
+        <div className="w-full sm:w-auto sm:basis-32 sm:grow-0 sm:shrink-0">
           <Select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -399,7 +402,7 @@ export default function TasksPage() {
             ]}
           />
         </div>
-        <div className="w-32 shrink-0">
+        <div className="w-full sm:w-auto sm:basis-32 sm:grow-0 sm:shrink-0">
           <Select
             value={priorityFilter}
             onChange={(e) => setPriorityFilter(e.target.value)}
@@ -414,7 +417,7 @@ export default function TasksPage() {
         {(search || dateFilter || statusFilter !== 'all' || priorityFilter !== 'all' || subjectFilter !== 'all') && (
           <button
             onClick={() => { setSearch(''); setDateFilter(''); setStatusFilter('all'); setPriorityFilter('all'); setSubjectFilter('all') }}
-            className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            className="flex shrink-0 items-center justify-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           >
             <X className="w-4 h-4" /> Clear
           </button>

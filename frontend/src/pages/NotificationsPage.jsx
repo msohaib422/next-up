@@ -153,7 +153,7 @@ export default function NotificationsPage() {
               return (
                 <li
                   key={notification.id}
-                  className={`group flex items-start gap-4 px-4 py-4 transition-colors sm:px-5 ${
+                  className={`group flex flex-wrap items-start gap-4 px-4 py-4 transition-colors sm:flex-nowrap sm:px-5 ${
                     notification.read ? 'hover:bg-gray-50 dark:hover:bg-gray-700/40' : 'bg-primary-50/40 hover:bg-primary-50/70 dark:bg-primary-900/10 dark:hover:bg-primary-900/20'
                   }`}
                 >
@@ -188,7 +188,10 @@ export default function NotificationsPage() {
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 items-center gap-[15px] self-center">
+                  {/* Row actions sit on their own line below the message on
+                      narrow screens, so the message keeps the full card width
+                      instead of being squeezed by the controls. */}
+                  <div className="flex w-full shrink-0 items-center justify-end gap-[15px] self-center sm:w-auto">
                     <button
                       type="button"
                       onClick={(event) => handleToggleRead(event, notification)}

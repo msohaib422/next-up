@@ -112,7 +112,7 @@ function DashboardItemCard({ item }) {
     <div className="px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
       <div className="flex items-center">
         {/* Column 1 — Title + Course (flexible, takes remaining space) */}
-        <div className="flex-1 min-w-0 pr-4">
+        <div className="flex-1 min-w-0 pr-2 sm:pr-4">
           <div className="flex items-center gap-2">
             {item._type === 'Announcement' && item.pinned && (
               <Pin className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
@@ -126,21 +126,23 @@ function DashboardItemCard({ item }) {
           </p>
         </div>
 
-        {/* Right side — Type | Status | View with equal spacing */}
-        <div className="flex items-center gap-6 flex-shrink-0">
-          <div className="flex items-center justify-center w-24">
+        {/* Right side — Type | Status | View with equal spacing.
+            The three columns narrow on small screens instead of forcing the
+            row wider than the viewport. */}
+        <div className="flex items-center gap-3 sm:gap-6 flex-shrink-0">
+          <div className="flex items-center justify-center w-14 sm:w-24">
             <Badge {...typeBadgeProps[item._type]} size="sm">
               {item._type}
             </Badge>
           </div>
-          <div className="flex items-center justify-center w-24">
+          <div className="flex items-center justify-center w-8 sm:w-24">
             {item.status === 'Completed' && (
               <span className="text-green-500 dark:text-green-400" title="Completed">
                 <CheckCircle2 className="w-4 h-4" />
               </span>
             )}
           </div>
-          <div className="flex items-center justify-center w-24">
+          <div className="flex items-center justify-center w-14 sm:w-24">
             <button
               onClick={handleView}
               className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 px-2.5 py-1 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
@@ -188,7 +190,7 @@ function ComingUpItemCard({ item }) {
     <div className="px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
       <div className="flex items-center">
         {/* Column 1 — Title + Course (flexible, takes remaining space) */}
-        <div className="flex-1 min-w-0 pr-4">
+        <div className="flex-1 min-w-0 pr-2 sm:pr-4">
           <div className="flex items-center gap-2">
             {item._type === 'Announcement' && item.pinned && (
               <Pin className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
@@ -202,21 +204,23 @@ function ComingUpItemCard({ item }) {
           </p>
         </div>
 
-        {/* Right side — Type | Priority | View with equal spacing */}
-        <div className="flex items-center gap-6 flex-shrink-0">
-          <div className="flex items-center justify-center w-24">
+        {/* Right side — Type | Priority | View with equal spacing.
+            The three columns narrow on small screens instead of forcing the
+            row wider than the viewport. */}
+        <div className="flex items-center gap-3 sm:gap-6 flex-shrink-0">
+          <div className="flex items-center justify-center w-14 sm:w-24">
             <Badge {...typeBadgeProps[item._type]} size="sm">
               {item._type}
             </Badge>
           </div>
-          <div className="flex items-center justify-center w-24">
+          <div className="flex items-center justify-center w-14 sm:w-24">
             {item.priority && (
               <Badge {...priorityBadgeProps[item.priority]} size="sm">
                 {item.priority}
               </Badge>
             )}
           </div>
-          <div className="flex items-center justify-center w-24">
+          <div className="flex items-center justify-center w-14 sm:w-24">
             <button
               onClick={handleView}
               className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 px-2.5 py-1 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
@@ -709,9 +713,9 @@ function CardEmpty({ icon: Icon, title, description, tone = 'text-gray-400', cla
 
 function UserStatCard({ label, value, caption, icon: Icon, tone, captionTone = 'text-gray-400 dark:text-gray-500' }) {
   return (
-    <Card className="p-4 sm:p-5 h-full min-w-0">
-      <div className="flex items-center gap-3 sm:gap-4">
-        <div className={`w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${tone}`}>
+    <Card className="p-3 sm:p-5 h-full min-w-0">
+      <div className="flex items-center gap-2.5 sm:gap-4">
+        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${tone}`}>
           <Icon className="w-5 h-5 sm:w-6 sm:h-6" />
         </div>
         <div className="min-w-0">
@@ -754,8 +758,10 @@ function UpcomingRow({ item, onOpen }) {
       }`}
     >
       {/* Two equal flexible columns keep the type tag exactly in the
-          horizontal middle of the card, whatever the title length. */}
-      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-4">
+          horizontal middle of the card, whatever the title length. Below sm
+          the row is a single column instead, so the tags never squeeze the
+          title into nothing. */}
+      <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-4">
         <div className="min-w-0 pr-2 sm:pr-4">
           <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
             {item.title}
@@ -765,23 +771,25 @@ function UpcomingRow({ item, onOpen }) {
           </p>
         </div>
 
-        <div className="flex self-stretch items-center justify-center">
-          <Badge {...badgeProps} size="sm" className="shrink-0 whitespace-nowrap">
-            {badgeLabel}
-          </Badge>
-        </div>
-
-        <div className="flex min-w-0 items-center justify-end gap-2 sm:gap-4">
-          {item.priority && (
-            <Badge {...(priorityBadgeProps[item.priority] || { color: 'neutral' })} size="sm" className="shrink-0 whitespace-nowrap">
-              {item.priority}
+        <div className="flex items-center gap-3 sm:contents">
+          <div className="flex self-stretch items-center justify-center">
+            <Badge {...badgeProps} size="sm" className="shrink-0 whitespace-nowrap">
+              {badgeLabel}
             </Badge>
-          )}
-          <span className="flex w-4 items-center justify-center flex-shrink-0">
-            {clickable && (
-              <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 group-hover:text-primary-500 shrink-0" />
+          </div>
+
+          <div className="flex min-w-0 items-center justify-end gap-2 sm:gap-4">
+            {item.priority && (
+              <Badge {...(priorityBadgeProps[item.priority] || { color: 'neutral' })} size="sm" className="shrink-0 whitespace-nowrap">
+                {item.priority}
+              </Badge>
             )}
-          </span>
+            <span className="flex w-4 items-center justify-center flex-shrink-0">
+              {clickable && (
+                <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 group-hover:text-primary-500 shrink-0" />
+              )}
+            </span>
+          </div>
         </div>
       </div>
     </Wrapper>
@@ -816,7 +824,7 @@ function RecentRow({ item, onOpen, centerCompletion = false }) {
     <button
       type="button"
       onClick={() => onOpen(item)}
-      className={`group w-full text-left gap-3 sm:gap-4 px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors ${centerCompletion ? 'grid grid-cols-[minmax(0,1fr)_1.5rem_minmax(0,1fr)] items-center' : 'flex items-center'}`}
+      className={`group w-full text-left gap-3 sm:gap-4 px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors ${centerCompletion ? 'grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_1.5rem_minmax(0,1fr)] items-center' : 'flex items-center'}`}
     >
       {centerCompletion ? (
         <>
@@ -832,16 +840,20 @@ function RecentRow({ item, onOpen, centerCompletion = false }) {
               <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-1">{getRecentMeta(item)}</p>
             </div>
           </div>
-          <div className="flex min-w-0 items-center justify-center">
-            {completed && (
-              <span className="text-green-500 dark:text-green-400 shrink-0" title="Completed">
-                <CheckCircle2 className="w-4 h-4" />
-              </span>
-            )}
-          </div>
-          <div className="flex min-w-0 items-center justify-end gap-3 sm:gap-4">
-            {typeBadge}
-            {chevron}
+          {/* Below sm the completion mark, type tag and chevron share a second
+              line so the title keeps the full width of the card. */}
+          <div className="flex min-w-0 items-center justify-end gap-3 sm:contents sm:justify-normal">
+            <div className="flex min-w-0 items-center justify-center">
+              {completed && (
+                <span className="text-green-500 dark:text-green-400 shrink-0" title="Completed">
+                  <CheckCircle2 className="w-4 h-4" />
+                </span>
+              )}
+            </div>
+            <div className="flex min-w-0 items-center justify-end gap-3 sm:gap-4">
+              {typeBadge}
+              {chevron}
+            </div>
           </div>
         </>
       ) : (
@@ -1329,7 +1341,7 @@ function UserDashboard() {
                     onClick={() => openItem({ ...ann, _type: 'Announcement' })}
                     className="group w-full text-left px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors flex items-center gap-3"
                   >
-                    <div className="flex-1 min-w-0 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+                    <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5 min-w-0">
                           {ann.pinned && <Pin className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
@@ -1345,12 +1357,12 @@ function UserDashboard() {
                             .join(' · ')}
                         </p>
                       </div>
-                      <div className="flex justify-center min-w-0">
+                      <div className="flex justify-start sm:justify-center min-w-0">
                         <Badge {...(ANNOUNCEMENT_BADGE_PROPS[ann.type] || {})} size="sm" className="shrink-0">
                           {ann.type || 'General'}
                         </Badge>
                       </div>
-                      <div aria-hidden="true" />
+                      <div aria-hidden="true" className="hidden sm:block" />
                     </div>
                     <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 group-hover:text-primary-500 shrink-0" />
                   </button>
