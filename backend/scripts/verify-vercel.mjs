@@ -76,6 +76,32 @@ section('Routing: every URL reaches the right place');
           i = j;
           continue;
         }
+        /*
+         * `:name(<group>)` -> the group is passed through VERBATIM.
+         *
+         * The SPA catch-all is `/:path((?!api/).*)`, and the inner
+         * `(?!api/)` is a negative lookahead, not literal text. Escaping it
+         * (as the metacharacter branch below used to do) compiled the rule to
+         * `^\/([^/]+)\(\(?!api\/\)\..*\)$`, which matches no real URL at all -
+         * so every SPA case resolved to `null` and looked like a routing bug in
+         * vercel.json when the config was in fact correct.
+         */
+        if (j < source.length && source[j] === '(') {
+          let depth = 0;
+          let k = j;
+          for (; k < source.length; k += 1) {
+            if (source[k] === '(') depth += 1;
+            else if (source[k] === ')') {
+              depth -= 1;
+              if (depth === 0) break;
+            }
+          }
+          if (k < source.length) {
+            out += `(${source.slice(j + 1, k)})`;
+            i = k;
+            continue;
+          }
+        }
         out += '([^/]+)';
         i = j - 1;
         continue;

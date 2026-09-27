@@ -1,35 +1,6 @@
-// import app from '../backend/server.js';
-
-// export default function handler(req, res) {
-//   return app(req, res);
-// }
-
-// export const config = {
-//   api: {
-//     bodyParser: false,
-//   },
-// };
-
-
 import app from '../backend/server.js';
 import connectDB from '../backend/config/db.js';
 
-export default async function handler(req, res) {
-  try {
-    await connectDB();
-  } catch (err) {
-    console.error('MongoDB connection failed:', err.message);
-    res.status(500).json({ success: false, message: 'Database connection failed' });
-    return;
-  }
-  return app(req, res);
-}
-
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
 /**
  * Single serverless entry point for the whole API.
  *
@@ -50,7 +21,15 @@ export const config = {
  * path, for a direct hit on `/api`, and for a request that already carries the
  * prefix, without any of them needing to know which happened.
  */
-export default function handler(req, res) {
+export default async function handler(req, res) {
+  /*
+   * Connect before routing so a cold start does not answer the first request
+   * with a 503 from an unopened connection. `connectDB()` never rejects - it
+   * logs and returns null - so a database outage falls through to the route's
+   * own query, which reports a real, correctly-classified error.
+   */
+  await connectDB();
+
   const url = req.url || '/';
 
   if (!url.startsWith('/api')) {
@@ -66,3 +45,9 @@ export default function handler(req, res) {
 
   return app(req, res);
 }
+
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
