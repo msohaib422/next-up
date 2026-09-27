@@ -174,21 +174,6 @@ const loginAction = () => {
 };
 
 /**
- * The closing "Login" button of the approval email.
- *
- * It is a separate, final call to action rather than a second copy of the
- * primary button: it opens in a new tab (`target="_blank"` with
- * `rel="noopener noreferrer"`, so the opened page can neither reach back through
- * `window.opener` nor leak the referring address), it carries no credential of
- * any kind, and it points at the existing /login form. Clicking it does not sign
- * anybody in - the reader still has to authenticate, exactly as on the page.
- */
-const loginButton = () => {
-  const action = appLink('/login');
-  return action ? { label: 'Login', ...action, newTab: true } : undefined;
-};
-
-/**
  * Drop the cached transporter. The transporter is cached on purpose so
  * connections are reused across requests, which also means a change to the
  * SMTP_* variables only takes effect after this is called (or the process
@@ -240,16 +225,18 @@ const BRAND = 'NextUp';
  * Shared, consistently styled email shell. Every workflow email uses this so
  * the whole set looks like one system.
  *
- * `rows` are label/value pairs; `action` is an optional call-to-action button;
- * `finalAction` is an optional closing button rendered after everything else,
- * used for the approval email's final "Login".
+ * `rows` are label/value pairs; `action` is an optional call-to-action button.
+ *
+ * `footerRule: false` drops the hairline that separates the footer, for the one
+ * template that must not have a horizontal line under its link. Every other
+ * email keeps the line, because it is part of the shared look.
  *
  * An action with `newTab: true` opens in a new browser tab. `rel="noopener
  * noreferrer"` is not optional there: without `noopener` the opened page gets a
  * handle on this window through `window.opener`, and without `noreferrer` it
  * learns which address the mail was sent to.
  */
-const layout = ({ heading, intro, rows = [], body = '', action, finalAction, footer }) => {
+const layout = ({ heading, intro, rows = [], body = '', action, footer, footerRule = true }) => {
   const safeRows = rows
     .map(
       ([label, value]) => `
@@ -286,16 +273,10 @@ const layout = ({ heading, intro, rows = [], body = '', action, finalAction, foo
                  <span style="color:#4f46e5;word-break:break-all;">${escapeHtml(action.url)}</span></p>`
               : ''
           }
-          ${
-            finalAction
-              ? `<p style="margin:24px 0 0;padding-top:20px;border-top:1px solid #e5e7eb;"><a href="${escapeHtml(finalAction.url)}"${anchor(finalAction)} style="display:inline-block;padding:11px 22px;background:#4f46e5;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">${escapeHtml(finalAction.label)}</a></p>
-                 <p style="margin:8px 0 0;font-size:13px;color:#6b7280;">Opens the NextUp sign-in page in a new tab. You will need the email address and password you registered with.</p>`
-              : ''
-          }
         </td>
       </tr>
       <tr>
-        <td style="padding:20px 28px;background:#f9fafb;border-radius:0 0 12px 12px;border-top:1px solid #e5e7eb;">
+        <td style="padding:20px 28px;background:#f9fafb;border-radius:0 0 12px 12px;${footerRule ? 'border-top:1px solid #e5e7eb;' : ''}">
           <p style="margin:0;font-size:13px;line-height:1.6;color:#6b7280;">${footer || `This is an automated message from ${BRAND}. Please do not reply to this email.`}</p>
         </td>
       </tr>
@@ -304,14 +285,13 @@ const layout = ({ heading, intro, rows = [], body = '', action, finalAction, foo
 </html>`;
 };
 
-const toPlainText = ({ heading, intro, rows = [], action, finalAction }) =>
+const toPlainText = ({ heading, intro, rows = [], action }) =>
   [
     heading,
     '',
     intro,
     ...rows.map(([label, value]) => `${label}: ${value}`),
     ...(action ? ['', `${action.label}: ${action.url}`] : []),
-    ...(finalAction ? ['', `${finalAction.label}: ${finalAction.url}`] : []),
   ].join('\n');
 
 /**
@@ -330,9 +310,9 @@ const toPlainText = ({ heading, intro, rows = [], action, finalAction }) =>
  *   { sent, status: 'sent' | 'skipped' | 'failed', reason?, messageId? }
  * and, for a list, a `results` array with one entry per address considered.
  */
-export const sendMail = async ({ to, subject, heading, intro, rows, bodyHtml, bodyText, action, finalAction, footer, context, relatedUser = null, allowSuppressed = false }) => {
-  const html = layout({ heading, intro, rows, body: bodyHtml, action, finalAction, footer });
-  const text = bodyText || toPlainText({ heading, intro, rows, action, finalAction });
+export const sendMail = async ({ to, subject, heading, intro, rows, bodyHtml, bodyText, action, footer, footerRule = true, context, relatedUser = null, allowSuppressed = false }) => {
+  const html = layout({ heading, intro, rows, body: bodyHtml, action, footer, footerRule });
+  const text = bodyText || toPlainText({ heading, intro, rows, action });
   const where = context ? ` (${context})` : '';
 
   const requested = (Array.isArray(to) ? to : [to])
@@ -554,10 +534,9 @@ export const sendRegistrationApprovedEmail = async (user, { allowSuppressed = fa
     // configuration. Omitted entirely when no public URL is configured, rather
     // than falling back to a hardcoded localhost address.
     action: loginAction(),
-    // The closing "Login" button, after everything else in the message. It
-    // opens the deployed site in a new tab on the existing sign-in form and
-    // carries no credential, so clicking it never signs anybody in by itself.
-    finalAction: loginButton(),
+    // No second call to action, and no hairline under the fallback link: this
+    // message ends with the one button and its plain-text URL.
+    footerRule: false,
   });
 };
 
