@@ -4,7 +4,7 @@
  *   1. the absolute application URL used in every email
  *   2. the ten-minute closed-session window (and the promise that an active
  *      session is never ended by it)
- *   3. the "Login" button at the end of the approval email
+ *   3. the buttons at the end of the approval email (one, and no hairline)
  *
  * Nothing here is part of the application. Run from backend/:
  *   node scripts/verify-session-and-email-links.mjs
@@ -222,14 +222,15 @@ await withEnv({ FRONTEND_URL: 'https://nextup.example.com' }, async () => {
   const approval = mails.find((m) => m.subject.startsWith('Your NextUp registration has been approved'));
   const approvalLinks = anchors(approval?.html);
   const login = approvalLinks.find((a) => a.label === 'Login');
-  check('the approval email ends with a "Login" button', Boolean(login), approvalLinks.map((a) => a.label).join(' | '));
-  check('the Login button targets the existing sign-in page', /href="https:\/\/nextup\.example\.com\/login"/.test(login?.tag || ''), login?.tag);
-  check('it opens in a new tab', /target="_blank"/.test(login?.tag || ''), login?.tag);
-  check('and cannot reach back through window.opener', /rel="noopener noreferrer"/.test(login?.tag || ''), login?.tag);
-  check('it is the last link in the message', approvalLinks[approvalLinks.length - 1]?.label === 'Login', approvalLinks.map((a) => a.label).join(' | '));
-  check('the existing primary button is untouched', approvalLinks.some((a) => a.label === 'Login to NextUp'));
+  check('the approval email has no closing "Login" button', !login, approvalLinks.map((a) => a.label).join(' | '));
+  check('the primary button is the only button', approvalLinks.filter((a) => a.label === 'Login to NextUp').length === 1, approvalLinks.map((a) => a.label).join(' | '));
+  check('the primary button targets the existing sign-in page', /href="https:\/\/nextup\.example\.com\/login"/.test(approvalLinks.find((a) => a.label === 'Login to NextUp')?.tag || ''));
+  check('it is the last link in the message', approvalLinks[approvalLinks.length - 1]?.label === 'Login to NextUp', approvalLinks.map((a) => a.label).join(' | '));
+  check('no closing "new tab" note is left behind', !/Opens the NextUp sign-in page in a new tab/.test(approval?.html || ''));
+  check('no hairline under the fallback link', !/border-top:1px solid #e5e7eb;">\s*<p style="margin:0;font-size:13px;color:#6b7280;">This is an automated message/.test(approval?.html || ''));
   check('no credential is embedded in either link', !/token|secret|password/i.test(approval?.html.split('href=')[1] || ''));
-  check('the plain-text version carries it too', /Login: https:\/\/nextup\.example\.com\/login/.test(approval?.text || ''), approval?.text);
+  check('the plain-text version carries it too', /Login to NextUp: https:\/\/nextup\.example\.com\/login/.test(approval?.text || ''), approval?.text);
+  check('and no stray closing "Login:" line', !/^Login: /m.test(approval?.text || ''), approval?.text);
 });
 
 await withEnv(prod, async () => {
