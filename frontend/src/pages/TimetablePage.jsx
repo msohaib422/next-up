@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
 import { useAuth } from '../hooks/useAuth'
+import { useHighlightSync } from '../hooks/useHighlightSync'
 import { Plus, Clock, Trash2, Edit, FileText, Upload } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -18,6 +19,10 @@ export default function TimetablePage() {
   const [editingLecture, setEditingLecture] = useState(null)
 
   useEffect(() => { fetchLectures() }, [])
+
+  // A notification may point at an entry this page has not loaded yet
+  // (e.g. another admin added it while this page was already open).
+  useHighlightSync(lectures.map((lecture) => lecture._id), loading, () => fetchLectures())
 
   const fetchLectures = async () => {
     try {
