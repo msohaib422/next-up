@@ -1,4 +1,5 @@
 import multer from 'multer';
+import { MAX_UPLOAD_BYTES } from '../config/uploadLimits.js';
 
 const storage = multer.memoryStorage();
 
@@ -22,7 +23,8 @@ const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024,
+    // From config/uploadLimits.js, which defaults to the size Vercel accepts.
+    fileSize: MAX_UPLOAD_BYTES,
   },
 });
 

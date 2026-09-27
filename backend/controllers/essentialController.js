@@ -1,16 +1,18 @@
 import Essential from '../models/Essential.js';
 import Contribution from '../models/Contribution.js';
 import { createActivity } from './activityController.js';
-import { getVisibleUserIds } from '../utils/helpers.js';
+import { getVisibleUserIds, getWritableUserIds } from '../utils/helpers.js';
 import { uploadToCloudinary, deleteFromCloudinary, extractCloudinaryMetadata } from '../services/cloudinary.js';
 import upload from '../middleware/upload.js';
+import { fileTooLargeMessage } from '../config/uploadLimits.js';
+import { notifyContentChange, notifyContributionUpdated, notifyContributorsOfDeletedEntity } from '../services/notificationService.js';
 
 export const uploadEssentialFile = [
   (req, res, next) => {
     upload.single('file')(req, res, (err) => {
       if (err) {
         if (err.code === 'LIMIT_FILE_SIZE') {
-          return res.status(400).json({ success: false, message: 'File is too large. Maximum size is 10 MB.' });
+          return res.status(400).json({ success: false, message: fileTooLargeMessage });
         }
         return res.status(400).json({ success: false, message: err.message || 'File upload failed.' });
       }
@@ -43,7 +45,7 @@ export const uploadEssentialFile = [
       } else if (error.http_code === 401 || error.message?.includes('authentication failed')) {
         message = 'Upload service authentication failed. Please contact support.';
       } else if (error.message?.includes('File too large') || error.code === 'LIMIT_FILE_SIZE') {
-        message = 'File is too large. Maximum size is 10 MB.';
+        message = fileTooLargeMessage;
       } else {
         message = error.message || 'File upload to storage failed.';
       }
@@ -141,6 +143,8 @@ export const createEssential = async (req, res, next) => {
 
     await createActivity(req.user._id, 'essential', `New essential: ${title}`, '', 'Essential', essential._id);
 
+    await notifyContentChange({ entityType: 'Essential', entity: essential, actor: req.user, action: 'added' });
+
     res.status(201).json({ success: true, data: essential });
   } catch (error) {
     next(error);
@@ -149,7 +153,7 @@ export const createEssential = async (req, res, next) => {
 
 export const updateEssential = async (req, res, next) => {
   try {
-    const existingEssential = await Essential.findOne({ _id: req.params.id, user: req.user._id });
+    const existingEssential = await Essential.findOne({ _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } });
     if (!existingEssential) {
       return res.status(404).json({ success: false, message: 'Essential not found' });
     }
@@ -200,10 +204,15 @@ export const updateEssential = async (req, res, next) => {
     }
 
     const essential = await Essential.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
+      { _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } },
       updateFields,
       { new: true, runValidators: true }
     );
+
+    if (essential) {
+      await notifyContributionUpdated({ entityType: 'Essential', entity: essential, admin: req.user });
+      await notifyContentChange({ entityType: 'Essential', entity: essential, actor: req.user, action: 'updated' });
+    }
 
     res.json({ success: true, data: essential });
   } catch (error) {
@@ -213,7 +222,7 @@ export const updateEssential = async (req, res, next) => {
 
 export const deleteEssential = async (req, res, next) => {
   try {
-    const essential = await Essential.findOne({ _id: req.params.id, user: req.user._id });
+    const essential = await Essential.findOne({ _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } });
     if (!essential) {
       return res.status(404).json({ success: false, message: 'Essential not found' });
     }
@@ -225,7 +234,9 @@ export const deleteEssential = async (req, res, next) => {
       });
     }
 
-    await Essential.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+    await notifyContributorsOfDeletedEntity({ entityType: 'Essential', entityId: req.params.id, actor: req.user });
+
+    await Essential.findOneAndDelete({ _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } });
 
     // Keep the contributor's record: an approved contribution that is later deleted
     // must show as Deleted, not disappear or fall back to Not Published.

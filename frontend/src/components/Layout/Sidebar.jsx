@@ -4,7 +4,7 @@ import { useTheme } from '../../hooks/useTheme'
 import {
   LayoutDashboard, CheckSquare, HelpCircle, Megaphone,
   Clock, FileCheck, User, Users, BookOpen,
-  LogOut, Sun, Moon, X, GraduationCap, Send, ClipboardCheck
+  LogOut, Sun, Moon, X, GraduationCap, Send, ClipboardCheck, Bell
 } from 'lucide-react'
 
 const navItems = [
@@ -15,6 +15,7 @@ const navItems = [
   { to: '/essentials', icon: BookOpen, label: 'Essentials' },
   { to: '/announcements', icon: Megaphone, label: 'Announcements' },
   { to: '/timetable', icon: Clock, label: 'Timetable' },
+  { to: '/notifications', icon: Bell, label: 'Notifications' },
   { to: '/contribute', icon: Send, label: 'Contribute', userOnly: true },
   { to: '/approvals', icon: ClipboardCheck, label: 'Approvals', collaboratorOnly: true },
   { to: '/users', icon: Users, label: 'Users', collaboratorOnly: true },
@@ -39,7 +40,7 @@ export default function Sidebar({ isOpen, onClose }) {
         <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
           <div className="flex items-center gap-2">
             <GraduationCap className="w-8 h-8 text-primary-600" />
-            <span className="font-bold text-lg text-gray-900 dark:text-white">UniProductive</span>
+            <span className="font-bold text-lg text-gray-900 dark:text-white">NextUp</span>
           </div>
           <button onClick={onClose} className="lg:hidden p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
             <X className="w-5 h-5" />

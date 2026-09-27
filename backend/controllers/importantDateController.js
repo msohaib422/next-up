@@ -1,6 +1,6 @@
 import ImportantDate from '../models/ImportantDate.js';
 import { createActivity } from './activityController.js';
-import { getVisibleUserIds } from '../utils/helpers.js';
+import { getVisibleUserIds, getWritableUserIds } from '../utils/helpers.js';
 
 export const getImportantDates = async (req, res, next) => {
   try {
@@ -58,7 +58,7 @@ export const createImportantDate = async (req, res, next) => {
 export const updateImportantDate = async (req, res, next) => {
   try {
     const date = await ImportantDate.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
+      { _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } },
       req.body,
       { new: true, runValidators: true }
     );
@@ -73,7 +73,7 @@ export const updateImportantDate = async (req, res, next) => {
 
 export const deleteImportantDate = async (req, res, next) => {
   try {
-    const date = await ImportantDate.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+    const date = await ImportantDate.findOneAndDelete({ _id: req.params.id, user: { $in: await getWritableUserIds(req.user) } });
     if (!date) {
       return res.status(404).json({ success: false, message: 'Important date not found' });
     }
