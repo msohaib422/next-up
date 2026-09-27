@@ -1,5 +1,6 @@
 import User from '../models/User.js';
 import { generateToken } from '../utils/helpers.js';
+import { sessionIdleMs } from '../config/session.js';
 import { resolveAdminRecipients } from '../config/adminRecipients.js';
 import { createNotification, notifyAdminsOfRegistrationSubmitted } from '../services/notificationService.js';
 import {
@@ -226,6 +227,11 @@ export const login = async (req, res, next) => {
 
     // status is returned so the client can route an unapproved account to the
     // right screen. Access itself is still enforced by the protect middleware.
+    //
+    // `sessionIdleMs` is the server's own idle window, published so the browser
+    // never has to keep a second copy of it. The credential is a sliding one
+    // (see config/session.js): the server re-signs it on every authenticated
+    // request, so working keeps you signed in and walking away lets it lapse.
     res.json({
       success: true,
       data: {
@@ -237,6 +243,7 @@ export const login = async (req, res, next) => {
         status: user.status || 'Approved',
       },
       token,
+      sessionIdleMs: sessionIdleMs(),
     });
   } catch (error) {
     next(error);

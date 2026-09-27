@@ -19,6 +19,7 @@ const SUITES = [
   ['verify-admin-sync-http.mjs', 'the same, end to end over HTTP with two real admin logins'],
   ['verify-reliability.mjs', 'outage handling, reconnection, pooling, rate limiting'],
   ['verify-frontend-auth.mjs', 'session survival, secret exposure'],
+  ['verify-session-and-email-links.mjs', 'production email links, the ten-minute session window'],
   ['verify-vercel.mjs', 'deployment shape, routing, serverless entry point'],
 ];
 

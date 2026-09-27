@@ -1,5 +1,33 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import { isRenewalDue, sessionIdleMs } from '../config/session.js';
+import { generateToken } from '../utils/helpers.js';
+
+/**
+ * Response headers that carry a sliding session renewal to the browser.
+ *
+ * Exported because the browser has to be allowed to read them (see the CORS
+ * setup in server.js) whenever the API is hosted on another origin.
+ */
+export const SESSION_TOKEN_HEADER = 'X-Session-Token';
+export const SESSION_IDLE_HEADER = 'X-Session-Idle-Ms';
+
+/**
+ * Hand the caller a fresh credential for the same account.
+ *
+ * This is the whole of the 10-minute behaviour on the server: the token that
+ * just proved itself is replaced by one whose life starts now, so an in-use
+ * session keeps rolling forward indefinitely and an unused one runs out. No
+ * session table, no schema change, no new library - the enforcement point
+ * stays the same `jwt.verify` that already rejected invalid tokens.
+ */
+const renewSession = (res, user) => {
+  if (res.headersSent) return;
+  res.setHeader(SESSION_TOKEN_HEADER, generateToken(user._id));
+  // Told to the client as well, so the browser's own idle bookkeeping uses the
+  // server's window rather than a second, possibly different, number.
+  res.setHeader(SESSION_IDLE_HEADER, String(sessionIdleMs()));
+};
 
 // Accounts that have not been approved by an administrator may authenticate
 // (so the UI can show them why they cannot proceed) but must not reach any
@@ -81,6 +109,19 @@ const authenticate = async (req, res, next, { requireApproved }) => {
 
   if (requireApproved && approvalRequired(user)) {
     return approvalError(res, user);
+  }
+
+  // The request proved the credential is good, so this is activity. Slide the
+  // window forward (see config/session.js) and let the browser keep using the
+  // new token. Renewing only once the token is a quarter of the way through
+  // its life keeps the extra signature off the overwhelming majority of
+  // requests.
+  if (isRenewalDue(decoded)) {
+    renewSession(res, user);
+  } else {
+    // Still tell the client how long the window is, so its own idle bookkeeping
+    // matches the server exactly even on a response that carried no new token.
+    res.setHeader(SESSION_IDLE_HEADER, String(sessionIdleMs()));
   }
 
   req.user = user;

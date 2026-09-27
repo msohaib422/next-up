@@ -1,9 +1,22 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import { sessionIdleSeconds } from '../config/session.js';
 
+/**
+ * Issue a session credential.
+ *
+ * The token is valid for one idle window (10 minutes by default, see
+ * config/session.js) and NOT for a fixed long life. The window is sliding: the
+ * auth middleware hands a freshly signed token back with every authenticated
+ * request it accepts, so a user who keeps working is never logged out, while a
+ * session the user walked away from simply stops being renewed and expires.
+ *
+ * The same function issues both the token at login and the renewals, so there
+ * is one definition of how long a session lasts.
+ */
 export const generateToken = (userId) => {
   return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
-    expiresIn: '30d',
+    expiresIn: sessionIdleSeconds(),
   });
 };
 

@@ -16,7 +16,9 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import connectDB, { ensureDb, isDbConnected } from './config/db.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+import { SESSION_TOKEN_HEADER, SESSION_IDLE_HEADER } from './middleware/auth.js';
 import { verifySmtpConnection, isMailConfigured } from './services/mailService.js';
+import { describeAppUrl } from './config/appUrl.js';
 
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
@@ -63,6 +65,10 @@ app.use(
       return callback(new Error(`Origin ${origin} is not allowed by CORS`));
     },
     credentials: true,
+    // The sliding session renewal travels in response headers, so a browser
+    // hosted on a different origin has to be allowed to read them. Irrelevant
+    // for the normal same-origin deployment, where nothing is hidden.
+    exposedHeaders: [SESSION_TOKEN_HEADER, SESSION_IDLE_HEADER],
   })
 );
 
@@ -171,6 +177,14 @@ connectDB().catch((error) => {
 // server must not stop the API from serving, but it should never be silent.
 if (isMailConfigured()) {
   verifySmtpConnection().catch(() => {});
+}
+
+// Say out loud which origin email links will be built from. This is the check
+// that makes a "localhost in production" deployment visible in the logs instead
+// of only in somebody's inbox.
+const appUrl = describeAppUrl();
+if (appUrl.baseUrl) {
+  console.log(`[app-url] email links will use ${appUrl.baseUrl} (from ${appUrl.source})`);
 }
 
 if (!process.env.VERCEL) {

@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import User from '../models/User.js';
+import { buildAppUrl } from '../config/appUrl.js';
 import {
   beginAttempt,
   completeAttempt,
@@ -20,9 +21,11 @@ import {
  *   SMTP_FROM   the From address shown to recipients
  *   SMTP_SECURE optional, defaults to true only on port 465
  *   FRONTEND_URL  absolute base URL of the deployed web app, used to build the
- *                  "Login" button in the approval email and the "Review
- *                  Registration" button in the admin email. No URL is ever
- *                  hardcoded, and a localhost value is ignored in production.
+ *                  "View Registration" button in the admin email, the "Login"
+ *                  button in the approval email and the re-registration links.
+ *                  No URL is ever hardcoded. In production a localhost value is
+ *                  refused and the next source is used instead - see
+ *                  config/appUrl.js, which owns all of this.
  *
  * Admin-only email goes to every configured administrator in a single message.
  * The recipient list comes from ADMIN_EMAIL_1 / ADMIN_EMAIL_2 / ADMIN_EMAILS via
@@ -150,42 +153,39 @@ const isPermanentRecipientError = (error) => {
 
 /* ------------------------------------------------------------------ *
  * Public application URLs
- * ------------------------------------------------------------------ */
-
-const isLocalHost = (value) => /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(value);
-
-const isProduction = () => process.env.NODE_ENV === 'production' || Boolean(process.env.VERCEL);
-
-/**
- * Absolute base URL of the deployed frontend, taken from the environment only.
  *
- * FRONTEND_URL is the single documented name; the older APP_URL / CLIENT_URL /
- * ADMIN_REVIEW_URL aliases are gone, so there is one place to set the deployed
- * origin. A localhost value is deliberately ignored in production so a dev
- * setting can never leak a dead link to a real user.
- */
-const publicBaseUrl = () => {
-  const base = String(process.env.FRONTEND_URL || '').trim().replace(/\/+$/, '');
-  if (!base) return '';
-  if (isProduction() && isLocalHost(base)) {
-    console.warn('[mail] FRONTEND_URL points at localhost and is ignored in production - email links will be omitted.');
-    return '';
-  }
-  return base;
-};
+ * Every link in every email is built by backend/config/appUrl.js, which owns the
+ * environment rules: the deployed origin in production (FRONTEND_URL, or an
+ * alias, or the origin Vercel provides), the dev server locally, and never a
+ * loopback address in a production email. Nothing below invents a URL of its
+ * own, and a link that cannot be built is omitted rather than sent broken.
+ * ------------------------------------------------------------------ */
 
 /** Build an absolute link into the web app, or undefined when unconfigured. */
 const appLink = (path) => {
-  const base = publicBaseUrl();
-  if (!base) return undefined;
-  const suffix = String(path || '');
-  return { url: suffix ? `${base}${suffix.startsWith('/') ? suffix : `/${suffix}`}` : base };
+  const url = buildAppUrl(path);
+  return url ? { url } : undefined;
 };
 
 /** Primary "sign in" action used by the approval email. */
 const loginAction = () => {
   const action = appLink('/login');
   return action ? { label: 'Login to NextUp', ...action } : undefined;
+};
+
+/**
+ * The closing "Login" button of the approval email.
+ *
+ * It is a separate, final call to action rather than a second copy of the
+ * primary button: it opens in a new tab (`target="_blank"` with
+ * `rel="noopener noreferrer"`, so the opened page can neither reach back through
+ * `window.opener` nor leak the referring address), it carries no credential of
+ * any kind, and it points at the existing /login form. Clicking it does not sign
+ * anybody in - the reader still has to authenticate, exactly as on the page.
+ */
+const loginButton = () => {
+  const action = appLink('/login');
+  return action ? { label: 'Login', ...action, newTab: true } : undefined;
 };
 
 /**
@@ -240,9 +240,16 @@ const BRAND = 'NextUp';
  * Shared, consistently styled email shell. Every workflow email uses this so
  * the whole set looks like one system.
  *
- * `rows` are label/value pairs; `action` is an optional call-to-action button.
+ * `rows` are label/value pairs; `action` is an optional call-to-action button;
+ * `finalAction` is an optional closing button rendered after everything else,
+ * used for the approval email's final "Login".
+ *
+ * An action with `newTab: true` opens in a new browser tab. `rel="noopener
+ * noreferrer"` is not optional there: without `noopener` the opened page gets a
+ * handle on this window through `window.opener`, and without `noreferrer` it
+ * learns which address the mail was sent to.
  */
-const layout = ({ heading, intro, rows = [], body = '', action, footer }) => {
+const layout = ({ heading, intro, rows = [], body = '', action, finalAction, footer }) => {
   const safeRows = rows
     .map(
       ([label, value]) => `
@@ -252,6 +259,9 @@ const layout = ({ heading, intro, rows = [], body = '', action, footer }) => {
         </tr>`
     )
     .join('');
+
+  const anchor = (target) =>
+    target.newTab ? ' target="_blank" rel="noopener noreferrer"' : '';
 
   return `<!doctype html>
 <html>
@@ -271,9 +281,15 @@ const layout = ({ heading, intro, rows = [], body = '', action, footer }) => {
           ${body ? `<div style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#374151;">${body}</div>` : ''}
           ${
             action
-              ? `<p style="margin:0 0 8px;"><a href="${escapeHtml(action.url)}" style="display:inline-block;padding:11px 22px;background:#4f46e5;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">${escapeHtml(action.label)}</a></p>
+              ? `<p style="margin:0 0 8px;"><a href="${escapeHtml(action.url)}"${anchor(action)} style="display:inline-block;padding:11px 22px;background:#4f46e5;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">${escapeHtml(action.label)}</a></p>
                  <p style="margin:0;font-size:13px;color:#6b7280;">If the button does not work, copy and paste this link into your browser:<br />
                  <span style="color:#4f46e5;word-break:break-all;">${escapeHtml(action.url)}</span></p>`
+              : ''
+          }
+          ${
+            finalAction
+              ? `<p style="margin:24px 0 0;padding-top:20px;border-top:1px solid #e5e7eb;"><a href="${escapeHtml(finalAction.url)}"${anchor(finalAction)} style="display:inline-block;padding:11px 22px;background:#4f46e5;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">${escapeHtml(finalAction.label)}</a></p>
+                 <p style="margin:8px 0 0;font-size:13px;color:#6b7280;">Opens the NextUp sign-in page in a new tab. You will need the email address and password you registered with.</p>`
               : ''
           }
         </td>
@@ -288,13 +304,14 @@ const layout = ({ heading, intro, rows = [], body = '', action, footer }) => {
 </html>`;
 };
 
-const toPlainText = ({ heading, intro, rows = [], action }) =>
+const toPlainText = ({ heading, intro, rows = [], action, finalAction }) =>
   [
     heading,
     '',
     intro,
     ...rows.map(([label, value]) => `${label}: ${value}`),
     ...(action ? ['', `${action.label}: ${action.url}`] : []),
+    ...(finalAction ? ['', `${finalAction.label}: ${finalAction.url}`] : []),
   ].join('\n');
 
 /**
@@ -313,9 +330,9 @@ const toPlainText = ({ heading, intro, rows = [], action }) =>
  *   { sent, status: 'sent' | 'skipped' | 'failed', reason?, messageId? }
  * and, for a list, a `results` array with one entry per address considered.
  */
-export const sendMail = async ({ to, subject, heading, intro, rows, bodyHtml, bodyText, action, footer, context, relatedUser = null, allowSuppressed = false }) => {
-  const html = layout({ heading, intro, rows, body: bodyHtml, action, footer });
-  const text = bodyText || toPlainText({ heading, intro, rows, action });
+export const sendMail = async ({ to, subject, heading, intro, rows, bodyHtml, bodyText, action, finalAction, footer, context, relatedUser = null, allowSuppressed = false }) => {
+  const html = layout({ heading, intro, rows, body: bodyHtml, action, finalAction, footer });
+  const text = bodyText || toPlainText({ heading, intro, rows, action, finalAction });
   const where = context ? ` (${context})` : '';
 
   const requested = (Array.isArray(to) ? to : [to])
@@ -537,6 +554,10 @@ export const sendRegistrationApprovedEmail = async (user, { allowSuppressed = fa
     // configuration. Omitted entirely when no public URL is configured, rather
     // than falling back to a hardcoded localhost address.
     action: loginAction(),
+    // The closing "Login" button, after everything else in the message. It
+    // opens the deployed site in a new tab on the existing sign-in form and
+    // carries no credential, so clicking it never signs anybody in by itself.
+    finalAction: loginButton(),
   });
 };
 

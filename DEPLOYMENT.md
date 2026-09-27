@@ -49,10 +49,39 @@ every variable is optional unless noted.
 | `SMTP_USER` | The sending mailbox. |
 | `SMTP_PASS` | An **app password**, not the account password. |
 | `SMTP_FROM` | The From address shown to recipients. |
-| `FRONTEND_URL` | The deployed origin, no trailing slash, e.g. `https://nextup.vercel.app`. A `localhost` value is ignored in production and email links are omitted. |
+| `FRONTEND_URL` | The deployed origin, no trailing slash, e.g. `https://nextup.vercel.app`. Recommended, but see below — a wrong value can no longer break an email. |
 
 All configured admin addresses go into the `To` header of a **single** message,
 so one event is one email operation no matter how many administrators there are.
+
+#### `FRONTEND_URL`, and why a localhost link can no longer be emailed
+
+`FRONTEND_URL` builds every link in every email: the admin email's **View
+Registration** button (`/users?highlight=<id>`), the approval email's **Login**
+button (`/login`), and the re-registration links.
+
+It used to be the only source, which made one mistake invisible: a
+`http://localhost:5173` value left in the production environment produced emails
+whose buttons sent the administrator to their own machine. That was a
+configuration problem, not a code problem, so it is now handled where the URLs
+are built — `backend/config/appUrl.js`:
+
+| Order | Source | When it is used |
+| --- | --- | --- |
+| 1 | `FRONTEND_URL` | Whenever it is set to a usable public origin. |
+| 2 | `APP_URL`, `NEXT_PUBLIC_APP_URL`, `PUBLIC_APP_URL` | Accepted aliases. |
+| 3 | `VERCEL_PROJECT_PRODUCTION_URL`, then `VERCEL_URL` | Set by Vercel itself, so a project that forgot `FRONTEND_URL` still gets real links. |
+| 4 | `http://localhost:5173` | **Development only.** |
+
+In production a candidate is refused when it points at `localhost`, `127.x`,
+`::1`, a private range or a `*.local` host, when it is not `http(s)`, or when it
+carries embedded credentials — and the search moves on to the next source. A
+refused value is logged (`[app-url] ignoring unusable app URL(s)…`) and reported
+at start-up (`[app-url] email links will use …`). If nothing at all is usable
+the buttons are **omitted** rather than sent with a dead link.
+
+So `FRONTEND_URL` is worth setting for a custom domain, but leaving it at
+`localhost` in production is no longer able to email a localhost link.
 
 ### Required for file uploads
 
@@ -70,10 +99,31 @@ so one event is one email operation no matter how many administrators there are.
 | `RATE_LIMIT_MAX` | `1000` | Requests per IP per window across `/api`. |
 | `RATE_LIMIT_WINDOW_MS` | `900000` | |
 | `MAX_UPLOAD_MB` | `4` | See the upload limitation below. |
+| `SESSION_IDLE_MINUTES` | `10` | How long a session survives without activity. See below. |
 | `EMAIL_MAX_FAILURES` | `3` | Failures before an address stops being emailed. |
 | `EMAIL_SUPPRESSED_ADDRESSES` | empty | Addresses never to email again. |
 | `MONGO_MAX_POOL_SIZE` | `10` | |
 | `VITE_API_URL` | unset | Leave unset. The frontend then calls `/api` on its own origin. |
+
+### Sessions and the ten-minute window
+
+`SESSION_IDLE_MINUTES` (default `10`) is an **idle** window, not a total session
+length, and the distinction matters:
+
+- The credential is signed for one window and **renewed by the server on every
+  request it accepts**. A user who signs in and works for half an hour keeps
+  their session the whole time; there is no timer anywhere that can end it.
+- A session that is left alone — the tab closed, the browser shut — stops being
+  renewed, so it expires one window after the last request. The next request is
+  refused with `401 TOKEN_EXPIRED` and the user is asked to sign in again.
+
+The browser checks the same window on start-up so the user is asked to sign in
+straight away rather than watching a protected page load and then bounce. It can
+only do that for a tab that is *closed* (`sessionStorage` is per-tab), which is
+why a page refresh and a second tab are both left alone.
+
+Existing tokens are not affected by adding the variable: setting it only changes
+how long a newly issued session lasts.
 
 ### Frontend variables
 
@@ -84,13 +134,19 @@ one is readable by anyone who opens the site. No backend secret belongs in a
 
 ## After deploying
 
-1. Set `FRONTEND_URL` to the deployed origin. Until you do, approval emails have
-   no working links (a `localhost` value is deliberately ignored in production).
+1. Optional but recommended: set `FRONTEND_URL` to the deployed origin if it is
+   a custom domain. Without it the links use the Vercel origin, which is correct
+   for a default `*.vercel.app` deployment. Read the start-up line
+   `[app-url] email links will use …` to see which one is in effect.
 2. Confirm the two admin accounts can sign in and reach `/users` and
    `/approvals`.
 3. Submit a test registration and confirm one email arrives addressed to both
-   administrators.
-4. Check `GET /api/health`. It returns `200` with `database: "connected"`.
+   administrators, and that its **View Registration** button opens
+   `https://<your-deployment>/users?highlight=<id>` — signing in first if the
+   administrator is not already signed in.
+4. Approve the registration and confirm the approval email ends with a **Login**
+   button that opens the deployed `/login` in a new tab.
+5. Check `GET /api/health`. It returns `200` with `database: "connected"`.
 
 ## Known platform limitations
 
@@ -147,9 +203,11 @@ used in production; the deployment routes `/api` to the function directly.
 npm run verify
 ```
 
-Runs 269 checks across five suites covering the database, account preservation,
-admin parity, real password logins, outage and reconnection behaviour, session
-survival, secret exposure, and the deployment shape and routing.
+Runs the verification suites covering the database, account preservation, admin
+parity, real password logins, outage and reconnection behaviour, session
+survival, secret exposure, the production email links and the session window, and
+the deployment shape and routing. Each suite can also be run on its own from
+`backend/`, e.g. `node scripts/verify-session-and-email-links.mjs`.
 
 ## Database operations
 

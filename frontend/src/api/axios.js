@@ -14,6 +14,8 @@ import axios from 'axios'
  * destroyed a perfectly valid login. That is what produced the random logouts.
  */
 
+import { noteActivity, rememberIdleWindow } from '../utils/sessionIdle'
+
 const api = axios.create({
   // Same-origin in production: Vercel rewrites /api to the serverless function,
   // so no backend URL is ever compiled into the bundle and no CORS preflight is
@@ -82,8 +84,51 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+/** Fired when the server hands back a renewed session token. */
+export const SESSION_RENEWED_EVENT = 'nextup:session-renewed'
+
+/** Response headers carrying the sliding session (see backend/config/session.js). */
+const SESSION_TOKEN_HEADER = 'x-session-token'
+const SESSION_IDLE_HEADER = 'x-session-idle-ms'
+
+/*
+ * Keep the stored token in step with the server's sliding window.
+ *
+ * The server signs each credential for one idle window and re-signs it on every
+ * request it accepts, so a session the user is actually using never runs out
+ * while a session they walked away from does. The renewed token arrives as a
+ * response header, and it has to be stored here, before the next request is
+ * built, otherwise the client would keep presenting the older copy until it
+ * happened to expire.
+ *
+ * Nothing here decides whether a session is valid: the server already answered
+ * this request, so the credential was good, and the client is only recording
+ * the newer copy of it.
+ */
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const headers = response?.headers
+    if (!headers) return response
+
+    const idle = Number(headers[SESSION_IDLE_HEADER])
+    if (Number.isFinite(idle) && idle > 0) {
+      rememberIdleWindow(idle)
+      // The server only sends this header on a request it actually
+      // authenticated, so receiving it is proof that the user is still here.
+      // That keeps the browser's record of when this session was last used
+      // accurate, which is what the closed-tab check on the next visit reads.
+      noteActivity()
+    }
+
+    const renewed = headers[SESSION_TOKEN_HEADER]
+    if (typeof renewed === 'string' && renewed && renewed !== localStorage.getItem('token')) {
+      localStorage.setItem('token', renewed)
+      window.dispatchEvent(new CustomEvent(SESSION_RENEWED_EVENT, { detail: renewed }))
+    }
+
+    return response
+  },
+
   (error) => {
     // 1. The server positively rejected the credential. This is the ONLY case
     //    that ends the session, and the stored token is removed for real.
