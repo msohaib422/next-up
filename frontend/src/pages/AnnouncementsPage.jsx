@@ -366,11 +366,11 @@ export default function AnnouncementsPage() {
         )}
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
+      <div className="flex flex-wrap gap-3">
         <div className="w-full sm:flex-[2_1_16rem] sm:min-w-0">
           <Input icon={Search} placeholder="Search announcements..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <div className="relative w-full sm:w-auto sm:basis-[220px] sm:grow-0 sm:shrink-0">
+        <div className="relative w-fit max-w-full sm:basis-[220px] sm:grow-0 sm:shrink-0">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Calendar className="h-5 w-5 text-gray-400" />
           </div>
@@ -382,7 +382,7 @@ export default function AnnouncementsPage() {
             className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 pl-10 pr-3 py-2 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-colors"
           />
         </div>
-        <div className="w-full sm:w-auto sm:basis-36 sm:grow-0 sm:shrink-0">
+        <div className="w-fit max-w-full sm:basis-36 sm:grow-0 sm:shrink-0">
           <Select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}

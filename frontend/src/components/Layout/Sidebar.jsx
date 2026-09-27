@@ -88,9 +88,11 @@ export default function Sidebar({ isOpen, onClose }) {
           </button>
 
           <div className="flex items-center gap-2">
+            {/* The compact header carries the theme control, so it is only shown
+                here from lg up, where the sidebar is permanently visible. */}
             <button
               onClick={toggleTheme}
-              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
+              className="hidden lg:flex flex-1 items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors select-none"
             >
               {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               {theme === 'dark' ? 'Light' : 'Dark'}

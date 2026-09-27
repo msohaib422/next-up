@@ -3,12 +3,21 @@ import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { Bell, CheckCheck, Inbox, ArrowRight } from 'lucide-react'
 import { useNotifications } from '../../hooks/useNotifications'
+import useMediaQuery from '../../hooks/useMediaQuery'
 import { formatCount, getTypeMeta, timeAgo } from './notificationTypes'
 
 const PANEL_WIDTH = 360
 const VIEWPORT_PADDING = 12
 const MIN_PANEL_HEIGHT = 160
 const HOVER_CLOSE_DELAY = 160
+// Below lg the bell sits in the compact header, where the panel is a small
+// preview: the newest few items plus "View all notifications". The full list,
+// and everything fetched or stored, is untouched.
+const COMPACT_LAYOUT = '(max-width: 1023px)'
+const COMPACT_PREVIEW_COUNT = 4
+// Opening on hover only makes sense where hovering exists at all; a touch
+// device opens the panel by tapping the bell, as the click handler already does.
+const HOVER_CAPABLE = '(hover: hover) and (pointer: fine)'
 
 function PopoverSkeleton() {
   return (
@@ -37,6 +46,12 @@ export default function NotificationBell() {
   const anchorRef = useRef(null)
   const panelRef = useRef(null)
   const closeTimer = useRef(null)
+  const canHover = useMediaQuery(HOVER_CAPABLE)
+  const isCompact = useMediaQuery(COMPACT_LAYOUT)
+
+  // The compact header shows a preview; the sidebar-era layout keeps showing
+  // the full recent list, so neither view hides or adds any notification.
+  const visibleRecent = isCompact ? recent.slice(0, COMPACT_PREVIEW_COUNT) : recent
 
   const cancelClose = () => {
     if (closeTimer.current) {
@@ -46,7 +61,7 @@ export default function NotificationBell() {
   }
 
   const scheduleClose = () => {
-    if (pinned) return
+    if (pinned || !canHover) return
     cancelClose()
     closeTimer.current = setTimeout(() => setOpen(false), HOVER_CLOSE_DELAY)
   }
@@ -140,7 +155,7 @@ export default function NotificationBell() {
     <div
       ref={anchorRef}
       className="relative"
-      onMouseEnter={() => { cancelClose(); if (!pinned) setOpen(true) }}
+      onMouseEnter={() => { if (!canHover) return; cancelClose(); if (!pinned) setOpen(true) }}
       onMouseLeave={scheduleClose}
     >
       <button
@@ -209,7 +224,7 @@ export default function NotificationBell() {
                   Try again
                 </button>
               </div>
-            ) : recent.length === 0 ? (
+            ) : visibleRecent.length === 0 ? (
               <div className="flex flex-col items-center px-4 py-8 text-center">
                 <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700">
                   <Inbox className="h-6 w-6 text-gray-400" />
@@ -219,7 +234,7 @@ export default function NotificationBell() {
               </div>
             ) : (
               <ul className="divide-y divide-gray-100 dark:divide-gray-700">
-                {recent.map((notification) => {
+                {visibleRecent.map((notification) => {
                   const meta = getTypeMeta(notification.type)
                   const Icon = meta.icon
                   const actionLabel = notification.link ? notification.metadata?.actionLabel : ''

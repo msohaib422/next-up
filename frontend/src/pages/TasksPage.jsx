@@ -361,14 +361,14 @@ export default function TasksPage() {
         )}
       </div>
 
-      {/* Below sm every control is full width; from sm up they share one row
-          and wrap to a second line rather than overflowing when the fixed
-          widths no longer fit. On lg+ the row is exactly as it was. */}
-      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
+      {/* The search field takes the first line; every other control is only as
+          wide as its own content, sitting side by side and wrapping to the next
+          line when the screen runs out. From sm up the row is unchanged. */}
+      <div className="flex flex-wrap gap-3">
         <div className="w-full sm:flex-[2_1_16rem] sm:min-w-0">
           <Input icon={Search} placeholder="Search tasks..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <div className="relative w-full sm:w-auto sm:basis-[220px] sm:grow-0 sm:shrink-0">
+        <div className="relative w-fit max-w-full sm:basis-[220px] sm:grow-0 sm:shrink-0">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Calendar className="h-5 w-5 text-gray-400" />
           </div>
@@ -380,7 +380,7 @@ export default function TasksPage() {
             className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 pl-10 pr-3 py-2 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-colors"
           />
         </div>
-        <div className="w-full sm:w-auto sm:basis-36 sm:grow-0 sm:shrink-0">
+        <div className="w-fit max-w-full sm:basis-36 sm:grow-0 sm:shrink-0">
           <Select
             value={subjectFilter}
             onChange={(e) => setSubjectFilter(e.target.value)}
@@ -390,7 +390,7 @@ export default function TasksPage() {
             ]}
           />
         </div>
-        <div className="w-full sm:w-auto sm:basis-32 sm:grow-0 sm:shrink-0">
+        <div className="w-fit max-w-full sm:basis-32 sm:grow-0 sm:shrink-0">
           <Select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -402,7 +402,7 @@ export default function TasksPage() {
             ]}
           />
         </div>
-        <div className="w-full sm:w-auto sm:basis-32 sm:grow-0 sm:shrink-0">
+        <div className="w-fit max-w-full sm:basis-32 sm:grow-0 sm:shrink-0">
           <Select
             value={priorityFilter}
             onChange={(e) => setPriorityFilter(e.target.value)}

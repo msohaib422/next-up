@@ -22,12 +22,12 @@ import { useNavigate } from 'react-router-dom'
 
 function StatCardSkeleton() {
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
-      <div className="flex items-center gap-4">
-        <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-700 animate-pulse" />
-        <div className="space-y-2">
-          <div className="h-8 w-16 bg-gray-100 dark:bg-gray-700 rounded-lg animate-pulse" />
-          <div className="h-4 w-28 bg-gray-100 dark:bg-gray-700 rounded-lg animate-pulse" />
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-5">
+      <div className="flex items-center gap-2.5 sm:gap-4">
+        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gray-100 dark:bg-gray-700 animate-pulse" />
+        <div className="min-w-0 space-y-2">
+          <div className="h-7 sm:h-8 w-14 sm:w-16 bg-gray-100 dark:bg-gray-700 rounded-lg animate-pulse" />
+          <div className="h-4 w-20 sm:w-28 bg-gray-100 dark:bg-gray-700 rounded-lg animate-pulse" />
         </div>
       </div>
     </div>
@@ -127,10 +127,11 @@ function DashboardItemCard({ item }) {
         </div>
 
         {/* Right side — Type | Status | View with equal spacing.
-            The three columns narrow on small screens instead of forcing the
-            row wider than the viewport. */}
+            Below sm each column is only as wide as its own content, so a long
+            type tag ("Announcement", "Assignment") can never sit on top of the
+            title; from sm up the equal-width columns are unchanged. */}
         <div className="flex items-center gap-3 sm:gap-6 flex-shrink-0">
-          <div className="flex items-center justify-center w-14 sm:w-24">
+          <div className="flex items-center justify-center w-auto sm:w-24">
             <Badge {...typeBadgeProps[item._type]} size="sm">
               {item._type}
             </Badge>
@@ -205,15 +206,15 @@ function ComingUpItemCard({ item }) {
         </div>
 
         {/* Right side — Type | Priority | View with equal spacing.
-            The three columns narrow on small screens instead of forcing the
-            row wider than the viewport. */}
+            Below sm each column is only as wide as its own content, so a long
+            type tag can never sit on top of the title. */}
         <div className="flex items-center gap-3 sm:gap-6 flex-shrink-0">
-          <div className="flex items-center justify-center w-14 sm:w-24">
+          <div className="flex items-center justify-center w-auto sm:w-24">
             <Badge {...typeBadgeProps[item._type]} size="sm">
               {item._type}
             </Badge>
           </div>
-          <div className="flex items-center justify-center w-14 sm:w-24">
+          <div className="flex items-center justify-center w-auto sm:w-24">
             {item.priority && (
               <Badge {...priorityBadgeProps[item.priority]} size="sm">
                 {item.priority}
@@ -331,7 +332,7 @@ function AdminDashboard() {
           <div className="h-8 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse mb-2" />
           <div className="h-4 w-80 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {[1, 2, 3, 4].map(i => <StatCardSkeleton key={i} />)}
         </div>
         <div className="grid lg:grid-cols-2 gap-6">
@@ -371,7 +372,9 @@ function AdminDashboard() {
       </div>
 
       {/* ── Stats Cards ─────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Same compact sizing as the user dashboard's cards: two per row on
+          small screens (not one full-width block each), four from lg up. */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {[
           {
             label: 'Total Users',
@@ -398,16 +401,19 @@ function AdminDashboard() {
             color: 'text-violet-600 bg-violet-100 dark:bg-violet-900/30 dark:text-violet-400',
           },
         ].map((stat, i) => (
-          <Card key={i} className="p-5 hover:shadow-md transition-shadow duration-200">
-            <div className="flex items-center gap-4">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${stat.color}`}>
-                <stat.icon className="w-6 h-6" />
+          <Card key={i} className="p-3 sm:p-5 hover:shadow-md transition-shadow duration-200">
+            <div className="flex items-center gap-2.5 sm:gap-4">
+              <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${stat.color}`}>
+                <stat.icon className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
               <div className="min-w-0">
-                <p className="text-2xl font-bold text-gray-900 dark:text-white leading-none mb-1">
+                {/* !leading-none on purpose: the font size carries an sm
+                    variant, and a variant rule outranks the plain leading
+                    utility, which would add 8px to every card's height. */}
+                <p className="text-xl sm:text-2xl !leading-none font-bold text-gray-900 dark:text-white mb-1">
                   {stat.value}
                 </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">
                   {stat.label}
                 </p>
               </div>
@@ -757,12 +763,13 @@ function UpcomingRow({ item, onOpen }) {
         clickable ? 'hover:bg-gray-50 dark:hover:bg-gray-700/30' : ''
       }`}
     >
-      {/* Two equal flexible columns keep the type tag exactly in the
-          horizontal middle of the card, whatever the title length. Below sm
-          the row is a single column instead, so the tags never squeeze the
-          title into nothing. */}
+      {/* sm and up: two equal flexible columns keep the type tag exactly in
+          the horizontal middle of the card, whatever the title length.
+          Below sm: the title takes its own line and the tags below it stay
+          centred in the space that is left, with the chevron hard against the
+          right edge, so the two can never collide on a narrow phone. */}
       <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-4">
-        <div className="min-w-0 pr-2 sm:pr-4">
+        <div className="min-w-0 sm:pr-2 sm:pr-4">
           <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
             {item.title}
           </h3>
@@ -771,16 +778,24 @@ function UpcomingRow({ item, onOpen }) {
           </p>
         </div>
 
-        <div className="flex items-center gap-3 sm:contents">
-          <div className="flex self-stretch items-center justify-center">
+        {/* Below sm the tags are one centred group and only the chevron sits
+            at the end; from sm up the two cells become direct grid children,
+            which is the desktop arrangement. */}
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:contents">
+          <div className="flex min-w-0 flex-wrap items-center justify-center gap-2 sm:self-stretch sm:justify-center">
             <Badge {...badgeProps} size="sm" className="shrink-0 whitespace-nowrap">
               {badgeLabel}
             </Badge>
+            {item.priority && (
+              <Badge {...(priorityBadgeProps[item.priority] || { color: 'neutral' })} size="sm" className="shrink-0 whitespace-nowrap sm:hidden">
+                {item.priority}
+              </Badge>
+            )}
           </div>
 
           <div className="flex min-w-0 items-center justify-end gap-2 sm:gap-4">
             {item.priority && (
-              <Badge {...(priorityBadgeProps[item.priority] || { color: 'neutral' })} size="sm" className="shrink-0 whitespace-nowrap">
+              <Badge {...(priorityBadgeProps[item.priority] || { color: 'neutral' })} size="sm" className="shrink-0 whitespace-nowrap hidden sm:inline-flex">
                 {item.priority}
               </Badge>
             )}
