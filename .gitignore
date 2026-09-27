@@ -27,5 +27,3 @@ frontend/.env.*.local
 npm-debug.log*
 .DS_Store
 Thumbs.db
-To Do
-DEPLOYMENT.md
