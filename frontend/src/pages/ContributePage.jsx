@@ -89,7 +89,7 @@ function ContributionForm({ type, onClose, onSubmitted }) {
       if (type === 'Announcement') Object.assign(content, { type: form.type, link: form.link.trim() })
       if (uploadedAttachment) content.attachment = uploadedAttachment
       await api.post('/contributions', { type, title: form.title.trim(), content })
-      toast.success('Contribution submitted successfully — it is now waiting for admin review.', { duration: 5000 })
+      toast.success('Contribution submitted successfully — it is now waiting for admin review.', { duration: 10000 })
       onSubmitted(); onClose()
     } catch (err) {
       toast.error(err.response?.data?.message || 'Could not submit your contribution. Please try again.')
