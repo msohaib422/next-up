@@ -175,7 +175,10 @@ export default function NotificationBell() {
         aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="relative rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+        /* Same reason as the compact theme button: a ring on :focus survived the
+           tap as a blue box, so it is scoped to focus-visible (keyboard only) and
+           the browser's tap overlay is switched off for this control. */
+        className="no-tap-highlight relative rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
       >
         <Bell className="h-5 w-5" />
         {unreadCount > 0 && (

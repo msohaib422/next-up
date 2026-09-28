@@ -48,12 +48,17 @@ export default function Header({ onMenuToggle }) {
         <div className="flex items-center gap-1 sm:gap-4 ml-auto min-w-0 shrink-0">
           <HeaderClock />
           <NotificationBell />
+          {/* Tapping this on a touch screen left a blue box around it: the ring
+              was on :focus, which a tap triggers and keeps until the next tap.
+              focus-visible only lights up for keyboard focus, so a tap leaves no
+              ring while the focus ring is still there for keyboard users, and
+              no-tap-highlight switches off the browser's own tap overlay. */}
           <button
             type="button"
             onClick={toggleTheme}
             aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
             title={theme === 'dark' ? 'Light' : 'Dark'}
-            className="lg:hidden p-2 shrink-0 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors select-none dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+            className="no-tap-highlight lg:hidden p-2 shrink-0 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 transition-colors select-none dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
           >
             {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </button>
