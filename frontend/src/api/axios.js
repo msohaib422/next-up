@@ -26,6 +26,9 @@ const api = axios.create({
   // previous default was no timeout at all, so a stalled request left the UI
   // spinning indefinitely.
   timeout: Number(import.meta.env.VITE_API_TIMEOUT_MS) || 20000,
+  // The refresh credential is an httpOnly cookie, so it has to be sent
+  // explicitly when the API is on another origin. Harmless same-origin.
+  withCredentials: true,
 })
 
 /** Fired when the server confirms the session is no longer valid. */
@@ -91,6 +94,85 @@ export const SESSION_RENEWED_EVENT = 'nextup:session-renewed'
 const SESSION_TOKEN_HEADER = 'x-session-token'
 const SESSION_IDLE_HEADER = 'x-session-idle-ms'
 
+/* ------------------------------------------------------------------ *
+ * Session renewal
+ *
+ * WHY THIS EXISTS
+ * ---------------
+ * The access token is short-lived and is renewed by the server each time it
+ * accepts a request. That works while the page is active, but a tab in the
+ * background is not a reliable source of requests: browsers throttle timers in
+ * hidden tabs and may freeze the page outright. So after about one window the
+ * access token would expire with nothing running to renew it, and the user was
+ * signed out purely for having switched tabs.
+ *
+ * The fix is to stop depending on a timer. When an access token is rejected,
+ * the client renews it with ONE request carrying an httpOnly refresh cookie.
+ * The browser attaches that cookie for us - cookies are sent by the network
+ * stack, which is not throttled when a tab is hidden - so the session is
+ * restored on the first thing the user actually does after coming back.
+ *
+ * The server remains the authority throughout: it verifies the refresh token,
+ * re-reads the account, and re-applies the approval check before issuing
+ * anything. A genuinely invalid session still fails, and still signs out.
+ *
+ * CONCURRENCY
+ * -----------
+ * A page load fires many requests at once, so an expired token produces many
+ * 401s at the same moment. Renewing once per 401 would be a storm and would
+ * race (several refreshes, each rotating the cookie, could invalidate one
+ * another). `renewal` holds the single in-flight attempt and every caller awaits
+ * that same promise, so N simultaneous 401s produce exactly ONE refresh.
+ * ------------------------------------------------------------------ */
+
+/** Paths where a 401 is an answer about the form, not an expired session. */
+const NO_RENEW_PATHS = ['/auth/login', '/auth/register', '/auth/refresh']
+
+/** The one renewal in flight, shared by every request that needs it. */
+let renewal = null
+
+/**
+ * Exchange the refresh cookie for a new access token, at most once at a time.
+ *
+ * Resolves to the new token, or rejects. The promise is cleared on settle, so a
+ * later expiry can renew again rather than reusing a dead attempt.
+ */
+const renewSession = () => {
+  if (!renewal) {
+    renewal = api
+      .post('/auth/refresh', {}, { _skipRenewal: true })
+      .then((res) => {
+        const token = res?.data?.token
+        if (!token) throw new Error('renewal returned no token')
+        localStorage.setItem('token', token)
+        if (res.data.data) localStorage.setItem('nextup.user', JSON.stringify(res.data.data))
+        if (res.data.sessionIdleMs) rememberIdleWindow(res.data.sessionIdleMs)
+        noteActivity()
+        window.dispatchEvent(new CustomEvent(SESSION_RENEWED_EVENT, { detail: token }))
+        return token
+      })
+      .finally(() => {
+        renewal = null
+      })
+  }
+  return renewal
+}
+
+/**
+ * True when this failure is one a renewal could still fix.
+ *
+ * Only a 401 from a protected route qualifies: the access token is gone but the
+ * session may not be. A 403 is the approval gate, which no amount of renewing
+ * changes, and the form endpoints are excluded so a wrong password never
+ * triggers a renewal. `_retried` stops a renewed request that is rejected again
+ * from looping back into renewal forever.
+ */
+const isRenewable = (error) => {
+  if (!error?.response || error.response.status !== 401) return false
+  if (error.config?._skipRenewal || error.config?._retried) return false
+  return !NO_RENEW_PATHS.some((path) => String(error.config?.url || '').includes(path))
+}
+
 /*
  * Keep the stored token in step with the server's sliding window.
  *
@@ -130,8 +212,44 @@ api.interceptors.response.use(
   },
 
   (error) => {
-    // 1. The server positively rejected the credential. This is the ONLY case
-    //    that ends the session, and the stored token is removed for real.
+    // 0. The access token has expired. Before treating that as a dead session,
+    //    try to renew it with the httpOnly refresh cookie. This is what keeps a
+    //    user signed in after their tab sat in the background past the idle
+    //    window: the renewal is a real request, so it works no matter what the
+    //    browser was doing with timers while the tab was hidden.
+    //
+    //    It is also deliberately narrow. Only a 401 from a protected route, only
+    //    once per request, and never for the login/register/refresh endpoints -
+    //    so a wrong password cannot trigger it and a failure cannot loop.
+    if (isRenewable(error)) {
+      return renewSession()
+        .then((token) =>
+          api.request({
+            ...error.config,
+            _retried: true,
+            headers: { ...error.config.headers, Authorization: `Bearer ${token}` },
+          })
+        )
+        .catch((refreshError) => {
+          // The renewal did not produce a usable token. Always report the
+          // renewal's own failure, never the original 401:
+          //
+          //  - if the server rejected the refresh token, that 401 already ran
+          //    through this interceptor above, which cleared the session and
+          //    sent the user to /login. The session really is over.
+          //  - if it was a timeout or a dropped connection, we simply do not
+          //    know. Reporting the original 401 here would look exactly like a
+          //    rejected credential and would throw away a perfectly good
+          //    session over a network blip - the very failure mode this
+          //    interceptor exists to prevent. So the transient error is passed
+          //    through and the session is kept for the next attempt.
+          return Promise.reject(refreshError)
+        })
+    }
+
+    // 1. The server positively rejected the credential and renewal could not
+    //    save it. This is the ONLY case that ends the session, and the stored
+    //    token is removed for real.
     if (isAuthRejection(error)) {
       localStorage.removeItem('token')
       localStorage.removeItem('nextup.user')

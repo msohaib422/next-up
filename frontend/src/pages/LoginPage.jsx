@@ -5,6 +5,7 @@ import { safeDestination } from '../utils/redirectDestination'
 import { GraduationCap, Mail, Lock } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Input from '../components/ui/Input'
+import PasswordInput from '../components/ui/PasswordInput'
 import Button from '../components/ui/Button'
 
 export default function LoginPage() {
@@ -69,9 +70,8 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
             />
-            <Input
+            <PasswordInput
               label="Password"
-              type="password"
               icon={Lock}
               placeholder="••••••••"
               value={password}
