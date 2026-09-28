@@ -9,6 +9,31 @@
   body {
     @apply text-gray-900 dark:text-gray-100;
   }
+
+  /*
+   * The colour scheme has to be declared alongside the theme.
+   *
+   * Form controls are only partly styled by the app: the calendar icon and the
+   * date segments of a date field, the arrow and the open list of a dropdown, and
+   * the scrollbars are all painted by the browser itself, and the browser paints
+   * them for whatever colour scheme the page declares. With no scheme declared
+   * the browser keeps using the light one, so switching the theme leaves those
+   * parts in the opposite scheme for a frame - the flicker on the filter
+   * controls - and the date icon and dropdown arrow are drawn in the wrong
+   * colours for the control they sit on.
+   *
+   * Declaring it next to the theme class means the browser repaints those parts
+   * with the theme in the same paint, so they change colour smoothly with
+   * everything else. Declared on the root element, so it reaches every control
+   * on every page.
+   */
+  html {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
 }
 
 ::-webkit-scrollbar {
@@ -72,6 +97,17 @@ input[type="date"][data-empty]::-webkit-datetime-edit {
     .filter-bar-track {
       display: contents;
     }
+  }
+
+  /* The search box is the one control that gets the whole row to itself in the
+     compact layout, with the filters wrapping into the grid below it, so the
+     field is as wide as the space allows and stays comfortable to type in. A
+     partly filled search box beside a filter is the narrowest and least usable
+     version of the bar.
+     A column span only means anything to the grid above; from lg up the track is
+     display: contents, so this has no effect and the desktop row is untouched. */
+  .filter-bar-search {
+    grid-column: 1 / -1;
   }
 
   /* A control in the track has to be allowed to shrink below the width of its

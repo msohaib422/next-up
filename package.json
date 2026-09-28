@@ -13,6 +13,7 @@
     "migrate:db": "cd backend && node scripts/migrate-db.mjs",
     "reset:content": "cd backend && node scripts/reset-content.mjs",
     "sync:admins": "cd backend && node scripts/sync-admin-accounts.mjs",
+    "set:admin-password": "cd backend && node scripts/set-admin-password.mjs",
     "verify:admin-sync": "cd backend && node scripts/verify-admin-sync.mjs",
     "verify:admin-sync:http": "cd backend && node scripts/verify-admin-sync-http.mjs",
     "verify": "cd backend && node scripts/verify-all.mjs"
