@@ -37,11 +37,13 @@ const typeIcon = { Task: CheckSquare, Quiz: HelpCircle, Assignment: FileCheck, E
 const formatDate = (value) => value ? new Date(value).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '—'
 const formatDateTime = (value) => value ? new Date(value).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'
 
+// Compact summary card: sized to its own content, two per row on small
+// screens (mirroring the user dashboard's stat cards).
 function StatCard({ label, value, icon: Icon, tone }) {
   return (
-    <Card className="flex min-h-[112px] items-center gap-4 p-5">
-      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${tone}`}><Icon className="h-5 w-5" /></div>
-      <div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">{label}</p><p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{value || 0}</p></div>
+    <Card className="flex min-h-[84px] sm:min-h-[112px] items-center gap-3 sm:gap-4 p-3 sm:p-5">
+      <div className={`flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl ${tone}`}><Icon className="h-4 w-4 sm:h-5 sm:w-5" /></div>
+      <div className="min-w-0"><p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">{label}</p><p className="mt-0.5 sm:mt-1 text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{value || 0}</p></div>
     </Card>
   )
 }
@@ -230,7 +232,7 @@ export default function ApprovalsPage() {
     <div className="mx-auto max-w-7xl space-y-8">
       <section aria-labelledby="approval-summary-heading">
         <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-end"><div><h2 id="approval-summary-heading" className="text-xl font-semibold text-gray-900 dark:text-white">Contribution Overview</h2><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">A live view of all community submissions.</p></div></div>
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"><StatCard label="Total contributions" value={stats.total} icon={Layers} tone="bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-300" /><StatCard label="Pending review" value={stats.Pending} icon={Clock} tone="bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-300" /><StatCard label="Approved" value={stats.Approved} icon={CheckCircle2} tone="bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-300" /><StatCard label="Rejected" value={stats.Rejected} icon={XCircle} tone="bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-300" /></div>
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4"><StatCard label="Total contributions" value={stats.total} icon={Layers} tone="bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-300" /><StatCard label="Pending review" value={stats.Pending} icon={Clock} tone="bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-300" /><StatCard label="Approved" value={stats.Approved} icon={CheckCircle2} tone="bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-300" /><StatCard label="Rejected" value={stats.Rejected} icon={XCircle} tone="bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-300" /></div>
       </section>
 
       <section aria-labelledby="approval-filters-heading">
@@ -238,7 +240,7 @@ export default function ApprovalsPage() {
         <Card className="mt-4 p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
             <div className="relative min-w-0 flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search title, name, or email" className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 placeholder-gray-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" /></div>
-            <select value={type} onChange={(e) => setType(e.target.value)} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 lg:w-48"><option value="all">All types</option>{TYPES.map((value) => <option key={value} value={value}>{value === 'Essential' ? 'Essentials' : value}</option>)}</select>
+            <select value={type} onChange={(e) => setType(e.target.value)} className="w-fit max-w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 lg:w-48"><option value="all">All types</option>{TYPES.map((value) => <option key={value} value={value}>{value === 'Essential' ? 'Essentials' : value}</option>)}</select>
           </div>
           <div className="mt-4 flex flex-wrap gap-2" role="tablist" aria-label="Filter contributions by status">{['all', 'Pending', 'Approved', 'Rejected'].map((value) => <Button key={value} size="sm" variant={status === value ? 'primary' : 'secondary'} onClick={() => setStatus(value)}>{value === 'all' ? 'All statuses' : value}</Button>)}</div>
         </Card>

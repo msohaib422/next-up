@@ -114,7 +114,7 @@ export default function AnnouncementViewModal({ isOpen, onClose, announcement })
                   className="min-w-0 flex-1 flex items-center text-left text-[14px] font-medium text-primary-600 dark:text-primary-400 hover:underline"
                   title={announcement.link}
                 >
-                  <span className="truncate">{announcement.link}</span>
+                  <span className="truncate min-w-0">{announcement.link}</span>
                 </button>
               </div>
             ) : (

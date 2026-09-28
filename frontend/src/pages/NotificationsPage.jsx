@@ -83,6 +83,9 @@ export default function NotificationsPage() {
     }
   }
 
+  // The click that reaches this handler is always the control itself: the
+  // row's own handler passes no event, so the row still opens on tap while
+  // this only ever toggles read/unread.
   const handleToggleRead = async (event, notification) => {
     event.stopPropagation()
     try {
@@ -153,7 +156,11 @@ export default function NotificationsPage() {
               return (
                 <li
                   key={notification.id}
-                  className={`group flex items-start gap-4 px-4 py-4 transition-colors sm:px-5 ${
+                  // The whole row opens the notification, so a tap anywhere on
+                  // it works on touch screens. The controls inside stop the
+                  // event, so "Mark read" still only marks it read.
+                  onClick={() => handleOpen(notification)}
+                  className={`group flex flex-wrap items-start gap-4 px-4 py-4 transition-colors cursor-pointer sm:flex-nowrap sm:px-5 ${
                     notification.read ? 'hover:bg-gray-50 dark:hover:bg-gray-700/40' : 'bg-primary-50/40 hover:bg-primary-50/70 dark:bg-primary-900/10 dark:hover:bg-primary-900/20'
                   }`}
                 >
@@ -188,17 +195,20 @@ export default function NotificationsPage() {
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 items-center gap-[15px] self-center">
+                  {/* Row actions sit on their own line below the message on
+                      narrow screens, so the message keeps the full card width
+                      instead of being squeezed by the controls. */}
+                  <div className="flex w-full shrink-0 items-center justify-end gap-[15px] self-center sm:w-auto">
                     <button
                       type="button"
                       onClick={(event) => handleToggleRead(event, notification)}
-                      className="rounded-md px-2 py-1.5 text-xs font-medium text-gray-500 opacity-0 transition-opacity hover:bg-gray-100 hover:text-primary-600 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:text-gray-400 dark:hover:bg-gray-700 group-hover:opacity-100 dark:hover:text-primary-400"
+                      className="rounded-md px-2 py-1.5 text-xs font-medium text-gray-500 transition-opacity hover:bg-gray-100 hover:text-primary-600 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-primary-500 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:!opacity-100 dark:text-gray-400 dark:hover:bg-gray-700 sm:group-hover:text-primary-400"
                     >
                       {notification.read ? 'Mark unread' : 'Mark read'}
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleOpen(notification)}
+                      onClick={(event) => { event.stopPropagation(); handleOpen(notification) }}
                       disabled={!notification.link}
                       aria-label={notification.link ? `Open ${notification.title}` : notification.title}
                       className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:cursor-default disabled:opacity-40 dark:hover:bg-gray-700 dark:hover:text-primary-400"

@@ -35,6 +35,19 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   opacity: 1;
 }
 
+/* Dialog shell shared by every modal: always fits the viewport, with the
+   content area scrolling internally. dvh is preferred where it is supported so
+   the dialog also respects mobile browser chrome (address bar) in landscape. */
+.modal-panel {
+  max-height: 90vh;
+}
+
+@supports (max-height: 90dvh) {
+  .modal-panel {
+    max-height: 90dvh;
+  }
+}
+
 /* Dashboard item highlight glow animation */
 @keyframes highlight-glow {
   0%, 100% {

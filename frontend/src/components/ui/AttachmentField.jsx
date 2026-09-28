@@ -47,7 +47,7 @@ export default function AttachmentField({ attachment }) {
           className="min-w-0 flex-1 flex items-center text-left text-[14px] font-medium text-primary-600 dark:text-primary-400 hover:underline"
           title={attachment.name}
         >
-          <span className="truncate">{attachment.name}</span>
+          <span className="truncate min-w-0">{attachment.name}</span>
         </button>
         <button
           type="button"

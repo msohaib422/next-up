@@ -24,6 +24,14 @@ export function NotificationProvider({ children }) {
   const [error, setError] = useState(null)
   const countRef = useRef(0)
 
+  // A plain boolean, not the token: the server re-signs the credential on every
+  // request it accepts, so the token changes constantly during normal use.
+  // Keying the effects below on it meant the preview list and the poll were
+  // torn down and re-issued after practically every API response - a duplicate
+  // request and a fresh 30s interval for work that had not changed. What these
+  // effects actually care about is "is there a session, and whose is it".
+  const authenticated = Boolean(token) && Boolean(user)
+
   useEffect(() => { countRef.current = unreadCount }, [unreadCount])
 
   const loadRecent = useCallback(async ({ silent = false } = {}) => {
@@ -42,18 +50,18 @@ export function NotificationProvider({ children }) {
 
   // Clear state on logout / account switch so notifications never leak between users.
   useEffect(() => {
-    if (!token || !user) {
+    if (!authenticated) {
       setRecent([])
       setUnreadCount(0)
       setLoading(false)
       return
     }
     loadRecent()
-  }, [token, user?._id, loadRecent])
+  }, [authenticated, user?._id, loadRecent])
 
   // Poll the unread count; fetch the preview list only when something is new.
   useEffect(() => {
-    if (!token || !user) return
+    if (!authenticated) return
     let cancelled = false
     const poll = async () => {
       try {
@@ -74,7 +82,7 @@ export function NotificationProvider({ children }) {
       clearInterval(timer)
       window.removeEventListener('focus', onFocus)
     }
-  }, [token, user?._id, loadRecent])
+  }, [authenticated, user?._id, loadRecent])
 
   /** Entry point for any new notification (poll diff today, socket event later). */
   const applyIncoming = useCallback((notification) => {

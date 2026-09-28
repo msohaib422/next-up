@@ -23,6 +23,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               style: {
                 background: 'var(--toast-bg, #fff)',
                 color: 'var(--toast-color, #1f2937)',
+                // The library caps toasts at 350px, which is wider than a small
+                // phone. Keeping them inside the viewport stops a toast being
+                // clipped at the edge of a narrow screen.
+                maxWidth: 'calc(100vw - 24px)',
               },
             }}
           />

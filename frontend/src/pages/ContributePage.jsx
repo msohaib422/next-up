@@ -119,7 +119,10 @@ function ContributionForm({ type, onClose, onSubmitted }) {
   </Modal>
 }
 
-const StatCard = ({ label, value, icon: Icon, tone }) => <Card className="flex min-h-[112px] items-center gap-4 p-5"><div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${tone}`}><Icon className="h-5 w-5" /></div><div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">{label}</p><p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{value || 0}</p></div></Card>
+// Compact summary card: sized to its own content, two per row on small
+// screens (mirroring the user dashboard's stat cards) instead of one
+// full-width block per row.
+const StatCard = ({ label, value, icon: Icon, tone }) => <Card className="flex min-h-[84px] sm:min-h-[112px] items-center gap-3 sm:gap-4 p-3 sm:p-5"><div className={`flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl ${tone}`}><Icon className="h-4 w-4 sm:h-5 sm:w-5" /></div><div className="min-w-0"><p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">{label}</p><p className="mt-0.5 sm:mt-1 text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{value || 0}</p></div></Card>
 
 export default function ContributePage() {
   const [items, setItems] = useState([])
@@ -166,7 +169,7 @@ export default function ContributePage() {
   return <div className="mx-auto max-w-7xl space-y-8">
     <section aria-labelledby="contribution-summary-heading">
       <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-end"><div><h2 id="contribution-summary-heading" className="text-xl font-semibold text-gray-900 dark:text-white">Contribution Summary</h2><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Track your submissions and their review status.</p></div></div>
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"><StatCard label="Total contributions" value={stats.total} icon={Layers} tone="bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-300" /><StatCard label="Pending review" value={stats.Pending} icon={Clock} tone="bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-300" /><StatCard label="Approved" value={stats.Approved} icon={CheckCircle2} tone="bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-300" /><StatCard label="Rejected" value={stats.Rejected} icon={XCircle} tone="bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-300" /></div>
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4"><StatCard label="Total contributions" value={stats.total} icon={Layers} tone="bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-300" /><StatCard label="Pending review" value={stats.Pending} icon={Clock} tone="bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-300" /><StatCard label="Approved" value={stats.Approved} icon={CheckCircle2} tone="bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-300" /><StatCard label="Rejected" value={stats.Rejected} icon={XCircle} tone="bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-300" /></div>
     </section>
 
     <section aria-labelledby="contribution-types-heading">

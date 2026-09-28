@@ -33,9 +33,14 @@ export default function LoginPage() {
         navigate('/account-status')
         return
       }
-      toast.success('Welcome back!')
-      // Continue to the requested page, or the dashboard as before.
+      // Navigate first, then let the destination paint before the welcome
+      // message appears. The Toaster lives above the router, so toasting
+      // before this used to show "Welcome back!" over the login form, and
+      // then leave it hanging over the destination while it was still loading.
       navigate(next || '/', { replace: true })
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => toast.success('Welcome back!'))
+      })
     } catch (err) {
       toast.error(err.response?.data?.message || 'Login failed')
     } finally {
