@@ -3,8 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import api, { isAuthRejection, isTransient, UNAUTHORIZED_EVENT, APPROVAL_REQUIRED_EVENT, SESSION_RENEWED_EVENT } from '../api/axios'
 import {
   clearSessionRecord,
-  idleWindowMs,
-  isClosedSessionExpired,
   markTabOpen,
   noteActivity,
   noteTabClosed,
@@ -65,37 +63,27 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 /**
  * Work out, once per page load, whether this browser still holds a live session.
  *
- * The server owns the real decision - the credential it issued is only valid
- * while requests keep coming (see backend/config/session.js), so a user who is
- * working is never signed out and a user who walked away is signed out by the
- * server itself. What only the browser can see is whether the tab that started
- * the session is still open, which is exactly the distinction the ten-minute
- * rule turns on:
+ * The server owns this decision, and it always has: the credential is verified
+ * on every request, and the session is renewed by a real request carrying the
+ * refresh cookie (see api/axios.js). The browser therefore does NOT second-
+ * guess the server by deleting a session here.
  *
- *   - no token stored        -> nothing to restore
- *   - the tab is still open   -> a refresh, or a second tab. Nothing to decide,
- *                               which is why a refresh can never log anybody out
- *   - the tab was closed and the idle window has passed -> the session is dropped
- *                               here, before a single protected request is made,
- *                               so the user is asked to sign in straight away
- *                               instead of watching a page load and then bounce
+ * That deletion used to happen: if the tab marker was gone and the idle window
+ * had passed, the stored token was removed before any request was made, and the
+ * user was bounced to /login without the server ever being asked. That was wrong
+ * in two ways. It fired on an ordinary REFRESH, because pagehide clears the tab
+ * marker on a reload as well as on a close, so a reload after the window had
+ * passed destroyed a session the server would happily have renewed. And it
+ * assumed a closed tab means an abandoned session, which is simply not true -
+ * closing a tab, switching windows, or a machine suspending are all normal.
  *
- * Coming back within the window is left completely alone, so the session is
- * restored exactly as before.
- *
- * Done as a one-time check rather than a timer: there is deliberately no
- * countdown anywhere that can end a session while the site is being used.
+ * So the only question left here is whether there is anything to restore. If
+ * there is a token, it is kept and the server decides; if there is not, the user
+ * is asked to sign in. Nothing is pre-emptively thrown away.
  */
 const resolveStoredSession = () => {
   const stored = localStorage.getItem(TOKEN_KEY)
   if (!stored) return { token: null, expired: false }
-
-  if (isClosedSessionExpired({ idleMs: idleWindowMs() })) {
-    localStorage.removeItem(TOKEN_KEY)
-    writeCachedUser(null)
-    clearSessionRecord()
-    return { token: null, expired: true }
-  }
 
   // This tab is the live one from now on. The marker lives in sessionStorage,
   // so it survives a refresh of this tab and disappears when the tab is gone.
@@ -299,19 +287,32 @@ export function AuthProvider({ children }) {
    *
    * Two things it deliberately is NOT:
    *   - a countdown. Nothing here ends a session; only the server can, and only
-   *     because the user stopped sending requests.
-   *   - a background timer. It does not run while the tab is hidden, so a tab
-   *     the user walked away from is left to expire on the server's terms.
+   *     because the credential was genuinely rejected.
+   *   - a requirement. The session survives even if this never runs - the
+   *     browser may throttle or freeze it at any time - because renewal also
+   *     happens on demand through the refresh cookie (see api/axios.js).
    */
   useEffect(() => {
     if (!authenticated) return undefined
 
     const keepalive = () => {
-      if (document.visibilityState !== 'visible') return
+      // Deliberately NOT gated on document.visibilityState any more.
+      //
+      // It used to return early for a hidden tab, on the reasoning that a
+      // background tab does not need keeping alive. That is what made a
+      // backgrounded tab get logged out: nothing was renewing the credential
+      // while the tab was hidden, so it expired.
+      //
+      // The session no longer depends on this call - if the browser throttles
+      // it, or suspends the page entirely, the credential is still renewed on
+      // the next real request (see api/axios.js). So this is only a courtesy
+      // that keeps a long-lived background tab from reaching the renewal path
+      // at all, and it is safe to attempt whether the tab is visible or not.
+      //
       // Failures are ignored on purpose: this call exists to be uninteresting.
-      // A 401 is still handled centrally by the axios interceptor, and a
-      // network problem must never end a session. The credential is read from
-      // storage per request, so it is always the newest one.
+      // A 401 is handled centrally by the axios interceptor, and a network
+      // problem must never end a session. The credential is read from storage
+      // per request, so it is always the newest one.
       api.get('/auth/me').catch(() => {})
     }
 
@@ -320,7 +321,29 @@ export function AuthProvider({ children }) {
     // before it ever elapsed. Whether the user is signed in is the only thing
     // this depends on.
     const timer = setInterval(keepalive, KEEPALIVE_INTERVAL_MS)
-    return () => clearInterval(timer)
+
+    /*
+     * Coming back to the tab is the moment a throttled background timer is most
+     * likely to be behind, so this asks the server a question immediately
+     * rather than waiting for the next tick. The browser has just handed
+     * control back, so the request is sent promptly instead of being throttled.
+     *
+     * This is an optimisation, not a dependency: if the browser has frozen the
+     * page so thoroughly that even this does not run, the session is still fine,
+     * because the credential is renewed by the interceptor on the first real
+     * request the user makes. Nothing is lost by omitting it.
+     */
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') keepalive()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
   }, [authenticated])
 
   // Coming back online is the natural moment to retry: the token was never
@@ -370,12 +393,21 @@ export function AuthProvider({ children }) {
   // Unchanged behaviour: an explicit sign-out always ends the session at once,
   // with no timeout involved. The extra record here is only so a deliberate
   // logout is not later mistaken for a tab that was closed.
+  //
+  // The local session is cleared first and unconditionally, so signing out is
+  // immediate and never waits on the network. The server is then told to drop
+  // the refresh cookie, which is what actually ends the session on its side -
+  // without that, a signed-out browser would still be able to renew itself.
   const logout = () => {
     clearSession()
     renewedTokenRef.current = null
     setConnectionIssue(false)
     setSessionExpired(false)
     navigate('/login')
+    // Best effort by design: the local session is already gone, so a failure
+    // here changes nothing about what the user sees. The cookie is scoped and
+    // short-lived, and it is overwritten on the next real sign-in.
+    api.post('/auth/logout', {}).catch(() => {})
   }
 
   const updateUser = (userData) => {

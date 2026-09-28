@@ -1,6 +1,12 @@
 import User from '../models/User.js';
-import { generateToken } from '../utils/helpers.js';
-import { sessionIdleMs } from '../config/session.js';
+import { generateToken, generateRefreshToken, verifyRefreshToken } from '../utils/helpers.js';
+import {
+  sessionIdleMs,
+  REFRESH_COOKIE,
+  refreshCookieOptions,
+  readRefreshCookie,
+  refreshTokenDays,
+} from '../config/session.js';
 import { resolveAdminRecipients } from '../config/adminRecipients.js';
 import { createNotification, notifyAdminsOfRegistrationSubmitted } from '../services/notificationService.js';
 import {
@@ -225,6 +231,12 @@ export const login = async (req, res, next) => {
 
     const token = generateToken(user._id);
 
+    // The refresh cookie is set at sign-in, alongside the access token. It is
+    // what lets the session be renewed later by a request rather than by a
+    // background timer, so a tab that was in the background can still come back
+    // without being signed out. httpOnly: page JavaScript never sees it.
+    res.cookie(REFRESH_COOKIE, generateRefreshToken(user._id), refreshCookieOptions(req));
+
     // status is returned so the client can route an unapproved account to the
     // right screen. Access itself is still enforced by the protect middleware.
     //
@@ -248,6 +260,101 @@ export const login = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+};
+
+/**
+ * Exchange a refresh cookie for a new access token.
+ *
+ * This is the whole renewal mechanism, and it runs on demand rather than on a
+ * timer - which is what makes it work for a backgrounded, throttled or frozen
+ * tab. The browser always sends the cookie, because cookies are attached by the
+ * network stack and are not affected by the page's JavaScript being suspended.
+ *
+ * The server re-reads the account on every renewal, so this cannot be used to
+ * keep a session alive that should not be:
+ *   - the account must still exist (a deleted account cannot renew)
+ *   - a token signed with the wrong secret, or expired, or of the wrong type is
+ *     simply "no session"
+ *   - a PENDING or REJECTED account is refused, exactly as `protect` refuses it,
+ *     so approval is re-enforced rather than inherited from the old token
+ *
+ * Success rotates the refresh cookie, so a token that is somehow captured stops
+ * being useful once the real user has renewed. Failure clears the cookie, so a
+ * genuinely dead session leaves nothing behind.
+ */
+export const refreshSession = async (req, res, next) => {
+  try {
+    const userId = verifyRefreshToken(readRefreshCookie(req));
+
+    if (!userId) {
+      res.clearCookie(REFRESH_COOKIE, refreshCookieOptions(req));
+      return res.status(401).json({
+        success: false,
+        message: 'Session expired, please sign in again',
+        reason: 'REFRESH_INVALID',
+      });
+    }
+
+    const user = await User.findById(userId);
+
+    // A database problem must NOT be reported as a dead session: the client
+    // would clear a perfectly good login. The centralized handler answers 503
+    // and the token is left alone, so the next attempt can still succeed.
+    if (!user) {
+      res.clearCookie(REFRESH_COOKIE, refreshCookieOptions(req));
+      return res.status(401).json({
+        success: false,
+        message: 'Session expired, please sign in again',
+        reason: 'REFRESH_INVALID',
+      });
+    }
+
+    // Re-apply the same approval gate the protected routes use, so renewal can
+    // never let a pending or rejected account back in.
+    if (user.role !== 'collaborator' && user.status !== 'Approved') {
+      res.clearCookie(REFRESH_COOKIE, refreshCookieOptions(req));
+      return res.status(403).json({
+        success: false,
+        message:
+          user.status === 'Rejected'
+            ? 'Your previous registration application was not approved. You can review your information and submit a new application for approval.'
+            : 'Your registration is awaiting administrator approval.',
+        data: { status: user.status || 'Pending Approval', canApplyAgain: user.status === 'Rejected' },
+      });
+    }
+
+    const token = generateToken(user._id);
+    res.cookie(REFRESH_COOKIE, generateRefreshToken(user._id), refreshCookieOptions(req));
+
+    res.json({
+      success: true,
+      data: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        profileImage: user.profileImage,
+        role: user.role,
+        status: user.status || 'Approved',
+      },
+      token,
+      sessionIdleMs: sessionIdleMs(),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * End the session server-side by clearing the refresh cookie.
+ *
+ * The access token stays valid until it expires (it is stateless, as before);
+ * what this guarantees is that the session cannot be RENEWED afterwards, which
+ * is what made "log out" meaningful. Safe to call whether or not a cookie was
+ * present, and it never fails the request - a logout is always best-effort.
+ */
+export const logout = async (req, res) => {
+  res.clearCookie(REFRESH_COOKIE, refreshCookieOptions(req));
+  res.json({ success: true, message: 'Signed out' });
 };
 
 export const getMe = async (req, res, next) => {

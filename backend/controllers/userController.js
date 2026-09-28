@@ -1,5 +1,4 @@
 import User from '../models/User.js';
-import bcrypt from 'bcryptjs';
 import { generateToken } from '../utils/helpers.js';
 import { deleteFromCloudinary } from '../services/cloudinary.js';
 import { createNotification } from '../services/notificationService.js';
@@ -78,15 +77,31 @@ export const changePassword = async (req, res, next) => {
   try {
     const { currentPassword, newPassword } = req.body;
 
+    if (!newPassword) {
+      return res.status(400).json({ success: false, message: 'New password is required' });
+    }
+
+    // The account is always the one behind the token. This route takes no id
+    // parameter, so a caller can only ever change their own password, whatever
+    // role they hold. An administrator changing somebody else's password is a
+    // different, already existing route (PUT /api/users/admin/users/:id).
     const user = await User.findById(req.user._id).select('+password');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
     const isMatch = await user.matchPassword(currentPassword);
 
     if (!isMatch) {
       return res.status(400).json({ success: false, message: 'Current password is incorrect' });
     }
 
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(newPassword, salt);
+    // The plain password is assigned and the model's own pre('save') hook does
+    // the hashing, exactly as it does for registration and for an administrator
+    // editing a user. Hashing here as well would hash the hash, and the stored
+    // value could then never be matched again - which is what made a successful
+    // password change impossible to log in with.
+    user.password = newPassword;
     await user.save();
 
     const token = generateToken(user._id);

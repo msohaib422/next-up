@@ -81,6 +81,19 @@ const authenticate = async (req, res, next, { requireApproved }) => {
     });
   }
 
+  // A refresh token is NOT an access token. It is a longer-lived credential that
+  // can only be exchanged at /api/auth/refresh, so presenting one here must not
+  // grant access - otherwise the longer lifetime would, indirectly, become an
+  // access lifetime. Rejected with the same answer as a bad token, which is also
+  // what tells the client it is time to renew rather than to sign in again.
+  if (decoded?.purpose === 'refresh') {
+    return res.status(401).json({
+      success: false,
+      message: 'Not authorized, token failed',
+      reason: 'INVALID_TOKEN',
+    });
+  }
+
   // The account lookup is the one database call on every protected request, so
   // it is also the one most likely to be interrupted by a reconnect.
   //

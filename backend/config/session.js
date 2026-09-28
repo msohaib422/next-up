@@ -39,6 +39,10 @@ const MIN_MINUTES = 1;
 const MAX_MINUTES = 24 * 60;
 const DEFAULT_MINUTES = 10;
 
+const MIN_DAYS = 1;
+const MAX_DAYS = 90;
+const DEFAULT_REFRESH_DAYS = 7;
+
 const readMinutes = () => {
   const raw = process.env.SESSION_IDLE_MINUTES;
   if (raw === undefined || String(raw).trim() === '') return DEFAULT_MINUTES;
@@ -55,6 +59,114 @@ export const sessionIdleSeconds = () => readMinutes() * 60;
 
 /** The idle window in milliseconds - the form the client countdown needs. */
 export const sessionIdleMs = () => readMinutes() * 60 * 1000;
+
+/* ------------------------------------------------------------------ *
+ * The refresh credential
+ *
+ * WHY A SECOND, LONGER-LIVED CREDENTIAL EXISTS
+ * --------------------------------------------
+ * The access token above is deliberately short-lived. That is the correct
+ * security posture: if it leaks, the damage window is small. But a token whose
+ * only way to be renewed is "the client sends another request" makes renewal
+ * depend on the CLIENT being awake.
+ *
+ * A backgrounded tab cannot be relied on for that. Browsers throttle timers in
+ * hidden tabs and may freeze the page entirely, so after roughly one window the
+ * access token expires with nothing running to renew it - and the user is logged
+ * out purely for having switched tabs.
+ *
+ * So renewal must not depend on a background timer. It happens on DEMAND, in
+ * response to a real HTTP request, which the browser always sends and the
+ * network stack never throttles:
+ *
+ *   1. the access token expires as normal (unchanged, still short-lived)
+ *   2. the next request gets 401 TOKEN_EXPIRED
+ *   3. the client makes ONE request to /api/auth/refresh, carrying a refresh
+ *      token that is stored in a cookie the page's JavaScript cannot read
+ *   4. the server verifies that refresh token, re-checks the account, and
+ *      returns a new access token
+ *
+ * Nothing here is running on a timer, so a backgrounded, frozen or suspended
+ * tab renews exactly the same as a foreground one. The moment the user comes
+ * back and does anything, the session is restored.
+ *
+ * SECURITY IS NOT WEAKENED. This is the standard two-credential design:
+ *   - the ACCESS token keeps its short expiry and is still verified on every
+ *     single request. A stolen access token is still only useful for minutes.
+ *   - the REFRESH token is longer-lived but is strictly less powerful: it can
+ *     only be exchanged for an access token, it is signed by the same secret,
+ *     and it is never accepted as an access token by any protected route.
+ *   - it lives in an httpOnly cookie, so page JavaScript cannot read it and an
+ *     XSS payload cannot exfiltrate it.
+ *   - it is rotated on every use, and logout clears it, so it can be ended.
+ *
+ * The idle window above is preserved exactly as it was: the access token still
+ * expires after SESSION_IDLE_MINUTES, and the server still slides it while the
+ * user works. All that changed is WHERE renewal happens - on a request the
+ * server can see, instead of on a timer the browser controls.
+ * ------------------------------------------------------------------ */
+
+const readDays = () => {
+  const raw = process.env.REFRESH_TOKEN_DAYS;
+  if (raw === undefined || String(raw).trim() === '') return DEFAULT_REFRESH_DAYS;
+  const parsed = Number(String(raw).trim());
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_REFRESH_DAYS;
+  return Math.min(MAX_DAYS, Math.max(MIN_DAYS, Math.round(parsed)));
+};
+
+/** How long a refresh token stays valid, in days. */
+export const refreshTokenDays = () => readDays();
+
+/** The same window in seconds - the form a JWT `expiresIn` needs. */
+export const refreshTokenSeconds = () => readDays() * 24 * 60 * 60;
+
+/**
+ * The name of the cookie carrying the refresh token.
+ *
+ * Deliberately NOT prefixed "__Host-": that prefix additionally requires Secure,
+ * which cannot be satisfied over plain http, and the app is developed and can
+ * be self-hosted on http. The protections that matter are set below.
+ */
+export const REFRESH_COOKIE = 'nextup_refresh';
+
+/** True when the app is being served over https, so the cookie can be Secure. */
+const isSecureRequest = (req) => {
+  if (String(process.env.COOKIE_SECURE || '').toLowerCase() === 'true') return true;
+  if (String(process.env.COOKIE_SECURE || '').toLowerCase() === 'false') return false;
+  // Trust the platform's own answer when it is forwarded (Vercel, nginx, ...).
+  return String(req?.headers?.['x-forwarded-proto'] || '').split(',')[0].trim() === 'https';
+};
+
+/**
+ * The attributes the refresh cookie is set with.
+ *
+ *   httpOnly  page JavaScript cannot read it, so an XSS payload cannot steal it
+ *   sameSite  'lax' sends it on top-level navigation but NOT on a cross-site
+ *             subrequest, which is what stops another site from using it to
+ *             mint a session for a visitor
+ *   secure    sent over https only (never forced on, so http dev still works)
+ *   path      scoped to the auth routes that actually need it
+ */
+export const refreshCookieOptions = (req) => ({
+  httpOnly: true,
+  sameSite: 'lax',
+  secure: isSecureRequest(req),
+  path: '/api/auth',
+});
+
+/** Read the refresh token off the request, or '' when there is none. */
+export const readRefreshCookie = (req) => {
+  const header = req?.headers?.cookie;
+  if (!header) return '';
+  for (const part of String(header).split(';')) {
+    const eq = part.indexOf('=');
+    if (eq === -1) continue;
+    if (part.slice(0, eq).trim() === REFRESH_COOKIE) {
+      return decodeURIComponent(part.slice(eq + 1).trim());
+    }
+  }
+  return '';
+};
 
 /**
  * How far through the window a token must be before it is worth re-signing.

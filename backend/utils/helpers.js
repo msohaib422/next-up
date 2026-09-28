@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
-import { sessionIdleSeconds } from '../config/session.js';
+import { sessionIdleSeconds, refreshTokenSeconds } from '../config/session.js';
 
 /**
  * Issue a session credential.
@@ -18,6 +18,41 @@ export const generateToken = (userId) => {
   return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
     expiresIn: sessionIdleSeconds(),
   });
+};
+
+/**
+ * The refresh credential: a longer-lived token that can ONLY be exchanged for a
+ * new access token. See config/session.js for why a second credential exists.
+ *
+ * It is marked `purpose: 'refresh'` and every verification of it insists on that
+ * claim, so it can never be mistaken for an access token - the reverse mistake
+ * is equally guarded against, because the middleware rejects an access token
+ * that carries this claim. A stolen refresh token is therefore useless against
+ * the protected routes: it buys a new access token, nothing more, and only
+ * through the single refresh endpoint.
+ */
+export const generateRefreshToken = (userId) => {
+  return jwt.sign({ id: userId, purpose: 'refresh' }, process.env.JWT_SECRET, {
+    expiresIn: refreshTokenSeconds(),
+  });
+};
+
+/**
+ * Verify a refresh token and return the account id it names, or null.
+ *
+ * The claim check is what keeps the two token types apart. Returning null for
+ * anything unusable (rather than throwing) lets the caller treat every failure -
+ * expired, tampered, wrong type, garbage - as the same thing: no session.
+ */
+export const verifyRefreshToken = (token) => {
+  if (!token) return null;
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (decoded?.purpose !== 'refresh' || !decoded.id) return null;
+    return decoded.id;
+  } catch {
+    return null;
+  }
 };
 
 /**
