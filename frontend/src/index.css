@@ -101,6 +101,22 @@ input[type="date"][data-empty]::-webkit-datetime-edit {
   }
 }
 
+/* Mobile sidebar drawer. It has to cover everything the user can see, otherwise
+   the page shows through below it: on a phone the layout viewport (100vh, and
+   what height:100% resolves against for a fixed element) is often taller than
+   the area left by the browser bars, which leaves a strip of the page visible
+   under the drawer. 100vh is the fallback and dvh is preferred where it is
+   supported, the same way .modal-panel handles its height. */
+.sidebar-drawer {
+  height: 100vh;
+}
+
+@supports (height: 100dvh) {
+  .sidebar-drawer {
+    height: 100dvh;
+  }
+}
+
 /* Dashboard item highlight glow animation */
 @keyframes highlight-glow {
   0%, 100% {

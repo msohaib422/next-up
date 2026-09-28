@@ -1,11 +1,17 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useTheme } from '../../hooks/useTheme'
+import useMediaQuery from '../../hooks/useMediaQuery'
+import useScrollLock from '../../hooks/useScrollLock'
 import {
   LayoutDashboard, CheckSquare, HelpCircle, Megaphone,
   Clock, FileCheck, User, Users, BookOpen,
   LogOut, Sun, Moon, X, GraduationCap, Send, ClipboardCheck, Bell
 } from 'lucide-react'
+
+// Same breakpoint the drawer is laid out against: from lg up the sidebar is a
+// permanent column and there is no drawer to lock the page behind.
+const DESKTOP = '(min-width: 1024px)'
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -25,6 +31,13 @@ export default function Sidebar({ isOpen, onClose }) {
   const { user, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
+  const isDesktop = useMediaQuery(DESKTOP)
+
+  // While the drawer covers the page, the page itself must stay exactly where it
+  // is, so scrolling is locked for as long as the drawer is open on mobile. The
+  // lock is released as soon as it closes, and never applied on desktop, where
+  // the sidebar is part of the layout rather than an overlay.
+  useScrollLock(isOpen && !isDesktop)
 
   const handleNavClick = () => {
     if (window.innerWidth < 1024) onClose()
@@ -33,12 +46,15 @@ export default function Sidebar({ isOpen, onClose }) {
   return (
     <>
       {isOpen && (
-        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={onClose} />
+        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden overscroll-contain" onClick={onClose} />
       )}
 
       {/* w-64 on wide screens, never wider than 85vw so the drawer always fits
-          the smallest phone in portrait or landscape. */}
-      <aside className={`fixed top-0 left-0 z-50 h-full w-64 max-w-[85vw] bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col transition-transform duration-300 lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+          the smallest phone in portrait or landscape. sidebar-drawer gives it the
+          full visual viewport height, so nothing of the page shows below it, and
+          overscroll-contain keeps a scroll gesture inside the drawer from being
+          handed on to the page behind. */}
+      <aside className={`sidebar-drawer fixed top-0 left-0 z-50 w-64 max-w-[85vw] overscroll-contain bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col transition-transform duration-300 lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
           <div className="flex items-center gap-2">
             <GraduationCap className="w-8 h-8 text-primary-600" />
@@ -49,7 +65,7 @@ export default function Sidebar({ isOpen, onClose }) {
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+        <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 space-y-1">
           {navItems
             .filter(item => (!item.collaboratorOnly || user?.role === 'collaborator') && (!item.userOnly || user?.role === 'user'))
             .map(item => (
