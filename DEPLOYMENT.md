@@ -223,3 +223,25 @@ npm run sync:admins       # reconcile the administrator accounts
 
 `reset:content` keeps `users` and only ever removes application content. It
 asserts the account count is unchanged afterwards and exits non-zero if not.
+
+### Forgotten administrator password
+
+Passwords are stored as one-way hashes, so a forgotten one cannot be read back
+and has to be replaced with a new hash:
+
+```bash
+npm run set:admin-password -- --email msohaib.ai.dev@gmail.com --password 12345678
+npm run set:admin-password -- --email msohaib.ai.dev@gmail.com --password 12345678 --apply
+```
+
+The first line is the dry run and writes nothing. `--apply` updates the existing
+account in place: same id, email, name and role, and no second account is
+created. It refuses to run if the address holds no account, because choosing
+which addresses are administrators is `sync:admins`' job, not this script's. The
+new hash is written with the model's own `hashPassword()`, then read back and
+compared exactly as the login handler does, so "the new password works" is
+observed rather than assumed.
+
+It only changes the password. If the account's role is not `collaborator`, or
+its status is not `Approved`, the script says so and the account still cannot be
+signed in as an administrator - run `sync:admins` for that.

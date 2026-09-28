@@ -370,7 +370,7 @@ export default function AssignmentsPage() {
           actions stay as wide as their own label. */}
       <div className="flex flex-wrap gap-3">
         <div className="filter-bar-track">
-          <div className="filter-bar-item sm:flex-[2_1_16rem] sm:min-w-0">
+          <div className="filter-bar-item filter-bar-search sm:flex-[2_1_16rem] sm:min-w-0">
             <Input icon={Search} placeholder="Search assignments..." value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
           <div className="filter-bar-item sm:basis-[220px] sm:grow-0 sm:shrink-0">
