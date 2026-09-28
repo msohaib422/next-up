@@ -35,6 +35,59 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   opacity: 1;
 }
 
+/* While the date filter is empty it shows its own short caption next to the
+   calendar icon, so the browser's mm/dd/yyyy hint is hidden to keep the control
+   from reading as two labels side by side. Only the editable text is affected:
+   the picker indicator is a sibling of it and stays visible, and as soon as a
+   date is picked the date itself is shown in place of the caption. */
+input[type="date"][data-empty]::-webkit-datetime-edit {
+  color: transparent;
+}
+
+@layer components {
+  /* Shared responsive filter bar, used by every page that has a search box and
+     filters (tasks, quizzes, assignments, essentials, announcements and the
+     approval queue). The search box, the date control and the dropdowns sit in
+     one track, so they are laid out as a single unit.
+
+     In the compact layout (below lg, where the sidebar is still a drawer) the
+     track is a grid of equal, auto-fitting columns: the controls divide the
+     available width evenly instead of each one taking the width of its own
+     option text, the row wraps to as many lines as the screen needs, and a long
+     option name can never push the layout wider than the screen.
+
+     From lg up the track drops out of the layout entirely (display: contents),
+     so its controls become direct children of the bar they already lived in and
+     the desktop row, including the per-control sm: widths each page declares,
+     lays out exactly as it did before. */
+  .filter-bar-track {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: 0.75rem;
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  @screen lg {
+    .filter-bar-track {
+      display: contents;
+    }
+  }
+
+  /* A control in the track has to be allowed to shrink below the width of its
+     own content, otherwise a long option name would widen the whole row. */
+  .filter-bar-item {
+    min-width: 0;
+  }
+
+  /* Touch browsers paint their own translucent box over a tapped element and
+     leave it there after the tap. Used only by the compact header controls,
+     which already provide their own hover background. */
+  .no-tap-highlight {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
 /* Dialog shell shared by every modal: always fits the viewport, with the
    content area scrolling internally. dvh is preferred where it is supported so
    the dialog also respects mobile browser chrome (address bar) in landscape. */

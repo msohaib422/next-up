@@ -3,7 +3,7 @@ import api from '../api/axios'
 import toast from 'react-hot-toast'
 import { useAuth } from '../hooks/useAuth'
 import { useHighlightSync } from '../hooks/useHighlightSync'
-import { Plus, Megaphone, Search, Calendar, X, Paperclip, Download, Pin, Bookmark, ExternalLink } from 'lucide-react'
+import { Plus, Megaphone, Search, X, Paperclip, Download, Pin, Bookmark, ExternalLink } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { useSearchParams } from 'react-router-dom'
 import Card from '../components/ui/Card'
@@ -11,6 +11,7 @@ import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Input from '../components/ui/Input'
 import Select from '../components/ui/Select'
+import DateFilter from '../components/ui/DateFilter'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import AnnouncementModal from '../components/AnnouncementModal'
@@ -366,31 +367,30 @@ export default function AnnouncementsPage() {
         )}
       </div>
 
+      {/* The search box, the date control and the dropdowns share one track (see
+          .filter-bar-track): in the compact layout each one is an equal-width
+          column instead of being sized by the length of its own option text, and
+          the track wraps instead of overflowing. From lg up the track drops out
+          of the layout, so this row is the desktop one, unchanged. The trailing
+          actions stay as wide as their own label. */}
       <div className="flex flex-wrap gap-3">
-        <div className="w-full sm:flex-[2_1_16rem] sm:min-w-0">
-          <Input icon={Search} placeholder="Search announcements..." value={search} onChange={(e) => setSearch(e.target.value)} />
-        </div>
-        <div className="relative w-fit max-w-full sm:basis-[220px] sm:grow-0 sm:shrink-0">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Calendar className="h-5 w-5 text-gray-400" />
+        <div className="filter-bar-track">
+          <div className="filter-bar-item sm:flex-[2_1_16rem] sm:min-w-0">
+            <Input icon={Search} placeholder="Search announcements..." value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
-          <input
-            type="date"
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            title="Filter by date"
-            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 pl-10 pr-3 py-2 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-colors"
-          />
-        </div>
-        <div className="w-fit max-w-full sm:basis-36 sm:grow-0 sm:shrink-0">
-          <Select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            options={[
-              { value: 'all', label: 'All Types' },
-              ...ANNOUNCEMENT_TYPES,
-            ]}
-          />
+          <div className="filter-bar-item sm:basis-[220px] sm:grow-0 sm:shrink-0">
+            <DateFilter value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} title="Filter by date" />
+          </div>
+          <div className="filter-bar-item sm:basis-36 sm:grow-0 sm:shrink-0">
+            <Select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              options={[
+                { value: 'all', label: 'All Types' },
+                ...ANNOUNCEMENT_TYPES,
+              ]}
+            />
+          </div>
         </div>
         <button
           onClick={() => setSavedFilter(!savedFilter)}
