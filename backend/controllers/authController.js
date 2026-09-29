@@ -117,7 +117,7 @@ export const register = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Please provide all required fields' });
     }
 
-    const normalizedEmail = String(email).trim().toLowerCase();
+    const normalizedEmail = User.normalizeEmail(email);
     const existingUser = await User.findOne({ email: normalizedEmail });
 
     if (!existingUser) {
@@ -219,7 +219,14 @@ export const login = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Please provide email and password' });
     }
 
-    const user = await User.findOne({ email }).select('+password');
+    // The address is compared in the SAME form it is stored in. The schema's
+    // `lowercase`/`trim` only apply on save, so a query still used the raw
+    // string: `Msohaib.AI.Dev@Gmail.com`, or an address with a trailing space
+    // from a paste, matched nothing and a correct password was answered with
+    // "Invalid credentials".
+    const normalizedEmail = User.normalizeEmail(email);
+
+    const user = await User.findOne({ email: normalizedEmail }).select('+password');
     if (!user) {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }

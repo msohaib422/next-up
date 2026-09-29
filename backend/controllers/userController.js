@@ -77,8 +77,8 @@ export const changePassword = async (req, res, next) => {
   try {
     const { currentPassword, newPassword } = req.body;
 
-    if (!newPassword) {
-      return res.status(400).json({ success: false, message: 'New password is required' });
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Current and new password are required' });
     }
 
     // The account is always the one behind the token. This route takes no id
@@ -142,14 +142,16 @@ export const createUser = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Please provide all required fields' });
     }
 
-    const existingUser = await User.findOne({ email });
+    const normalizedEmail = User.normalizeEmail(email);
+
+    const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser) {
       return res.status(400).json({ success: false, message: 'User with this email already exists' });
     }
 
     // An account created by an administrator is trusted, so it starts Approved
     // and skips the registration approval flow entirely.
-    const user = await User.create({ name, email, password, status: 'Approved' });
+    const user = await User.create({ name, email: normalizedEmail, password, status: 'Approved' });
 
     res.status(201).json({
       success: true,
@@ -298,16 +300,23 @@ export const updateUser = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Cannot modify collaborator accounts' });
     }
 
-    if (email && email !== user.email) {
-      const emailTaken = await User.findOne({ email, _id: { $ne: id } });
+    // Compared in the stored form (see User.normalizeEmail). Without this a
+    // case or whitespace difference read as "free address" and the unique index
+    // rejected the save as a duplicate.
+    const normalizedEmail = email ? User.normalizeEmail(email) : '';
+
+    if (email && normalizedEmail !== user.email) {
+      const emailTaken = await User.findOne({ email: normalizedEmail, _id: { $ne: id } });
       if (emailTaken) {
         return res.status(400).json({ success: false, message: 'Email is already in use' });
       }
     }
 
     user.name = name;
-    user.email = email;
+    if (email) user.email = normalizedEmail;
     if (password) {
+      // Plain text: the model's pre('save') hook hashes it. Assigning a hash
+      // here would be hashed a second time and lock the account out forever.
       user.password = password;
     }
     await user.save();

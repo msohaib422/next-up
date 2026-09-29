@@ -236,14 +236,8 @@ section('Admin permission parity');
       })
     )
   );
-  check(
-    `Admin 1 can edit a user (${editProbe[0].status})`,
-    editProbe[0].status === 200
-  );
-  check(
-    `Admin 2 can edit a user (${editProbe[1].status})`,
-    editProbe[1].status === 200
-  );
+  check(`Admin 1 can edit a user (${editProbe[0].status})`, editProbe[0].status === 200);
+  check(`Admin 2 can edit a user (${editProbe[1].status})`, editProbe[1].status === 200);
 
   // The approval actions are admin-only and must reject a normal user.
   const approveProbe = await request(server, 'PUT', `/api/users/admin/users/${normal._id}/approve`, {

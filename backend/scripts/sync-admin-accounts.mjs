@@ -8,13 +8,10 @@
  * with reduced rights to fix.
  *
  *   Admin 1  msohaib.ai.dev@gmail.com  ->  M Sohaib
- *   Admin 2  anki.inola@gmail.com      ->  M Hasnain Ali   (was hasnain@gmail.com)
+ *   Admin 2  anki.inola@gmail.com      ->  M Hasnain Ali
  *
- * The `anki.inola@gmail.com` address was already held by a normal user account
- * ("novi"), and `users.email` is uniquely indexed, so the two cannot coexist.
- * Rather than delete an account, that user is moved to a free address and keeps
- * its id, its password hash, its role and its content. Renaming an address is
- * something the admin UI can already do; this only does it once, deliberately.
+ * If another administrator is ever added, add them to DESIRED_ADMINS here AND
+ * add the matching ADMIN_EMAIL_<n> variable to the environment at the same time.
  *
  *   node scripts/sync-admin-accounts.mjs           # dry run
  *   node scripts/sync-admin-accounts.mjs --apply   # perform the changes
@@ -36,15 +33,6 @@ const DESIRED_ADMINS = [
   { email: 'anki.inola@gmail.com', name: 'M Hasnain Ali' },
 ];
 
-/** The admin identity being replaced. */
-const OLD_ADMIN_EMAIL = 'hasnain@gmail.com';
-
-/**
- * Where the pre-existing user account that holds the Admin 2 address is moved
- * to. It keeps its id, password, role and history; only the address changes.
- */
-const RELOCATED_USER = { from: 'anki.inola@gmail.com', to: 'novi+nextup@gmail.com' };
-
 const run = async () => {
   const client = await mongoose.createConnection(process.env.MONGODB_URI, {
     serverSelectionTimeoutMS: 20000,
@@ -63,56 +51,22 @@ const run = async () => {
   const byEmail = (email) => all.find((u) => u.email === email);
   const plan = [];
 
-  // --- 1. Free up the Admin 2 address -------------------------------------
-  const holder = byEmail(RELOCATED_USER.from);
-  const oldAdmin = byEmail(OLD_ADMIN_EMAIL);
-
-  if (holder && String(holder._id) === String(oldAdmin?._id)) {
-    // The admin already owns the address: nothing to free up.
-    plan.push(`"${RELOCATED_USER.from}" is already held by the admin account; no relocation needed.`);
-  } else if (holder && oldAdmin) {
-    // The expected case: a normal user currently sits on the address the admin
-    // is moving to. Relocate that user, keep the account, then update the admin.
-    const taken = byEmail(RELOCATED_USER.to);
-    if (taken) {
-      plan.push(
-        `CONFLICT: the relocation address "${RELOCATED_USER.to}" is already taken by ` +
-          `${JSON.stringify(taken.name)}. Choose a different address.`
-      );
-    } else {
-      plan.push(
-        `Relocate the existing user account "${RELOCATED_USER.from}" (${JSON.stringify(holder.name)}) ` +
-          `to "${RELOCATED_USER.to}" so the admin can take the address. The account is kept, not deleted.`
-      );
+  // --- 1. The desired administrator(s) ------------------------------------
+  // Looped over the list rather than written out one block per admin, so
+  // adding another administrator later is a one-line change here.
+  DESIRED_ADMINS.forEach((desired, index) => {
+    const existing = byEmail(desired.email);
+    if (!existing) {
+      plan.push(`CREATE missing administrator ${desired.email}.`);
+      return;
     }
-  } else if (holder) {
-    plan.push(
-      `"${OLD_ADMIN_EMAIL}" is absent and "${RELOCATED_USER.from}" is a normal user, so there is no ` +
-        'old admin identity to promote. Resolve by hand - this script will not guess.'
-    );
-  }
-
-  // --- 2. Admin 1 ----------------------------------------------------------
-  const admin1 = byEmail(DESIRED_ADMINS[0].email);
-  if (!admin1) plan.push(`CREATE missing administrator ${DESIRED_ADMINS[0].email}.`);
-  else {
     const changes = [];
-    if (admin1.name !== DESIRED_ADMINS[0].name) changes.push(`name ${JSON.stringify(admin1.name)} -> "${DESIRED_ADMINS[0].name}"`);
-    if (admin1.role !== ADMIN_ROLE) changes.push(`role ${admin1.role} -> ${ADMIN_ROLE}`);
-    if (admin1.status && admin1.status !== 'Approved') changes.push(`status ${admin1.status} -> Approved`);
-    if (changes.length) plan.push(`Update ${DESIRED_ADMINS[0].email}: ${changes.join('; ')}`);
-  }
-
-  // --- 3. Admin 2 ----------------------------------------------------------
-  const admin2 = byEmail(DESIRED_ADMINS[1].email);
-  if (!admin2) plan.push(`CREATE missing administrator ${DESIRED_ADMINS[1].email}.`);
-  else {
-    const changes = [];
-    if (admin2.name !== DESIRED_ADMINS[1].name) changes.push(`name ${JSON.stringify(admin2.name)} -> "${DESIRED_ADMINS[1].name}"`);
-    if (admin2.role !== ADMIN_ROLE) changes.push(`role ${admin2.role} -> ${ADMIN_ROLE}`);
-    if (admin2.status && admin2.status !== 'Approved') changes.push(`status ${admin2.status} -> Approved`);
-    if (changes.length) plan.push(`Update ${DESIRED_ADMINS[1].email}: ${changes.join('; ')}`);
-  }
+    if (existing.name !== desired.name) changes.push(`name ${JSON.stringify(existing.name)} -> "${desired.name}"`);
+    if (existing.role !== ADMIN_ROLE) changes.push(`role ${existing.role} -> ${ADMIN_ROLE}`);
+    if (existing.status && existing.status !== 'Approved') changes.push(`status ${existing.status} -> Approved`);
+    if (changes.length) plan.push(`Update ${desired.email}: ${changes.join('; ')}`);
+    else plan.push(`No change needed for ${desired.email} (administrator ${index + 1}).`);
+  });
 
   console.log('\nPlan:');
   plan.forEach((line) => console.log(`  - ${line}`));
@@ -131,29 +85,36 @@ const run = async () => {
 
   const before = await users.countDocuments();
 
-  // 1. Relocate the account that currently holds the Admin 2 address.
-  if (holder && oldAdmin && String(holder._id) !== String(oldAdmin._id) && !byEmail(RELOCATED_USER.to)) {
-    await users.updateOne({ _id: holder._id }, { $set: { email: RELOCATED_USER.to } });
-    console.log(`\n  relocated account ${holder._id}: ${RELOCATED_USER.from} -> ${RELOCATED_USER.to}`);
-  }
-
-  // 2. Turn the old admin identity into Admin 2, updating in place so the
-  //    existing password hash and id are kept.
-  if (oldAdmin) {
-    await users.updateOne(
-      { _id: oldAdmin._id },
-      { $set: { email: DESIRED_ADMINS[1].email, name: DESIRED_ADMINS[1].name, role: ADMIN_ROLE, status: 'Approved' } }
-    );
-    console.log(`  updated admin account ${oldAdmin._id}: ${OLD_ADMIN_EMAIL} -> ${DESIRED_ADMINS[1].email}`);
-  }
-
-  // 3. Ensure both desired administrators exist and are correct. Password is
-  //    never written here: an account that exists keeps its own hash.
+  // 1. Ensure every desired administrator exists and is correct.
+  //
+  //    Password is NEVER written here: an account that exists keeps its own
+  //    hash. The one thing this must not do is UPSERT.
+  //
+  //    The upsert was the root cause of the recurring admin lockout. These
+  //    updates go through the raw driver, which does not run the model's
+  //    validators, so an account that was missing was created with a `name`, a
+  //    `role` and a `status` but NO password field at all. That account can
+  //    never be signed into (bcrypt.compare throws on an undefined hash) and
+  //    can never be recovered from the UI, because the change-password route
+  //    throws on the very same comparison. Deleting and re-running this script
+  //    reproduced the "password stopped working" fault every single time.
+  //
+  //    So a missing administrator is now reported and left missing: creating an
+  //    account is a separate, explicit decision made with a password.
+  const created = [];
   for (const admin of DESIRED_ADMINS) {
+    const existing = await users.findOne({ email: admin.email });
+    if (!existing) {
+      created.push(admin.email);
+      console.error(
+        `  REFUSING to create ${admin.email} without a password. ` +
+          'Create it explicitly, then re-run: npm run set:admin-password -- --email <address> --password <secret> --apply'
+      );
+      continue;
+    }
     await users.updateOne(
       { email: admin.email },
-      { $set: { name: admin.name, role: ADMIN_ROLE, status: 'Approved' } },
-      { upsert: true }
+      { $set: { name: admin.name, role: ADMIN_ROLE, status: 'Approved' } }
     );
   }
 
@@ -164,10 +125,36 @@ const run = async () => {
     process.exit(1);
   }
 
+  // Every administrator must end up able to sign in, which means holding a
+  // real bcrypt hash. Asserted against the database rather than assumed, so a
+  // lockout account can never be reported as healthy.
   const finalAdmins = await users.find({ role: ADMIN_ROLE }).toArray();
   console.log(`\nAdministrators (${finalAdmins.length}):`);
-  finalAdmins.forEach((u) => console.log(`  ${u.email}  "${u.name}"  status=${u.status}`));
+
+  const unusable = [];
+  for (const u of finalAdmins) {
+    const usable = typeof u.password === 'string' && /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(u.password);
+    if (!usable) unusable.push(u.email);
+    console.log(`  ${u.email}  "${u.name}"  status=${u.status}  password=${usable ? 'ok' : 'MISSING/UNUSABLE'}`);
+  }
   console.log(`\nAccounts total: ${after} (unchanged)`);
+
+  if (unusable.length) {
+    console.error(
+      `\nFAILED: ${unusable.length} administrator(s) cannot sign in because they hold no usable ` +
+        `password hash: ${unusable.join(', ')}. Set one explicitly with set:admin-password.`
+    );
+    await client.close();
+    process.exit(1);
+  }
+  if (created.length) {
+    console.error(
+      `\nFAILED: ${created.length} administrator(s) do not exist: ${created.join(', ')}. ` +
+        'Nothing was created - an administrator without a password cannot sign in.'
+    );
+    await client.close();
+    process.exit(1);
+  }
 
   await client.close();
 };
