@@ -19,7 +19,12 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Toaster
             position="top-right"
             toastOptions={{
-              duration: 10000,
+              // Success toasts are short confirmations; error toasts carry a
+              // message worth reading a little longer. Per-type options win
+              // over the shared `duration` below.
+              success: { duration: 3000 },
+              error: { duration: 5000 },
+              duration: 3000,
               style: {
                 background: 'var(--toast-bg, #fff)',
                 color: 'var(--toast-color, #1f2937)',
