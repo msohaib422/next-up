@@ -1,17 +1,15 @@
 /**
  * Reconcile the administrator accounts.
  *
- * There is exactly ONE administrator, holding role "collaborator" - the single
- * role every admin check in the app tests. Nothing in the codebase branches on
- * a particular address or a particular user id, so any account holding that role
- * behaves identically.
+ * Produces exactly two administrator accounts, both with role "collaborator",
+ * which is the single role every admin check in the app tests. Nothing in the
+ * codebase branches on a particular address or a particular user id, so two
+ * accounts holding that role behave identically - there is no second admin
+ * with reduced rights to fix.
  *
- *   Admin  msohaib.ai.dev@gmail.com  ->  M Sohaib
+ *   Admin 1  msohaib.ai.dev@gmail.com  ->  M Sohaib
+ *   Admin 2  anki.inola@gmail.com      ->  M Hasnain Ali
  *
- * There used to be a second administrator (anki.inola@gmail.com). That account
- * has been removed, so it is no longer listed here. Keeping it in this list would
- * have undone that removal on the very next `npm run sync:admins`, because the
- * script would have found no account for the address and tried to create one.
  * If another administrator is ever added, add them to DESIRED_ADMINS here AND
  * add the matching ADMIN_EMAIL_<n> variable to the environment at the same time.
  *
@@ -32,13 +30,8 @@ const ADMIN_ROLE = 'collaborator';
 
 const DESIRED_ADMINS = [
   { email: 'msohaib.ai.dev@gmail.com', name: 'M Sohaib' },
+  { email: 'anki.inola@gmail.com', name: 'M Hasnain Ali' },
 ];
-
-/**
- * Addresses that must NOT hold the administrator role any more. Listed so a
- * re-run says so explicitly instead of quietly doing nothing about them.
- */
-const RETIRED_ADMIN_EMAILS = ['anki.inola@gmail.com', 'hasnain@gmail.com'];
 
 const run = async () => {
   const client = await mongoose.createConnection(process.env.MONGODB_URI, {
@@ -58,28 +51,9 @@ const run = async () => {
   const byEmail = (email) => all.find((u) => u.email === email);
   const plan = [];
 
-  // --- 1. Retired administrator addresses ---------------------------------
-  // Said out loud rather than passed over in silence, so the removal is
-  // visible on every run instead of looking like the script forgot them.
-  for (const email of RETIRED_ADMIN_EMAILS) {
-    const stillThere = byEmail(email);
-    if (!stillThere) {
-      plan.push(`RETIRED: "${email}" holds no account. Correct - it is not being recreated.`);
-      continue;
-    }
-    if (stillThere.role === ADMIN_ROLE) {
-      plan.push(
-        `CONFLICT: "${email}" still holds the administrator role but has been retired. ` +
-          'Demote it deliberately, or put it back in DESIRED_ADMINS.'
-      );
-      continue;
-    }
-    plan.push(`"${email}" is present as a normal user and is NOT given the administrator role. Correct.`);
-  }
-
-  // --- 2. The desired administrator(s) ------------------------------------
+  // --- 1. The desired administrator(s) ------------------------------------
   // Looped over the list rather than written out one block per admin, so
-  // adding a second administrator later is a one-line change here.
+  // adding another administrator later is a one-line change here.
   DESIRED_ADMINS.forEach((desired, index) => {
     const existing = byEmail(desired.email);
     if (!existing) {

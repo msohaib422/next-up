@@ -144,19 +144,17 @@ const allUsers = await User.find({}).sort({ email: 1 });
 section('Administrators');
 const admins = await User.find({ role: 'collaborator' }).sort({ email: 1 });
 {
-  // There is ONE administrator. anki.inola@gmail.com has been removed, so
-  // asserting a second one here would fail on every run and, worse, would
-  // quietly pressure someone into recreating the account that was just deleted.
-  check('exactly one administrator account', admins.length === 1, `found ${admins.length}`);
-  const emails = admins.map((a) => a.email);
-  check('the administrator is msohaib.ai.dev@gmail.com', emails.includes('msohaib.ai.dev@gmail.com'), emails.join(', '));
-  check('the removed administrator is not present', !emails.includes('anki.inola@gmail.com'));
-  check('no account holds the removed address', (await User.countDocuments({ email: 'anki.inola@gmail.com' })) === 0);
+  check('exactly two administrator accounts', admins.length === 2, `found ${admins.length}`);
+  const emails = admins.map((a) => a.email).sort();
+  check('Admin 1 is msohaib.ai.dev@gmail.com', emails.includes('msohaib.ai.dev@gmail.com'));
+  check('Admin 2 is anki.inola@gmail.com', emails.includes('anki.inola@gmail.com'));
 
   const admin1 = admins.find((a) => a.email === 'msohaib.ai.dev@gmail.com');
-  check('the administrator is named "M Sohaib"', admin1?.name === 'M Sohaib', admin1?.name);
-  check('it is Approved', admins.every((a) => !a.status || a.status === 'Approved'));
-  check('it has an intact password hash', passwordHashesIntact);
+  const admin2 = admins.find((a) => a.email === 'anki.inola@gmail.com');
+  check('Admin 1 is named "M Sohaib"', admin1?.name === 'M Sohaib', admin1?.name);
+  check('Admin 2 is named "M Hasnain Ali"', admin2?.name === 'M Hasnain Ali', admin2?.name);
+  check('both are Approved', admins.every((a) => !a.status || a.status === 'Approved'));
+  check('both have an intact password hash', passwordHashesIntact);
   results.admins = admins.map((a) => ({ email: a.email, name: a.name, role: a.role }));
 }
 
@@ -181,12 +179,10 @@ section('Content is fresh');
   results.contentCounts = counts;
 }
 
-section('Admin capability');
+section('Admin permission parity');
 {
-  // There is one administrator, so there is no second admin to compare against.
-  // What matters is that this one is allowed everywhere an admin should be, and
-  // that a normal user is allowed nowhere an admin is.
   const admin1 = admins.find((a) => a.email === 'msohaib.ai.dev@gmail.com');
+  const admin2 = admins.find((a) => a.email === 'anki.inola@gmail.com');
   const normal = await User.findOne({ role: 'user' });
 
   const adminEndpoints = [
@@ -215,9 +211,14 @@ section('Admin capability');
   };
 
   const s1 = await statusesFor(admin1);
+  const s2 = await statusesFor(admin2);
 
   for (const key of Object.keys(s1)) {
-    check(`the administrator can ${key} (${s1[key]})`, s1[key] < 400, `status=${s1[key]}`);
+    check(
+      `Admin 1 and Admin 2 get the same result for ${key} (${s1[key]}/${s2[key]})`,
+      s1[key] === s2[key] && s1[key] < 400,
+      s1[key] === s2[key] ? '' : `Admin 1 -> ${s1[key]}, Admin 2 -> ${s2[key]}`
+    );
   }
 
   // A normal user must be refused everywhere an admin is allowed.
@@ -226,12 +227,17 @@ section('Admin capability');
     check(`normal user is refused ${key} (${normalStatuses[key]})`, normalStatuses[key] === 403);
   }
 
-  // The administrator must be able to act on a user, not merely read the page.
-  const editProbe = await request(server, 'PUT', `/api/users/admin/users/${normal._id}`, {
-    token: tokenFor(admin1),
-    body: { name: normal.name, email: normal.email },
-  });
-  check(`the administrator can edit a user (${editProbe.status})`, editProbe.status === 200);
+  // Both admins must be able to act on a user, not merely read the page.
+  const editProbe = await Promise.all(
+    [admin1, admin2].map((a) =>
+      request(server, 'PUT', `/api/users/admin/users/${normal._id}`, {
+        token: tokenFor(a),
+        body: { name: normal.name, email: normal.email },
+      })
+    )
+  );
+  check(`Admin 1 can edit a user (${editProbe[0].status})`, editProbe[0].status === 200);
+  check(`Admin 2 can edit a user (${editProbe[1].status})`, editProbe[1].status === 200);
 
   // The approval actions are admin-only and must reject a normal user.
   const approveProbe = await request(server, 'PUT', `/api/users/admin/users/${normal._id}/approve`, {
@@ -300,23 +306,19 @@ section('Admin email recipients');
 {
   const env = configuredAdminEmails();
   check('ADMIN_EMAIL_1 is read from the environment', env.includes('msohaib.ai.dev@gmail.com'), env.join(', '));
-  check('exactly one admin recipient configured', env.length === 1, `${env.length}: ${env.join(', ')}`);
-  check(
-    'the removed administrator is not still configured',
-    !env.includes('anki.inola@gmail.com'),
-    'ADMIN_EMAIL_2 would keep mailing an address with no account behind it'
-  );
+  check('ADMIN_EMAIL_2 is read from the environment', env.includes('anki.inola@gmail.com'), env.join(', '));
+  check('exactly two admin recipients configured', env.length === 2, `${env.length}: ${env.join(', ')}`);
 
   const resolved = await resolveAdminRecipients();
   check(
-    'recipients resolve to the one administrator',
-    resolved.length === 1 && resolved.includes('msohaib.ai.dev@gmail.com'),
+    'recipients resolve to both administrators',
+    resolved.includes('msohaib.ai.dev@gmail.com') && resolved.includes('anki.inola@gmail.com'),
     resolved.join(', ')
   );
   results.adminRecipients = resolved;
 }
 
-section('One event, one email, to the administrator');
+section('One event, one email, both administrators');
 {
   const { register } = await import('../controllers/authController.js');
   const uniqueEmail = `verify-${Date.now().toString(36)}@example.com`;
@@ -347,8 +349,8 @@ section('One event, one email, to the administrator');
     );
     const recipients = adminAlerts[0].to.flatMap((t) => String(t).split(',')).map((s) => s.trim().toLowerCase());
     check(
-      'that single message is addressed to the administrator',
-      recipients.includes('msohaib.ai.dev@gmail.com'),
+      'that single message is addressed to BOTH administrators',
+      recipients.includes('msohaib.ai.dev@gmail.com') && recipients.includes('anki.inola@gmail.com'),
       recipients.join(', ')
     );
     check('and to nobody else', recipients.length === 2, recipients.join(', '));
