@@ -1,20 +1,19 @@
 /**
  * Reconcile the administrator accounts.
  *
- * Produces exactly two administrator accounts, both with role "collaborator",
- * which is the single role every admin check in the app tests. Nothing in the
- * codebase branches on a particular address or a particular user id, so two
- * accounts holding that role behave identically - there is no second admin
- * with reduced rights to fix.
+ * There is exactly ONE administrator, holding role "collaborator" - the single
+ * role every admin check in the app tests. Nothing in the codebase branches on
+ * a particular address or a particular user id, so any account holding that role
+ * behaves identically.
  *
- *   Admin 1  msohaib.ai.dev@gmail.com  ->  M Sohaib
- *   Admin 2  anki.inola@gmail.com      ->  M Hasnain Ali   (was hasnain@gmail.com)
+ *   Admin  msohaib.ai.dev@gmail.com  ->  M Sohaib
  *
- * The `anki.inola@gmail.com` address was already held by a normal user account
- * ("novi"), and `users.email` is uniquely indexed, so the two cannot coexist.
- * Rather than delete an account, that user is moved to a free address and keeps
- * its id, its password hash, its role and its content. Renaming an address is
- * something the admin UI can already do; this only does it once, deliberately.
+ * There used to be a second administrator (anki.inola@gmail.com). That account
+ * has been removed, so it is no longer listed here. Keeping it in this list would
+ * have undone that removal on the very next `npm run sync:admins`, because the
+ * script would have found no account for the address and tried to create one.
+ * If another administrator is ever added, add them to DESIRED_ADMINS here AND
+ * add the matching ADMIN_EMAIL_<n> variable to the environment at the same time.
  *
  *   node scripts/sync-admin-accounts.mjs           # dry run
  *   node scripts/sync-admin-accounts.mjs --apply   # perform the changes
@@ -33,17 +32,13 @@ const ADMIN_ROLE = 'collaborator';
 
 const DESIRED_ADMINS = [
   { email: 'msohaib.ai.dev@gmail.com', name: 'M Sohaib' },
-  { email: 'anki.inola@gmail.com', name: 'M Hasnain Ali' },
 ];
 
-/** The admin identity being replaced. */
-const OLD_ADMIN_EMAIL = 'hasnain@gmail.com';
-
 /**
- * Where the pre-existing user account that holds the Admin 2 address is moved
- * to. It keeps its id, password, role and history; only the address changes.
+ * Addresses that must NOT hold the administrator role any more. Listed so a
+ * re-run says so explicitly instead of quietly doing nothing about them.
  */
-const RELOCATED_USER = { from: 'anki.inola@gmail.com', to: 'novi+nextup@gmail.com' };
+const RETIRED_ADMIN_EMAILS = ['anki.inola@gmail.com', 'hasnain@gmail.com'];
 
 const run = async () => {
   const client = await mongoose.createConnection(process.env.MONGODB_URI, {
@@ -63,56 +58,41 @@ const run = async () => {
   const byEmail = (email) => all.find((u) => u.email === email);
   const plan = [];
 
-  // --- 1. Free up the Admin 2 address -------------------------------------
-  const holder = byEmail(RELOCATED_USER.from);
-  const oldAdmin = byEmail(OLD_ADMIN_EMAIL);
-
-  if (holder && String(holder._id) === String(oldAdmin?._id)) {
-    // The admin already owns the address: nothing to free up.
-    plan.push(`"${RELOCATED_USER.from}" is already held by the admin account; no relocation needed.`);
-  } else if (holder && oldAdmin) {
-    // The expected case: a normal user currently sits on the address the admin
-    // is moving to. Relocate that user, keep the account, then update the admin.
-    const taken = byEmail(RELOCATED_USER.to);
-    if (taken) {
-      plan.push(
-        `CONFLICT: the relocation address "${RELOCATED_USER.to}" is already taken by ` +
-          `${JSON.stringify(taken.name)}. Choose a different address.`
-      );
-    } else {
-      plan.push(
-        `Relocate the existing user account "${RELOCATED_USER.from}" (${JSON.stringify(holder.name)}) ` +
-          `to "${RELOCATED_USER.to}" so the admin can take the address. The account is kept, not deleted.`
-      );
+  // --- 1. Retired administrator addresses ---------------------------------
+  // Said out loud rather than passed over in silence, so the removal is
+  // visible on every run instead of looking like the script forgot them.
+  for (const email of RETIRED_ADMIN_EMAILS) {
+    const stillThere = byEmail(email);
+    if (!stillThere) {
+      plan.push(`RETIRED: "${email}" holds no account. Correct - it is not being recreated.`);
+      continue;
     }
-  } else if (holder) {
-    plan.push(
-      `"${OLD_ADMIN_EMAIL}" is absent and "${RELOCATED_USER.from}" is a normal user, so there is no ` +
-        'old admin identity to promote. Resolve by hand - this script will not guess.'
-    );
+    if (stillThere.role === ADMIN_ROLE) {
+      plan.push(
+        `CONFLICT: "${email}" still holds the administrator role but has been retired. ` +
+          'Demote it deliberately, or put it back in DESIRED_ADMINS.'
+      );
+      continue;
+    }
+    plan.push(`"${email}" is present as a normal user and is NOT given the administrator role. Correct.`);
   }
 
-  // --- 2. Admin 1 ----------------------------------------------------------
-  const admin1 = byEmail(DESIRED_ADMINS[0].email);
-  if (!admin1) plan.push(`CREATE missing administrator ${DESIRED_ADMINS[0].email}.`);
-  else {
+  // --- 2. The desired administrator(s) ------------------------------------
+  // Looped over the list rather than written out one block per admin, so
+  // adding a second administrator later is a one-line change here.
+  DESIRED_ADMINS.forEach((desired, index) => {
+    const existing = byEmail(desired.email);
+    if (!existing) {
+      plan.push(`CREATE missing administrator ${desired.email}.`);
+      return;
+    }
     const changes = [];
-    if (admin1.name !== DESIRED_ADMINS[0].name) changes.push(`name ${JSON.stringify(admin1.name)} -> "${DESIRED_ADMINS[0].name}"`);
-    if (admin1.role !== ADMIN_ROLE) changes.push(`role ${admin1.role} -> ${ADMIN_ROLE}`);
-    if (admin1.status && admin1.status !== 'Approved') changes.push(`status ${admin1.status} -> Approved`);
-    if (changes.length) plan.push(`Update ${DESIRED_ADMINS[0].email}: ${changes.join('; ')}`);
-  }
-
-  // --- 3. Admin 2 ----------------------------------------------------------
-  const admin2 = byEmail(DESIRED_ADMINS[1].email);
-  if (!admin2) plan.push(`CREATE missing administrator ${DESIRED_ADMINS[1].email}.`);
-  else {
-    const changes = [];
-    if (admin2.name !== DESIRED_ADMINS[1].name) changes.push(`name ${JSON.stringify(admin2.name)} -> "${DESIRED_ADMINS[1].name}"`);
-    if (admin2.role !== ADMIN_ROLE) changes.push(`role ${admin2.role} -> ${ADMIN_ROLE}`);
-    if (admin2.status && admin2.status !== 'Approved') changes.push(`status ${admin2.status} -> Approved`);
-    if (changes.length) plan.push(`Update ${DESIRED_ADMINS[1].email}: ${changes.join('; ')}`);
-  }
+    if (existing.name !== desired.name) changes.push(`name ${JSON.stringify(existing.name)} -> "${desired.name}"`);
+    if (existing.role !== ADMIN_ROLE) changes.push(`role ${existing.role} -> ${ADMIN_ROLE}`);
+    if (existing.status && existing.status !== 'Approved') changes.push(`status ${existing.status} -> Approved`);
+    if (changes.length) plan.push(`Update ${desired.email}: ${changes.join('; ')}`);
+    else plan.push(`No change needed for ${desired.email} (administrator ${index + 1}).`);
+  });
 
   console.log('\nPlan:');
   plan.forEach((line) => console.log(`  - ${line}`));
@@ -131,23 +111,7 @@ const run = async () => {
 
   const before = await users.countDocuments();
 
-  // 1. Relocate the account that currently holds the Admin 2 address.
-  if (holder && oldAdmin && String(holder._id) !== String(oldAdmin._id) && !byEmail(RELOCATED_USER.to)) {
-    await users.updateOne({ _id: holder._id }, { $set: { email: RELOCATED_USER.to } });
-    console.log(`\n  relocated account ${holder._id}: ${RELOCATED_USER.from} -> ${RELOCATED_USER.to}`);
-  }
-
-  // 2. Turn the old admin identity into Admin 2, updating in place so the
-  //    existing password hash and id are kept.
-  if (oldAdmin) {
-    await users.updateOne(
-      { _id: oldAdmin._id },
-      { $set: { email: DESIRED_ADMINS[1].email, name: DESIRED_ADMINS[1].name, role: ADMIN_ROLE, status: 'Approved' } }
-    );
-    console.log(`  updated admin account ${oldAdmin._id}: ${OLD_ADMIN_EMAIL} -> ${DESIRED_ADMINS[1].email}`);
-  }
-
-  // 3. Ensure both desired administrators exist and are correct.
+  // 1. Ensure every desired administrator exists and is correct.
   //
   //    Password is NEVER written here: an account that exists keeps its own
   //    hash. The one thing this must not do is UPSERT.
