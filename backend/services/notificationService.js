@@ -1,6 +1,7 @@
 import Notification from '../models/Notification.js';
 import Contribution from '../models/Contribution.js';
 import User from '../models/User.js';
+import { sendContentChangeEmail, sendContributionSubmittedEmail } from './mailService.js';
 
 /**
  * Central, server-side notification service.
@@ -156,11 +157,51 @@ const contentName = (entityType) => {
  *
  * `action` is 'added' or 'updated'. Failures are swallowed on purpose, same as
  * createActivity, so a notification can never break the underlying write.
+ *
+ * The call also sends an email for the event, through the existing mail service
+ * and its existing template. An add always produces one email, and a timetable
+ * update produces one too; any other update stays silent. The email goes to
+ * every account that can open the link EXCEPT the administrator who performed
+ * the action, who is not a recipient of their own action.
  */
 export const notifyContentChange = async ({ entityType, entity, actor, action }) => {
   try {
     if (actor?.role !== 'collaborator') return [];
     if (!entity?._id) return [];
+
+    // The same event also goes out as email, through the existing mail service
+    // and its existing template. It is deliberately narrower than the in-app
+    // rules above in one way and wider in another:
+    //
+    //   - it is sent for content that was just added, and for a timetable that
+    //     was added or updated, and nothing else, so an ordinary edit of a task,
+    //     quiz, assignment, essential or announcement stays silent;
+    //   - every account that can open the link is told, so the rest of the admin
+    //     team learns about shared content the same way the other admins are,
+    //     and the same way the recipient list already works for the in-app
+    //     notification to the other admins;
+    //   - the administrator who performed the action is NOT a recipient. That is
+    //     the one difference from the user list: they already know, and the rule
+    //     is simply not to notify someone of their own action. The address is
+    //     dropped from the recipient list before anything is sent, so it is never
+    //     opened as a recipient and no delivery record is written for it.
+    //
+    // Each recipient gets their own copy of the message, so nobody sees anybody
+    // else's address.
+    //
+    // It runs BEFORE the in-app fan-out on purpose: the in-app rules return
+    // early when there is nobody to tell, and the email must still reach a
+    // single-admin deployment. Its own try/catch keeps it from ever changing
+    // what happens next - nothing below behaves differently because of it, and
+    // the in-app notifications keep the exact wording and exclusions they have
+    // always had.
+    if (action === 'added' || entityType === 'Lecture') {
+      try {
+        await sendContentChangeEmail({ entityType, entity, action, excludeEmails: [actor?.email] });
+      } catch (error) {
+        console.error('Error sending the content notification email:', error.message);
+      }
+    }
 
     const [userRecipients, adminRecipients] = await Promise.all([
       contentRecipients(actor),
@@ -410,7 +451,11 @@ export const notifyAdminsOfRegistrationSubmitted = async (user, { isReapplicatio
   }
 };
 
-/** User submitted a contribution -> every admin (collaborator) is notified once. */
+/**
+ * User submitted a contribution -> every admin (collaborator) is notified once,
+ * in the app and by email. The contributor is never a recipient of their own
+ * submission.
+ */
 export const notifyContributionSubmitted = async (contribution, actor) => {
   try {
     const admins = await User.find({ role: 'collaborator' }).select('_id');
@@ -432,6 +477,21 @@ export const notifyContributionSubmitted = async (contribution, actor) => {
           })
         )
     );
+
+    // The same event also goes out as email, to the same administrators the
+    // in-app notice above goes to and nobody else: the person who submitted it
+    // does not get their own notification, and other users are not told about a
+    // contribution that is still pending and that they cannot read.
+    //
+    // The contribution has already been stored when this runs, so the email can
+    // never claim something the workflow did not do, and the approval decision
+    // below is entirely unaffected by it.
+    try {
+      await sendContributionSubmittedEmail({ contribution, contributor: actor });
+    } catch (error) {
+      console.error('Error sending the contribution submitted email:', error.message);
+    }
+
     return created.filter(Boolean);
   } catch (error) {
     console.error('Error notifying admins of contribution:', error.message);
@@ -466,9 +526,35 @@ export const notifyContributionApproved = async (contribution, admin, entity) =>
  * admin-to-admin half of the existing publication notification. The approving
  * admin is not a recipient, and the contributor still gets exactly the one
  * notification notifyContributionApproved sends them.
+ *
+ * Publication is also the moment the item becomes content every approved user
+ * can see, so the ordinary content email goes out for it here - to every approved
+ * user and the other admins, and to neither the approving admin nor the
+ * contributor, who are the two people who already know. That happens before the
+ * early return below for the same reason as everywhere else: a single-admin
+ * deployment still has users to tell.
  */
 export const notifyAdminsOfPublishedContribution = async (contribution, admin, entity) => {
   try {
+    // The contributor is populated by the caller; fall back to the stored id so
+    // the exclusion cannot silently fail and email them about their own item.
+    let contributorEmail = typeof contribution.user === 'object' ? contribution.user?.email || '' : '';
+    if (!contributorEmail && contribution.user) {
+      const owner = await User.findById(contribution.user).select('email').lean();
+      contributorEmail = owner?.email || '';
+    }
+
+    try {
+      await sendContentChangeEmail({
+        entityType: contribution.type,
+        entity: entity || {},
+        action: 'added',
+        excludeEmails: [admin?.email, contributorEmail],
+      });
+    } catch (error) {
+      console.error('Error sending the published contribution email:', error.message);
+    }
+
     const admins = await otherAdminRecipients(admin);
     if (admins.length === 0) return [];
 

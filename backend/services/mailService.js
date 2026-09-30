@@ -235,8 +235,13 @@ const BRAND = 'NextUp';
  * noreferrer"` is not optional there: without `noopener` the opened page gets a
  * handle on this window through `window.opener`, and without `noreferrer` it
  * learns which address the mail was sent to.
+ *
+ * `showFallbackLink: false` leaves out the "copy and paste this link" line under
+ * the button, for a message that must end at the button. It defaults to true, so
+ * every existing email keeps that line exactly as it has always had it; only the
+ * admin content notifications below opt out of it.
  */
-const layout = ({ heading, intro, rows = [], body = '', action, footer, footerRule = true }) => {
+const layout = ({ heading, intro, rows = [], body = '', action, footer, footerRule = true, showFallbackLink = true }) => {
   const safeRows = rows
     .map(
       ([label, value]) => `
@@ -269,8 +274,12 @@ const layout = ({ heading, intro, rows = [], body = '', action, footer, footerRu
           ${
             action
               ? `<p style="margin:0 0 8px;"><a href="${escapeHtml(action.url)}"${anchor(action)} style="display:inline-block;padding:11px 22px;background:#4f46e5;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">${escapeHtml(action.label)}</a></p>
-                 <p style="margin:0;font-size:13px;color:#6b7280;">If the button does not work, copy and paste this link into your browser:<br />
+                 ${
+                   showFallbackLink
+                     ? `<p style="margin:0;font-size:13px;color:#6b7280;">If the button does not work, copy and paste this link into your browser:<br />
                  <span style="color:#4f46e5;word-break:break-all;">${escapeHtml(action.url)}</span></p>`
+                     : ''
+                 }`
               : ''
           }
         </td>
@@ -310,8 +319,8 @@ const toPlainText = ({ heading, intro, rows = [], action }) =>
  *   { sent, status: 'sent' | 'skipped' | 'failed', reason?, messageId? }
  * and, for a list, a `results` array with one entry per address considered.
  */
-export const sendMail = async ({ to, subject, heading, intro, rows, bodyHtml, bodyText, action, footer, footerRule = true, context, relatedUser = null, allowSuppressed = false }) => {
-  const html = layout({ heading, intro, rows, body: bodyHtml, action, footer, footerRule });
+export const sendMail = async ({ to, subject, heading, intro, rows, bodyHtml, bodyText, action, footer, footerRule = true, showFallbackLink = true, context, relatedUser = null, allowSuppressed = false }) => {
+  const html = layout({ heading, intro, rows, body: bodyHtml, action, footer, footerRule, showFallbackLink });
   const text = bodyText || toPlainText({ heading, intro, rows, action });
   const where = context ? ` (${context})` : '';
 
@@ -597,6 +606,243 @@ export const sendAccountDeletedEmail = async (user, { allowSuppressed = false } 
       const link = appLink('/register');
       return link ? { label: 'Register Again', ...link } : undefined;
     })(),
+  });
+};
+
+/* ------------------------------------------------------------------ *
+ * Admin content emails
+ *
+ * Sent when an administrator adds content, and when the timetable is added or
+ * updated. The message is the same shared layout every other email uses, with
+ * the same button, and it deep-links into the page that lists the item with the
+ * existing `?highlight=<id>` behaviour, so the reader lands on the exact item.
+ * ------------------------------------------------------------------ */
+
+/**
+ * How each content type is described in an email.
+ *
+ * `noun` is the lower-case word used in the sentence, `name` the capitalised
+ * name in the heading and subject, `courseField` the field that holds the course
+ * name, and `route` the page that lists the item. Announcements carry no course
+ * and the timetable entry is described as a timetable, exactly as the rest of
+ * the project already names them.
+ */
+const CONTENT_EMAIL = {
+  Task: { noun: 'task', name: 'Task', courseField: 'subject', route: '/tasks' },
+  Quiz: { noun: 'quiz', name: 'Quiz', courseField: 'subject', route: '/quizzes' },
+  Assignment: { noun: 'assignment', name: 'Assignment', courseField: 'subject', route: '/assignments' },
+  Essential: { noun: 'essential', name: 'Essential', courseField: 'course', route: '/essentials' },
+  Announcement: { noun: 'announcement', name: 'Announcement', courseField: '', route: '/announcements' },
+  // Timetable entries are stored as Lectures.
+  Lecture: { noun: 'timetable', name: 'Timetable', courseField: '', route: '/timetable' },
+};
+
+/**
+ * One address, lower-cased and trimmed.
+ *
+ * A caller may hand over a plain address or a whole account object, because the
+ * code that knows about an actor has the account in its hand and should not have
+ * to reach into it. Stringifying an object instead would produce "[object
+ * Object]" and silently fail to exclude anybody, which is precisely the kind of
+ * mistake that must never happen here: the person who did something is the one
+ * address that must never be notified.
+ */
+const normalizeAddress = (value) =>
+  String((value && typeof value === 'object' ? value.email : value) || '').trim().toLowerCase();
+
+/**
+ * Send one message to several addresses as SEPARATE emails, one per address.
+ *
+ * This is the privacy-safe path, and the reason it exists: when several
+ * addresses share a single message they share a `To:` header, so every reader
+ * sees every other reader's address. Handing each person their own message makes
+ * that impossible - a recipient can only ever see their own address - and it is
+ * also what the delivery records want, because each address then has its own
+ * real outcome (Sent or Failed) instead of a shared verdict.
+ *
+ * Every other option in the mail service is untouched and still available to the
+ * workflows that were built around a single shared message.
+ */
+const sendPrivately = async ({ to, ...options }) => {
+  const requested = (Array.isArray(to) ? to : [to]).map(normalizeAddress).filter(Boolean);
+  const addresses = [...new Set(requested)];
+
+  if (!addresses.length) {
+    const reason = 'there are no recipient addresses configured';
+    console.warn(`[mail] SKIPPED "${options.subject}": ${reason}`);
+    return { sent: false, status: 'skipped', reason, results: [] };
+  }
+
+  const results = await Promise.all(
+    addresses.map((email) => sendMail({ ...options, to: email }))
+  );
+
+  const sent = results.filter((result) => result.sent).length;
+  return {
+    sent: sent > 0,
+    status: sent > 0 ? 'sent' : 'skipped',
+    reason: sent > 0 ? '' : 'no address could be reached',
+    results: results.flatMap((result) => result.results || []),
+  };
+};
+
+/**
+ * Everybody who can act on a content notification: every administrator and
+ * every approved user, minus the people who must not be told.
+ *
+ * This mirrors what the server itself allows through (see
+ * `approvalRequired` in middleware/auth.js): an administrator account is
+ * included whatever its approval state, and a user only once an administrator
+ * has approved it, because a pending or rejected account cannot open the link.
+ *
+ * `excludeEmails` holds the person who performed the action - the administrator
+ * who added or updated the content - and anything else that must not be
+ * notified. An excluded address is dropped from the list before anything is
+ * sent, so it is never opened as a recipient and no delivery record is written
+ * for it: being left out means not being a recipient at all.
+ */
+const contentNotificationRecipients = async ({ excludeEmails = [] } = {}) => {
+  const excluded = new Set((Array.isArray(excludeEmails) ? excludeEmails : [excludeEmails]).map(normalizeAddress).filter(Boolean));
+
+  const accounts = await User.find({ $or: [{ role: 'collaborator' }, { status: 'Approved' }] })
+    .select('email')
+    .lean();
+  const addresses = accounts
+    .map((account) => normalizeAddress(account.email))
+    .filter((email) => email && !excluded.has(email));
+  return [...new Set(addresses)];
+};
+
+/**
+ * Tell everyone that content was added, or that the timetable changed.
+ *
+ * `entityType` is one of CONTENT_EMAIL, `entity` is the stored record and
+ * `action` is 'added' or 'updated'. Anything other than an add, and a timetable
+ * change, is skipped without sending. `excludeEmails` is the administrator who
+ * made the change (and, when a contributed item is published, its contributor):
+ * neither is a recipient. The email carries the title and the course name for
+ * the content types that have one, the title alone for an announcement, and no
+ * extra rows for the timetable - the View button is the last thing in the
+ * message, with no plain-text link under it.
+ *
+ * Every recipient gets their own copy of the message, so no recipient can see
+ * another recipient's address, and each address is recorded on its own.
+ *
+ * Never throws: a recipient list that cannot be read is logged and skipped, so a
+ * mail problem can never fail the content action that triggered it.
+ */
+export const sendContentChangeEmail = async ({ entityType, entity, action, excludeEmails = [] }) => {
+  const spec = CONTENT_EMAIL[entityType];
+  if (!spec || !entity?._id) {
+    return { sent: false, status: 'skipped', reason: `no content email is defined for ${entityType}`, results: [] };
+  }
+
+  // Only an add, and a timetable that was added or changed. Every other update
+  // is deliberately silent, and this check holds wherever the function is called
+  // from.
+  if (action !== 'added' && entityType !== 'Lecture') {
+    return { sent: false, status: 'skipped', reason: `an update to a ${spec.noun} does not send an email`, results: [] };
+  }
+
+  let recipients;
+  try {
+    recipients = await contentNotificationRecipients({ excludeEmails });
+  } catch (error) {
+    console.error(`[mail] could not read the recipient list for the ${entityType} email:`, error.message);
+    return { sent: false, status: 'skipped', reason: 'the recipient list could not be read', results: [] };
+  }
+
+  if (!recipients.length) {
+    const reason = 'there is nobody left to notify';
+    console.warn(`[mail] SKIPPED the ${entityType} email: ${reason}`);
+    return { sent: false, status: 'skipped', reason, results: [] };
+  }
+
+  const isAdd = action === 'added';
+  const title = String(entity.title || entity.subject || 'Untitled').trim();
+  const course = spec.courseField ? String(entity[spec.courseField] || '').trim() : '';
+
+  const rows = [['Title', title]];
+  if (course) rows.push(['Course', course]);
+
+  // The same link the in-app notification uses, which is the page that lists the
+  // item with it highlighted. Omitted entirely when no public URL is configured,
+  // rather than emailed broken.
+  const link = appLink(`${spec.route}?highlight=${entity._id}`);
+
+  return sendPrivately({
+    to: recipients,
+    context: `content-${entityType.toLowerCase()}-${action}`,
+    subject: isAdd ? `New ${spec.name} Added` : `${spec.name} Updated`,
+    heading: isAdd ? `New ${spec.name} Added` : `${spec.name} Updated`,
+    intro: isAdd ? `A new ${spec.noun} has been added.` : `The ${spec.noun} has been updated.`,
+    rows,
+    action: link ? { label: 'View', ...link } : undefined,
+    // The button is the last thing in this email; the "copy and paste this link"
+    // line every other email carries is left out here.
+    showFallbackLink: false,
+  });
+};
+
+/**
+ * Tell the administrators that a user has submitted something for review.
+ *
+ * The recipients are the same administrators the in-app submission notification
+ * goes to, minus the person who submitted it, so both channels agree on who is
+ * being told. A pending contribution is not readable by other users, so they are
+ * deliberately not recipients here.
+ *
+ * `View` opens the contribution in the existing Approvals page with it
+ * highlighted, which is where an administrator decides on it.
+ */
+export const sendContributionSubmittedEmail = async ({ contribution, contributor }) => {
+  if (!contribution?._id) {
+    return { sent: false, status: 'skipped', reason: 'the contribution has no id', results: [] };
+  }
+
+  const spec = CONTENT_EMAIL[contribution.type];
+  const name = spec?.name || 'Contribution';
+  const noun = spec?.noun || 'item';
+
+  let recipients;
+  try {
+    const admins = await User.find({ role: 'collaborator' }).select('email').lean();
+    const excluded = new Set([normalizeAddress(contributor?.email)]);
+    recipients = [...new Set(
+      admins
+        .map((admin) => normalizeAddress(admin.email))
+        .filter((email) => email && !excluded.has(email))
+    )];
+  } catch (error) {
+    console.error('[mail] could not read the administrator list for the contribution email:', error.message);
+    return { sent: false, status: 'skipped', reason: 'the administrator list could not be read', results: [] };
+  }
+
+  if (!recipients.length) {
+    const reason = 'there is no administrator to notify';
+    console.warn(`[mail] SKIPPED the ${contribution.type} contribution email: ${reason}`);
+    return { sent: false, status: 'skipped', reason, results: [] };
+  }
+
+  const submittedBy = String(contributor?.name || 'A user').trim();
+  const title = String(contribution.title || 'Untitled').trim();
+  const content = contribution.content && typeof contribution.content === 'object' ? contribution.content : {};
+  const course = spec?.courseField ? String(content[spec.courseField] || '').trim() : '';
+
+  const rows = [['Contributor', submittedBy], ['Title', title]];
+  if (course) rows.push(['Course', course]);
+
+  const link = appLink(`/approvals?highlight=${contribution._id}`);
+
+  return sendPrivately({
+    to: recipients,
+    context: `contribution-${String(contribution.type || 'item').toLowerCase()}-submitted`,
+    subject: `New ${name} Contribution Submitted`,
+    heading: `New ${name} Contribution Submitted`,
+    intro: `${submittedBy} submitted a new ${noun} for review.`,
+    rows,
+    action: link ? { label: 'View', ...link } : undefined,
+    showFallbackLink: false,
   });
 };
 

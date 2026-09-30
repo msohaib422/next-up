@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useHighlightSync } from '../hooks/useHighlightSync'
 import { hasList, readList, rememberList } from '../utils/listCache'
@@ -20,12 +21,48 @@ export default function TimetablePage() {
   const [loading, setLoading] = useState(() => !hasList('/lectures'))
   const [showModal, setShowModal] = useState(false)
   const [editingLecture, setEditingLecture] = useState(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const processedHighlight = useRef(null)
+  // Id whose entry was missing on the first attempt (one retry, then drop the link).
+  const missingHighlight = useRef(null)
 
   useEffect(() => { fetchLectures() }, [])
 
   // A notification may point at an entry this page has not loaded yet
   // (e.g. another admin added it while this page was already open).
   useHighlightSync(lectures.map((lecture) => lecture._id), loading, () => fetchLectures())
+
+  // Highlight the timetable a notification points at. This is the same behaviour
+  // and the same glow the other content pages already have (see TasksPage), so a
+  // link from an in-app notification or an email opens the timetable and points
+  // at it. Nothing is highlighted unless the URL asks for it, so the page is
+  // otherwise exactly as before.
+  useEffect(() => {
+    if (loading) return
+    const highlightId = searchParams.get('highlight')
+    if (!highlightId || highlightId === processedHighlight.current) return
+    if (missingHighlight.current === highlightId) {
+      searchParams.delete('highlight')
+      setSearchParams(searchParams, { replace: true })
+      return
+    }
+    const timer = setTimeout(() => {
+      const element = document.getElementById(`item-${highlightId}`)
+      if (!element) {
+        missingHighlight.current = highlightId
+        return
+      }
+      processedHighlight.current = highlightId
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      element.classList.add('highlight-glow')
+      setTimeout(() => {
+        element.classList.remove('highlight-glow')
+      }, 3000)
+      searchParams.delete('highlight')
+      setSearchParams(searchParams, { replace: true })
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [loading, lectures, searchParams, setSearchParams])
 
   const fetchLectures = async () => {
     try {
@@ -78,7 +115,7 @@ export default function TimetablePage() {
       {/* The title keeps the first line and the actions move below it on narrow
           screens, so a long timetable name is not cut short. */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4 shrink-0">
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center gap-3 min-w-0" id={imageLecture ? `item-${imageLecture._id}` : undefined}>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white truncate">
             {imageLecture ? imageLecture.subject : 'Timetable'}
           </h1>
