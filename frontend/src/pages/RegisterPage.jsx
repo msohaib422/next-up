@@ -199,7 +199,7 @@ export default function RegisterPage() {
                 label="Email"
                 type="email"
                 icon={Mail}
-                placeholder="you@university.edu"
+                placeholder="name@gmail.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
