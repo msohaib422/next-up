@@ -22,7 +22,9 @@ export default function PasswordInput({ value, onChange, label, error, placehold
       aria-label={visible ? 'Hide password' : 'Show password'}
       aria-pressed={visible}
       title={visible ? 'Hide password' : 'Show password'}
-      className="p-1 rounded-md text-gray-400 transition-colors hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:text-gray-500 dark:hover:text-gray-300"
+      // focus-visible, not focus: a tap used to leave a blue ring sitting
+      // around the eye until the next tap, and a keyboard still gets the ring.
+      className="p-1 rounded-md text-gray-400 transition-colors hover:text-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:text-gray-500 dark:hover:text-gray-300"
     >
       {visible ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
     </button>

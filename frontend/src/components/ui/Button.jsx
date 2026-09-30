@@ -16,7 +16,9 @@ const sizes = {
 export default function Button({ children, variant = 'primary', size = 'md', loading, disabled, className = '', ...props }) {
   return (
     <button
-      className={`inline-flex items-center justify-center gap-2 font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed ${variants[variant]} ${sizes[size]} ${className}`}
+      // The ring is scoped to focus-visible, so a tap no longer leaves a blue
+      // box around the button afterwards, while keyboard focus still shows it.
+      className={`inline-flex items-center justify-center gap-2 font-medium rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed ${variants[variant]} ${sizes[size]} ${className}`}
       disabled={disabled || loading}
       {...props}
     >

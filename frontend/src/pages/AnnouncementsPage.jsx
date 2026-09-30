@@ -6,6 +6,7 @@ import { useHighlightSync } from '../hooks/useHighlightSync'
 import { Plus, Megaphone, Search, X, Paperclip, Download, Pin, Bookmark, ExternalLink } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { useSearchParams } from 'react-router-dom'
+import { hasList, readList, rememberList, forgetList } from '../utils/listCache'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -60,8 +61,11 @@ const TYPE_TEXT_COLOR = {
 export default function AnnouncementsPage() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'collaborator'
-  const [announcements, setAnnouncements] = useState([])
-  const [loading, setLoading] = useState(true)
+  // See TasksPage: the dashboard reads this same list, so returning to this tab
+  // used to mean fetching it all over again and drawing nothing until the
+  // answer arrived.
+  const [announcements, setAnnouncements] = useState(() => readList('/announcements') || [])
+  const [loading, setLoading] = useState(() => !hasList('/announcements'))
   const [showModal, setShowModal] = useState(false)
   const [editingAnnouncement, setEditingAnnouncement] = useState(null)
   const [viewingAnnouncement, setViewingAnnouncement] = useState(null)
@@ -117,7 +121,7 @@ export default function AnnouncementsPage() {
   const fetchAnnouncements = async () => {
     try {
       const res = await api.get('/announcements')
-      setAnnouncements(Array.isArray(res.data) ? res.data : (res.data.data || []))
+      setAnnouncements(rememberList('/announcements', Array.isArray(res.data) ? res.data : (res.data.data || [])))
     } catch (err) {
       toast.error('Failed to load announcements')
     } finally {
@@ -161,6 +165,9 @@ export default function AnnouncementsPage() {
       setAnnouncements(prev =>
         prev.map(a => a._id === announcement._id ? { ...a, pinned: updated?.pinned ?? !a.pinned } : a)
       )
+      // Only this list's own view was corrected in place, so the copy kept for
+      // display is dropped and the next reader asks the server again.
+      forgetList('/announcements')
       toast.success(updated?.pinned ? 'Announcement pinned' : 'Announcement unpinned')
     } catch (err) {
       toast.error('Failed to update pin')
@@ -175,6 +182,9 @@ export default function AnnouncementsPage() {
       setAnnouncements(prev =>
         prev.map(a => a._id === announcement._id ? { ...a, savedBy: updated?.savedBy || [] } : a)
       )
+      // Only this list's own view was corrected in place, so the copy kept for
+      // display is dropped and the next reader asks the server again.
+      forgetList('/announcements')
       const isSaved = updated?.savedBy?.some(id => String(id) === String(user?._id))
       toast.success(isSaved ? 'Announcement saved' : 'Announcement unsaved')
     } catch (err) {

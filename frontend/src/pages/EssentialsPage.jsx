@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import { useAuth } from '../hooks/useAuth'
 import { useHighlightSync } from '../hooks/useHighlightSync'
 import { useSearchParams } from 'react-router-dom'
+import { hasList, readList, rememberList, forgetList } from '../utils/listCache'
 import { Plus, BookOpen, Search, X, Paperclip, Download, Bookmark } from 'lucide-react'
 import { format } from 'date-fns'
 import Card from '../components/ui/Card'
@@ -20,8 +21,11 @@ import EssentialViewModal from '../components/EssentialViewModal'
 export default function EssentialsPage() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'collaborator'
-  const [essentials, setEssentials] = useState([])
-  const [loading, setLoading] = useState(true)
+  // See TasksPage: the dashboard reads this same list, so returning to this tab
+  // used to mean fetching it all over again and drawing nothing until the
+  // answer arrived.
+  const [essentials, setEssentials] = useState(() => readList('/essentials') || [])
+  const [loading, setLoading] = useState(() => !hasList('/essentials'))
   const [showModal, setShowModal] = useState(false)
   const [editingEssential, setEditingEssential] = useState(null)
   const [viewingEssential, setViewingEssential] = useState(null)
@@ -77,7 +81,7 @@ export default function EssentialsPage() {
   const fetchEssentials = async () => {
     try {
       const res = await api.get('/essentials')
-      setEssentials(Array.isArray(res.data) ? res.data : (res.data.data || []))
+      setEssentials(rememberList('/essentials', Array.isArray(res.data) ? res.data : (res.data.data || [])))
     } catch (err) {
       toast.error('Failed to load essentials')
     } finally {
@@ -121,6 +125,9 @@ export default function EssentialsPage() {
       setEssentials(prev =>
         prev.map(es => es._id === essential._id ? { ...es, savedBy: updated?.savedBy || [] } : es)
       )
+      // Only this list's own view was corrected in place, so the copy kept for
+      // display is dropped and the next reader asks the server again.
+      forgetList('/essentials')
       const isSaved = updated?.savedBy?.some(id => String(id) === String(user?._id))
       toast.success(isSaved ? 'Essential saved' : 'Essential unsaved')
     } catch (err) {

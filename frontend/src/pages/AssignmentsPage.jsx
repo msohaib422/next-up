@@ -6,6 +6,7 @@ import { useHighlightSync } from '../hooks/useHighlightSync'
 import { Plus, CheckSquare, Search, X, Paperclip, Download } from 'lucide-react'
 import { parseISO, isPast, isToday, format } from 'date-fns'
 import { useSearchParams } from 'react-router-dom'
+import { hasList, readList, rememberList, forgetList } from '../utils/listCache'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -38,8 +39,11 @@ const sortByDeadline = (a, b) => {
 export default function AssignmentsPage() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'collaborator'
-  const [assignments, setAssignments] = useState([])
-  const [loading, setLoading] = useState(true)
+  // See TasksPage: the dashboard reads this same list, so returning to this tab
+  // used to mean fetching it all over again and drawing nothing until the
+  // answer arrived.
+  const [assignments, setAssignments] = useState(() => readList('/assignments') || [])
+  const [loading, setLoading] = useState(() => !hasList('/assignments'))
   const [showModal, setShowModal] = useState(false)
   const [editingAssignment, setEditingAssignment] = useState(null)
   const [viewingAssignment, setViewingAssignment] = useState(null)
@@ -96,7 +100,7 @@ export default function AssignmentsPage() {
   const fetchAssignments = async () => {
     try {
       const res = await api.get('/assignments')
-      setAssignments(Array.isArray(res.data) ? res.data : (res.data.data || []))
+      setAssignments(rememberList('/assignments', Array.isArray(res.data) ? res.data : (res.data.data || [])))
     } catch (err) {
       toast.error('Failed to load assignments')
     } finally {
@@ -140,6 +144,9 @@ export default function AssignmentsPage() {
       setAssignments(prev => prev.map(a =>
         a._id === assignment._id ? { ...a, status: updated?.status || newStatus } : a
       ))
+      // Only this list's own view was corrected in place, so the copy kept for
+      // display is dropped and the next reader asks the server again.
+      forgetList('/assignments')
       toast.success(assignment.status === 'Completed' ? 'Assignment restored' : 'Assignment completed')
     } catch (err) {
       toast.error('Failed to update assignment')

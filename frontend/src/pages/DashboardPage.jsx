@@ -15,6 +15,7 @@ import {
   parseISO, differenceInCalendarDays
 } from 'date-fns'
 import { useNavigate } from 'react-router-dom'
+import { hasList, readList, rememberList } from '../utils/listCache'
 
 // ============================================================
 // SKELETON COMPONENTS
@@ -240,12 +241,15 @@ function ComingUpItemCard({ item }) {
 // ============================================================
 
 function AdminDashboard() {
-  const [loading, setLoading] = useState(true)
-  const [users, setUsers] = useState([])
-  const [tasks, setTasks] = useState([])
-  const [assignments, setAssignments] = useState([])
-  const [quizzes, setQuizzes] = useState([])
-  const [announcements, setAnnouncements] = useState([])
+  // Everything this dashboard reports on, so the pages below can say whether a
+  // copy is already in hand before deciding to wait for one.
+  const SOURCES = ['/users/admin/users', '/tasks', '/assignments', '/quizzes', '/announcements']
+  const [loading, setLoading] = useState(() => !SOURCES.every(hasList))
+  const [users, setUsers] = useState(() => readList('/users/admin/users') || [])
+  const [tasks, setTasks] = useState(() => readList('/tasks') || [])
+  const [assignments, setAssignments] = useState(() => readList('/assignments') || [])
+  const [quizzes, setQuizzes] = useState(() => readList('/quizzes') || [])
+  const [announcements, setAnnouncements] = useState(() => readList('/announcements') || [])
   const { user } = useAuth()
   const navigate = useNavigate()
 
@@ -268,11 +272,11 @@ function AdminDashboard() {
           return Array.isArray(res.data) ? res.data : (res.data.data || [])
         }
 
-        setUsers(normalize(usersRes))
-        setTasks(normalize(tasksRes))
-        setAssignments(normalize(assignmentsRes))
-        setQuizzes(normalize(quizzesRes))
-        setAnnouncements(normalize(annRes))
+        setUsers(rememberList('/users/admin/users', normalize(usersRes)))
+        setTasks(rememberList('/tasks', normalize(tasksRes)))
+        setAssignments(rememberList('/assignments', normalize(assignmentsRes)))
+        setQuizzes(rememberList('/quizzes', normalize(quizzesRes)))
+        setAnnouncements(rememberList('/announcements', normalize(annRes)))
       } catch (err) {
         console.error('Dashboard fetch error:', err)
       } finally {
@@ -967,14 +971,19 @@ function UserDashboardSkeleton() {
 // ============================================================
 
 function UserDashboard() {
-  const [tasks, setTasks] = useState([])
-  const [assignments, setAssignments] = useState([])
-  const [quizzes, setQuizzes] = useState([])
-  const [announcements, setAnnouncements] = useState([])
-  const [essentials, setEssentials] = useState([])
-  const [importantDates, setImportantDates] = useState([])
+  // Everything this dashboard reports on, so the state below can say whether a
+  // copy is already in hand before deciding to wait for one. These are the same
+  // endpoints the list pages read, which is what made coming back here a second
+  // download of everything rather than a re-render of what the tab already had.
+  const SOURCES = ['/tasks', '/assignments', '/quizzes', '/announcements', '/essentials', '/important-dates']
+  const [tasks, setTasks] = useState(() => readList('/tasks') || [])
+  const [assignments, setAssignments] = useState(() => readList('/assignments') || [])
+  const [quizzes, setQuizzes] = useState(() => readList('/quizzes') || [])
+  const [announcements, setAnnouncements] = useState(() => readList('/announcements') || [])
+  const [essentials, setEssentials] = useState(() => readList('/essentials') || [])
+  const [importantDates, setImportantDates] = useState(() => readList('/important-dates') || [])
   const [currentTime, setCurrentTime] = useState(new Date())
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => !SOURCES.every(hasList))
   const { user } = useAuth()
   const navigate = useNavigate()
 
@@ -998,12 +1007,12 @@ function UserDashboard() {
           api.get('/important-dates').catch(() => ({ data: [] })),
         ])
 
-        setTasks(normalizeList(tasksRes))
-        setAssignments(normalizeList(assignmentsRes))
-        setQuizzes(normalizeList(quizzesRes))
-        setAnnouncements(normalizeList(annRes))
-        setEssentials(normalizeList(essRes))
-        setImportantDates(normalizeList(datesRes))
+        setTasks(rememberList('/tasks', normalizeList(tasksRes)))
+        setAssignments(rememberList('/assignments', normalizeList(assignmentsRes)))
+        setQuizzes(rememberList('/quizzes', normalizeList(quizzesRes)))
+        setAnnouncements(rememberList('/announcements', normalizeList(annRes)))
+        setEssentials(rememberList('/essentials', normalizeList(essRes)))
+        setImportantDates(rememberList('/important-dates', normalizeList(datesRes)))
       } catch (err) {
         console.error('Dashboard fetch error:', err)
       } finally {

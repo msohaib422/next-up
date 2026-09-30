@@ -3,6 +3,7 @@ import api from '../api/axios'
 import toast from 'react-hot-toast'
 import { useAuth } from '../hooks/useAuth'
 import { useHighlightSync } from '../hooks/useHighlightSync'
+import { hasList, readList, rememberList } from '../utils/listCache'
 import { Plus, Clock, Trash2, Edit, FileText, Upload } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -13,8 +14,10 @@ import TimetableModal from '../components/TimetableModal'
 export default function TimetablePage() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'collaborator'
-  const [lectures, setLectures] = useState([])
-  const [loading, setLoading] = useState(true)
+  // See TasksPage: a copy this tab already holds is drawn straight away instead
+  // of blanking the page for a request whose answer is already in hand.
+  const [lectures, setLectures] = useState(() => readList('/lectures') || [])
+  const [loading, setLoading] = useState(() => !hasList('/lectures'))
   const [showModal, setShowModal] = useState(false)
   const [editingLecture, setEditingLecture] = useState(null)
 
@@ -27,7 +30,7 @@ export default function TimetablePage() {
   const fetchLectures = async () => {
     try {
       const res = await api.get('/lectures')
-      setLectures(Array.isArray(res.data) ? res.data : (res.data.data || []))
+      setLectures(rememberList('/lectures', Array.isArray(res.data) ? res.data : (res.data.data || [])))
     } catch (err) {
       toast.error('Failed to load timetable')
     } finally {

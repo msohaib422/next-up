@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api, { isAuthRejection, isTransient, UNAUTHORIZED_EVENT, APPROVAL_REQUIRED_EVENT, SESSION_RENEWED_EVENT } from '../api/axios'
+import { forgetAllLists } from '../utils/listCache'
 import {
   clearSessionRecord,
   markTabOpen,
@@ -124,6 +125,9 @@ export function AuthProvider({ children }) {
     localStorage.removeItem(TOKEN_KEY)
     writeCachedUser(null)
     clearSessionRecord()
+    // The lists held for display (see utils/listCache) belong to the account
+    // that is ending here, so they go with it.
+    forgetAllLists()
     setToken(null)
     setUser(null)
   }, [])

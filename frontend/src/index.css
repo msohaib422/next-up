@@ -34,6 +34,67 @@
   html.dark {
     color-scheme: dark;
   }
+
+  /*
+   * A theme switch has to be a single repaint, not a fade.
+   *
+   * The controls animate their own colour changes: `transition-colors` sits on
+   * the search box, the date control, the course/status/priority dropdowns, the
+   * saved and clear filter buttons, the sidebar links and the theme button. That
+   * is exactly right for a hover and for a focus ring, and exactly wrong for the
+   * theme, because the large surfaces carry no such transition at all: the page
+   * background, the sidebar, the header and the cards are plain
+   * `bg-white dark:bg-gray-800` / `bg-gray-50 dark:bg-gray-900`, so they jumped
+   * to the new theme on the very first paint while every one of those controls
+   * was still on its way there.
+   *
+   * The result was a page that was briefly neither theme: a white search box,
+   * a white date control and half-faded dropdowns sitting on a dark background,
+   * with the active tab still tinted with the old one. Switching light to dark
+   * read as a white flash on those controls and switching back read as a dark
+   * one, because it is the same mismatch seen from the other side.
+   *
+   * So the theme is now changed with the transitions off. This attribute is put
+   * on the root element in the same event that flips `dark` and taken off a
+   * frame later, once the browser has painted the new theme (see
+   * context/ThemeContext.jsx), which is why the whole page changes colour in one
+   * step, with no part of it left behind in the other theme. Nothing is deferred
+   * and nothing is awaited, and the attribute exists for a single paint, so hover
+   * and focus go back to animating as soon as the switch is over and no other
+   * part of the app is affected.
+   *
+   * Animations are deliberately left alone: the dashboard highlight glow is not
+   * theme dependent, and pausing it for a frame would be a glitch of its own.
+   * Only transitions are stopped, and `transition: none` also covers the few
+   * `transition-all` rules, which would otherwise animate the same colours.
+   */
+  html[data-theme-switch],
+  html[data-theme-switch] *,
+  html[data-theme-switch] *::before,
+  html[data-theme-switch] *::after {
+    transition: none !important;
+  }
+
+  /*
+   * Drop the browser's own focus box for pointer and touch focus, and keep it
+   * for keyboard focus.
+   *
+   * Clicking or tapping a control gives it focus in every browser, and the
+   * default outline then stays on screen afterwards - a blue box around the
+   * notification bell, the password eye, a sidebar link, a dashboard row, and
+   * anything else that does not style its own focus. `:focus-visible` matches
+   * only when the browser judges the focus to be deliberate, which for a
+   * pointer or a finger it does not, so this removes the box after a tap and
+   * leaves it exactly where it was for anyone using a keyboard.
+   *
+   * This is the default ring only. Controls that declare their own focus style
+   * keep it, and nothing here touches a state that says where you are: an
+   * active sidebar tab, a selected filter, or a highlighted row are all ordinary
+   * styling, not focus.
+   */
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
 }
 
 ::-webkit-scrollbar {

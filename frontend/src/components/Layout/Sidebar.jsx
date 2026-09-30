@@ -3,6 +3,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useTheme } from '../../hooks/useTheme'
 import useMediaQuery from '../../hooks/useMediaQuery'
 import useScrollLock from '../../hooks/useScrollLock'
+import { prefetchPage } from '../../pages/routes'
 import {
   LayoutDashboard, CheckSquare, HelpCircle, Megaphone,
   Clock, FileCheck, User, Users, BookOpen,
@@ -43,6 +44,15 @@ export default function Sidebar({ isOpen, onClose }) {
     if (window.innerWidth < 1024) onClose()
   }
 
+  // Start fetching the tab the pointer is heading for before it is clicked.
+  //
+  // A page is a separate download, so without this every tab press is a
+  // placeholder followed by a download of that tab's code. Hovering (or
+  // tab-focusing, or starting a touch on a phone, where there is no hover) buys
+  // the download that time instead. It costs nothing when the navigation never
+  // happens: the chunk is fetched at most once and is cached like any other.
+  const warmUp = (path) => () => prefetchPage(path)
+
   return (
     <>
       {isOpen && (
@@ -74,6 +84,9 @@ export default function Sidebar({ isOpen, onClose }) {
               to={item.to}
               end={item.to === '/'}
               onClick={handleNavClick}
+              onMouseEnter={warmUp(item.to)}
+              onFocus={warmUp(item.to)}
+              onTouchStart={warmUp(item.to)}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   isActive
@@ -90,7 +103,7 @@ export default function Sidebar({ isOpen, onClose }) {
 
         <div className="p-3 border-t dark:border-gray-700 space-y-2">
           <button
-            onClick={() => { navigate('/profile'); handleNavClick() }}
+            onClick={() => { prefetchPage('/profile'); navigate('/profile'); handleNavClick() }}
             className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
           >
             {user?.profileImage ? (
