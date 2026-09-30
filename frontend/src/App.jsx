@@ -1,33 +1,41 @@
-import { lazy, Suspense } from 'react'
+import { Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import Layout from './components/Layout/Layout'
 import ProtectedRoute from './components/Layout/ProtectedRoute'
 import LoadingSpinner from './components/ui/LoadingSpinner'
+import { lazyPage } from './pages/routes'
 
 /*
  * Every page is a separate chunk that is fetched the first time it is actually
  * opened, so signing in no longer downloads the whole application up front.
  * The shell (layout, sidebar, header, dialogs) stays eager because it is
- * needed immediately, and LoadingSpinner is the same placeholder the app
- * already shows while a session is being confirmed.
+ * needed immediately.
+ *
+ * The Suspense boundary deliberately sits INSIDE the shell (see Layout), around
+ * the page only. It used to be here, above every route, which meant that
+ * opening any tab replaced the entire application - sidebar, header and all -
+ * with a full-screen spinner while the chunk downloaded. That was the flicker
+ * on sidebar navigation. The boundary here now only covers the three public
+ * pages, which are rendered without the shell and therefore have nothing to
+ * keep on screen.
  */
-const LoginPage = lazy(() => import('./pages/LoginPage'))
-const RegisterPage = lazy(() => import('./pages/RegisterPage'))
-const AccountStatusPage = lazy(() => import('./pages/AccountStatusPage'))
-const DashboardPage = lazy(() => import('./pages/DashboardPage'))
-const TasksPage = lazy(() => import('./pages/TasksPage'))
-const QuizzesPage = lazy(() => import('./pages/QuizzesPage'))
-const AnnouncementsPage = lazy(() => import('./pages/AnnouncementsPage'))
-const TimetablePage = lazy(() => import('./pages/TimetablePage'))
-const AssignmentsPage = lazy(() => import('./pages/AssignmentsPage'))
-const EssentialsPage = lazy(() => import('./pages/EssentialsPage'))
-const UsersPage = lazy(() => import('./pages/UsersPage'))
-const ContributePage = lazy(() => import('./pages/ContributePage'))
-const ApprovalsPage = lazy(() => import('./pages/ApprovalsPage'))
-const ProfilePage = lazy(() => import('./pages/ProfilePage'))
-const NotificationsPage = lazy(() => import('./pages/NotificationsPage'))
-const SearchPage = lazy(() => import('./pages/SearchPage'))
+const LoginPage = lazyPage('/login')
+const RegisterPage = lazyPage('/register')
+const AccountStatusPage = lazyPage('/account-status')
+const DashboardPage = lazyPage('/')
+const TasksPage = lazyPage('/tasks')
+const QuizzesPage = lazyPage('/quizzes')
+const AnnouncementsPage = lazyPage('/announcements')
+const TimetablePage = lazyPage('/timetable')
+const AssignmentsPage = lazyPage('/assignments')
+const EssentialsPage = lazyPage('/essentials')
+const UsersPage = lazyPage('/users')
+const ContributePage = lazyPage('/contribute')
+const ApprovalsPage = lazyPage('/approvals')
+const ProfilePage = lazyPage('/profile')
+const NotificationsPage = lazyPage('/notifications')
+const SearchPage = lazyPage('/search')
 
 export default function App() {
   const { loading } = useAuth()

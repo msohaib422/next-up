@@ -209,7 +209,7 @@ export default function NotificationBell() {
               <button
                 type="button"
                 onClick={handleMarkAll}
-                className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary-600 transition-colors hover:bg-primary-50 hover:text-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:text-primary-400 dark:hover:bg-primary-900/30"
+                className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary-600 transition-colors hover:bg-primary-50 hover:text-primary-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:text-primary-400 dark:hover:bg-primary-900/30"
               >
                 <CheckCheck className="h-3.5 w-3.5" />
                 Mark all read
@@ -246,7 +246,7 @@ export default function NotificationBell() {
                       <button
                         type="button"
                         onClick={() => handleSelect(notification)}
-                        className={`flex w-full gap-3 px-4 py-3 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 ${
+                        className={`flex w-full gap-3 px-4 py-3 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 ${
                           notification.read
                             ? 'hover:bg-gray-50 dark:hover:bg-gray-700/40'
                             : 'bg-primary-50/50 hover:bg-primary-50 dark:bg-primary-900/10 dark:hover:bg-primary-900/20'
@@ -288,7 +288,7 @@ export default function NotificationBell() {
             <button
               type="button"
               onClick={() => { setOpen(false); setPinned(false); navigate('/notifications') }}
-              className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-primary-600 transition-colors hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:text-primary-400 dark:hover:bg-primary-900/30"
+              className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-primary-600 transition-colors hover:bg-primary-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:text-primary-400 dark:hover:bg-primary-900/30"
             >
               <ArrowRight className="h-4 w-4" />
               View all notifications

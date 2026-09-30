@@ -34,6 +34,27 @@
   html.dark {
     color-scheme: dark;
   }
+
+  /*
+   * Drop the browser's own focus box for pointer and touch focus, and keep it
+   * for keyboard focus.
+   *
+   * Clicking or tapping a control gives it focus in every browser, and the
+   * default outline then stays on screen afterwards - a blue box around the
+   * notification bell, the password eye, a sidebar link, a dashboard row, and
+   * anything else that does not style its own focus. `:focus-visible` matches
+   * only when the browser judges the focus to be deliberate, which for a
+   * pointer or a finger it does not, so this removes the box after a tap and
+   * leaves it exactly where it was for anyone using a keyboard.
+   *
+   * This is the default ring only. Controls that declare their own focus style
+   * keep it, and nothing here touches a state that says where you are: an
+   * active sidebar tab, a selected filter, or a highlighted row are all ordinary
+   * styling, not focus.
+   */
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
 }
 
 ::-webkit-scrollbar {

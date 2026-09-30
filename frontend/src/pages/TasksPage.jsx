@@ -6,6 +6,7 @@ import { useHighlightSync } from '../hooks/useHighlightSync'
 import { Plus, CheckSquare, Search, X, Paperclip, Download } from 'lucide-react'
 import { parseISO, isPast, isToday, format } from 'date-fns'
 import { useSearchParams } from 'react-router-dom'
+import { hasList, readList, rememberList, forgetList } from '../utils/listCache'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -38,8 +39,12 @@ const sortByDeadline = (a, b) => {
 export default function TasksPage() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'collaborator'
-  const [tasks, setTasks] = useState([])
-  const [loading, setLoading] = useState(true)
+  // The dashboard reads the same list this page does, so returning to this tab
+  // used to mean fetching it all over again and drawing nothing until the
+  // answer arrived. When this tab already has the list it is drawn straight
+  // away, and the request below still runs and replaces it.
+  const [tasks, setTasks] = useState(() => readList('/tasks') || [])
+  const [loading, setLoading] = useState(() => !hasList('/tasks'))
   const [showModal, setShowModal] = useState(false)
   const [editingTask, setEditingTask] = useState(null)
   const [viewingTask, setViewingTask] = useState(null)
@@ -96,7 +101,7 @@ export default function TasksPage() {
   const fetchTasks = async () => {
     try {
       const res = await api.get('/tasks')
-      setTasks(Array.isArray(res.data) ? res.data : (res.data.data || []))
+      setTasks(rememberList('/tasks', Array.isArray(res.data) ? res.data : (res.data.data || [])))
     } catch (err) {
       toast.error('Failed to load tasks')
     } finally {
@@ -140,6 +145,10 @@ export default function TasksPage() {
       setTasks(prev => prev.map(t =>
         t._id === task._id ? { ...t, status: updated?.status || newStatus } : t
       ))
+      // Only this list's own view was corrected in place, and the copy kept for
+      // display is the server's, so the next reader asks again rather than trust
+      // the optimistic value above.
+      forgetList('/tasks')
       toast.success(task.status === 'Completed' ? 'Task restored' : 'Task completed')
     } catch (err) {
       toast.error('Failed to update task')
