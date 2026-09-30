@@ -235,8 +235,13 @@ const BRAND = 'NextUp';
  * noreferrer"` is not optional there: without `noopener` the opened page gets a
  * handle on this window through `window.opener`, and without `noreferrer` it
  * learns which address the mail was sent to.
+ *
+ * `showFallbackLink: false` leaves out the "copy and paste this link" line under
+ * the button, for a message that must end at the button. It defaults to true, so
+ * every existing email keeps that line exactly as it has always had it; only the
+ * admin content notifications below opt out of it.
  */
-const layout = ({ heading, intro, rows = [], body = '', action, footer, footerRule = true }) => {
+const layout = ({ heading, intro, rows = [], body = '', action, footer, footerRule = true, showFallbackLink = true }) => {
   const safeRows = rows
     .map(
       ([label, value]) => `
@@ -269,8 +274,12 @@ const layout = ({ heading, intro, rows = [], body = '', action, footer, footerRu
           ${
             action
               ? `<p style="margin:0 0 8px;"><a href="${escapeHtml(action.url)}"${anchor(action)} style="display:inline-block;padding:11px 22px;background:#4f46e5;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">${escapeHtml(action.label)}</a></p>
-                 <p style="margin:0;font-size:13px;color:#6b7280;">If the button does not work, copy and paste this link into your browser:<br />
+                 ${
+                   showFallbackLink
+                     ? `<p style="margin:0;font-size:13px;color:#6b7280;">If the button does not work, copy and paste this link into your browser:<br />
                  <span style="color:#4f46e5;word-break:break-all;">${escapeHtml(action.url)}</span></p>`
+                     : ''
+                 }`
               : ''
           }
         </td>
@@ -310,8 +319,8 @@ const toPlainText = ({ heading, intro, rows = [], action }) =>
  *   { sent, status: 'sent' | 'skipped' | 'failed', reason?, messageId? }
  * and, for a list, a `results` array with one entry per address considered.
  */
-export const sendMail = async ({ to, subject, heading, intro, rows, bodyHtml, bodyText, action, footer, footerRule = true, context, relatedUser = null, allowSuppressed = false }) => {
-  const html = layout({ heading, intro, rows, body: bodyHtml, action, footer, footerRule });
+export const sendMail = async ({ to, subject, heading, intro, rows, bodyHtml, bodyText, action, footer, footerRule = true, showFallbackLink = true, context, relatedUser = null, allowSuppressed = false }) => {
+  const html = layout({ heading, intro, rows, body: bodyHtml, action, footer, footerRule, showFallbackLink });
   const text = bodyText || toPlainText({ heading, intro, rows, action });
   const where = context ? ` (${context})` : '';
 
@@ -597,6 +606,124 @@ export const sendAccountDeletedEmail = async (user, { allowSuppressed = false } 
       const link = appLink('/register');
       return link ? { label: 'Register Again', ...link } : undefined;
     })(),
+  });
+};
+
+/* ------------------------------------------------------------------ *
+ * Admin content emails
+ *
+ * Sent when an administrator adds content, and when the timetable is added or
+ * updated. The message is the same shared layout every other email uses, with
+ * the same button, and it deep-links into the page that lists the item with the
+ * existing `?highlight=<id>` behaviour, so the reader lands on the exact item.
+ * ------------------------------------------------------------------ */
+
+/**
+ * How each content type is described in an email.
+ *
+ * `noun` is the lower-case word used in the sentence, `name` the capitalised
+ * name in the heading and subject, `courseField` the field that holds the course
+ * name, and `route` the page that lists the item. Announcements carry no course
+ * and the timetable entry is described as a timetable, exactly as the rest of
+ * the project already names them.
+ */
+const CONTENT_EMAIL = {
+  Task: { noun: 'task', name: 'Task', courseField: 'subject', route: '/tasks' },
+  Quiz: { noun: 'quiz', name: 'Quiz', courseField: 'subject', route: '/quizzes' },
+  Assignment: { noun: 'assignment', name: 'Assignment', courseField: 'subject', route: '/assignments' },
+  Essential: { noun: 'essential', name: 'Essential', courseField: 'course', route: '/essentials' },
+  Announcement: { noun: 'announcement', name: 'Announcement', courseField: '', route: '/announcements' },
+  // Timetable entries are stored as Lectures.
+  Lecture: { noun: 'timetable', name: 'Timetable', courseField: '', route: '/timetable' },
+};
+
+/**
+ * Everybody who can act on a content notification: every administrator and
+ * every approved user.
+ *
+ * This mirrors what the server itself allows through (see
+ * `approvalRequired` in middleware/auth.js): an administrator account is
+ * included whatever its approval state, and a user only once an administrator
+ * has approved it, because a pending or rejected account cannot open the link.
+ *
+ * Every account is a recipient, including the administrator who made the
+ * change. Addresses are de-duplicated, so an address held by more than one
+ * account still receives a single copy - sendMail de-duplicates again on its own
+ * side. Nothing here writes to an account: it only reads addresses.
+ */
+const contentNotificationRecipients = async () => {
+  const accounts = await User.find({ $or: [{ role: 'collaborator' }, { status: 'Approved' }] })
+    .select('email')
+    .lean();
+  const addresses = accounts
+    .map((account) => String(account.email || '').trim().toLowerCase())
+    .filter(Boolean);
+  return [...new Set(addresses)];
+};
+
+/**
+ * Tell everyone that content was added, or that the timetable changed.
+ *
+ * `entityType` is one of CONTENT_EMAIL, `entity` is the stored record and
+ * `action` is 'added' or 'updated'. Anything other than an add, and a timetable
+ * change, is skipped without sending. The email carries the title and the course
+ * name for the content types that have one, the title alone for an
+ * announcement, and no extra rows for the timetable - the View button is the
+ * last thing in the message, with no plain-text link under it.
+ *
+ * Never throws: a recipient list that cannot be read is logged and skipped, so a
+ * mail problem can never fail the content action that triggered it.
+ */
+export const sendContentChangeEmail = async ({ entityType, entity, action }) => {
+  const spec = CONTENT_EMAIL[entityType];
+  if (!spec || !entity?._id) {
+    return { sent: false, status: 'skipped', reason: `no content email is defined for ${entityType}`, results: [] };
+  }
+
+  // Only an add, and a timetable that was added or changed. Every other update
+  // is deliberately silent, and this check holds wherever the function is called
+  // from.
+  if (action !== 'added' && entityType !== 'Lecture') {
+    return { sent: false, status: 'skipped', reason: `an update to a ${spec.noun} does not send an email`, results: [] };
+  }
+
+  let recipients;
+  try {
+    recipients = await contentNotificationRecipients();
+  } catch (error) {
+    console.error(`[mail] could not read the recipient list for the ${entityType} email:`, error.message);
+    return { sent: false, status: 'skipped', reason: 'the recipient list could not be read', results: [] };
+  }
+
+  if (!recipients.length) {
+    const reason = 'there are no active accounts to notify';
+    console.warn(`[mail] SKIPPED the ${entityType} email: ${reason}`);
+    return { sent: false, status: 'skipped', reason, results: [] };
+  }
+
+  const isAdd = action === 'added';
+  const title = String(entity.title || entity.subject || 'Untitled').trim();
+  const course = spec.courseField ? String(entity[spec.courseField] || '').trim() : '';
+
+  const rows = [['Title', title]];
+  if (course) rows.push(['Course', course]);
+
+  // The same link the in-app notification uses, which is the page that lists the
+  // item with it highlighted. Omitted entirely when no public URL is configured,
+  // rather than emailed broken.
+  const link = appLink(`${spec.route}?highlight=${entity._id}`);
+
+  return sendMail({
+    to: recipients,
+    context: `content-${entityType.toLowerCase()}-${action}`,
+    subject: isAdd ? `New ${spec.name} Added` : `${spec.name} Updated`,
+    heading: isAdd ? `New ${spec.name} Added` : `${spec.name} Updated`,
+    intro: isAdd ? `A new ${spec.noun} has been added.` : `The ${spec.noun} has been updated.`,
+    rows,
+    action: link ? { label: 'View', ...link } : undefined,
+    // The button is the last thing in this email; the "copy and paste this link"
+    // line every other email carries is left out here.
+    showFallbackLink: false,
   });
 };
 

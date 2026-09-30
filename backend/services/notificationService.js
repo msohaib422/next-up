@@ -1,6 +1,7 @@
 import Notification from '../models/Notification.js';
 import Contribution from '../models/Contribution.js';
 import User from '../models/User.js';
+import { sendContentChangeEmail } from './mailService.js';
 
 /**
  * Central, server-side notification service.
@@ -156,11 +157,40 @@ const contentName = (entityType) => {
  *
  * `action` is 'added' or 'updated'. Failures are swallowed on purpose, same as
  * createActivity, so a notification can never break the underlying write.
+ *
+ * The call also sends ONE email for the event, through the existing mail service
+ * and its existing template. An add always produces one email, and a timetable
+ * update produces one too; any other update stays silent. The email goes to
+ * every account that can open the link, the acting administrator included.
  */
 export const notifyContentChange = async ({ entityType, entity, actor, action }) => {
   try {
     if (actor?.role !== 'collaborator') return [];
     if (!entity?._id) return [];
+
+    // The same event also goes out as ONE email, through the existing mail
+    // service and its existing template. It is deliberately narrower than the
+    // in-app rules above, and its recipients are deliberately wider:
+    //
+    //   - it is sent for content that was just added, and for a timetable that
+    //     was added or updated, and nothing else, so an ordinary edit of a task,
+    //     quiz, assignment, essential or announcement stays silent;
+    //   - every account that can open the link receives it, the acting
+    //     administrator included, and each address gets a single copy.
+    //
+    // It runs BEFORE the in-app fan-out on purpose: the in-app rules return
+    // early when there is nobody to tell, and the email must still reach a
+    // single-admin deployment. Its own try/catch keeps it from ever changing
+    // what happens next - nothing below behaves differently because of it, and
+    // the in-app notifications keep the exact wording and exclusions they have
+    // always had.
+    if (action === 'added' || entityType === 'Lecture') {
+      try {
+        await sendContentChangeEmail({ entityType, entity, action });
+      } catch (error) {
+        console.error('Error sending the content notification email:', error.message);
+      }
+    }
 
     const [userRecipients, adminRecipients] = await Promise.all([
       contentRecipients(actor),
