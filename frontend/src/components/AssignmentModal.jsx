@@ -13,7 +13,7 @@ const MAX_SIZE = 10 * 1024 * 1024
 
 export default function AssignmentModal({ isOpen, onClose, onSave, assignment }) {
   const [form, setForm] = useState({
-    subject: '', title: '', description: '', deadline: '', deadlineMode: null, priority: 'Medium', status: 'Pending'
+    subject: '', title: '', description: '', deadline: '', deadlineMode: null, priority: 'Medium', status: 'Pending', link: ''
   })
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState({})
@@ -35,12 +35,13 @@ export default function AssignmentModal({ isOpen, onClose, onSave, assignment })
         deadlineMode: mode,
         priority: assignment.priority || 'Medium',
         status: assignment.status || 'Pending',
+        link: assignment.link || '',
       })
       if (assignment.attachment?.name) {
         setAttachment(assignment.attachment)
       }
     } else {
-      setForm({ subject: '', title: '', description: '', deadline: '', deadlineMode: null, priority: 'Medium', status: 'Pending' })
+      setForm({ subject: '', title: '', description: '', deadline: '', deadlineMode: null, priority: 'Medium', status: 'Pending', link: '' })
     }
   }, [assignment, isOpen])
 
@@ -161,6 +162,12 @@ export default function AssignmentModal({ isOpen, onClose, onSave, assignment })
           accept=".pdf,.jpg,.jpeg,.png,.webp"
           id="assignment-attachment"
           error={errors.file}
+        />
+        <Input
+          label="Link"
+          value={form.link}
+          onChange={(e) => setForm({ ...form, link: e.target.value })}
+          placeholder="https://example.com (optional)"
         />
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Deadline</label>

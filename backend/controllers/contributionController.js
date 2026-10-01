@@ -36,10 +36,14 @@ const normalizeContent = (type, input, title) => {
     content.priority = ['High', 'Medium', 'Low'].includes(input.priority) ? input.priority : 'Medium';
     if (content.deadlineMode === 'Date') content.date = validDate(input.date) ? new Date(input.date) : null;
     else content.date = null;
+    // Optional link, carried exactly as it is for an Announcement: absent or
+    // empty simply stores an empty string.
+    content.link = text(input.link, 2000);
   }
   if (type === 'Essential') {
     content.course = text(input.course, 200);
     content.tag = text(input.tag, 80) || 'Topic';
+    content.link = text(input.link, 2000);
   }
   if (type === 'Announcement') {
     content.type = ANNOUNCEMENT_TYPES.includes(input.type) ? input.type : 'General';

@@ -91,7 +91,7 @@ export const getQuiz = async (req, res, next) => {
 
 export const createQuiz = async (req, res, next) => {
   try {
-    const { subject, title, description, date, deadlineMode, priority, status, attachment } = req.body;
+    const { subject, title, description, date, deadlineMode, priority, status, attachment, link } = req.body;
 
     const validModes = ['Date', 'Upcoming Lecture', 'Surprise'];
     if (!deadlineMode || !validModes.includes(deadlineMode)) {
@@ -126,6 +126,12 @@ export const createQuiz = async (req, res, next) => {
       };
     }
 
+    // Optional, exactly as on an Announcement: an empty field simply leaves the
+    // field at its empty default.
+    if (link) {
+      quizData.link = link;
+    }
+
     const quiz = await Quiz.create(quizData);
 
     await createActivity(req.user._id, 'quiz_created', `Created quiz: ${title}`, '', 'Quiz', quiz._id);
@@ -146,6 +152,10 @@ export const updateQuiz = async (req, res, next) => {
     }
 
     const { attachment: newAttachment, date: newDate, deadlineMode: newDeadlineMode, ...updateFields } = req.body;
+
+    // The per-user tick is written only by its own endpoint. It is dropped here
+    // so that editing a quiz can never write another user's tick (or clear one).
+    delete updateFields.completions;
 
     if (newDeadlineMode) {
       const validModes = ['Date', 'Upcoming Lecture', 'Surprise'];
@@ -231,6 +241,62 @@ export const deleteQuiz = async (req, res, next) => {
     );
 
     res.json({ success: true, data: {} });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * The ids of the quizzes THIS user has ticked off for themselves.
+ *
+ * The tick lives on the quiz, so this is one query over the quizzes the requester
+ * may already see, filtered by their own id. It is answered separately from the
+ * list so every existing endpoint - and every existing response - stays exactly
+ * as it was.
+ */
+export const getQuizCompletions = async (req, res, next) => {
+  try {
+    const quizzes = await Quiz.find({
+      user: { $in: await getVisibleUserIds(req.user) },
+      completions: req.user._id,
+    }).select('_id');
+    res.json({ success: true, data: quizzes.map((quiz) => quiz._id) });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Tick a quiz off for the requester, or clear the tick if it is already set.
+ *
+ * Only the requester's own id is added or removed, and `status` is not part of
+ * the update, so a tick can never change the quiz for anyone else, for the
+ * workspace, or for an administrator. Nothing is logged, notified or mailed:
+ * it is a private note by one user about their own work.
+ */
+export const toggleQuizCompletion = async (req, res, next) => {
+  try {
+    // Read permission, not write permission: a user ticks the administrator's
+    // quizzes as well as their own, exactly as they can open them.
+    const scope = { _id: req.params.id, user: { $in: await getVisibleUserIds(req.user) } };
+    const existingQuiz = await Quiz.findOne(scope);
+    if (!existingQuiz) {
+      return res.status(404).json({ success: false, message: 'Quiz not found' });
+    }
+
+    const ticked = existingQuiz.completions.some((id) => String(id) === String(req.user._id));
+    const quiz = await Quiz.findOneAndUpdate(
+      scope,
+      ticked ? { $pull: { completions: req.user._id } } : { $addToSet: { completions: req.user._id } },
+      // A tick is not an edit of the quiz, so the quiz's own updatedAt is left
+      // exactly as it was: nothing about the shared record moves.
+      { new: true, timestamps: false }
+    );
+    if (!quiz) {
+      return res.status(404).json({ success: false, message: 'Quiz not found' });
+    }
+
+    res.json({ success: true, data: { completed: !ticked } });
   } catch (error) {
     next(error);
   }

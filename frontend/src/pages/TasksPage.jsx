@@ -3,6 +3,7 @@ import api from '../api/axios'
 import toast from 'react-hot-toast'
 import { useAuth } from '../hooks/useAuth'
 import { useHighlightSync } from '../hooks/useHighlightSync'
+import useCompletions from '../hooks/useCompletions'
 import { Plus, CheckSquare, Search, X, Paperclip, Download } from 'lucide-react'
 import { parseISO, isPast, isToday, format } from 'date-fns'
 import { useSearchParams } from 'react-router-dom'
@@ -15,6 +16,7 @@ import Select from '../components/ui/Select'
 import DateFilter from '../components/ui/DateFilter'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
+import CompletionTick from '../components/ui/CompletionTick'
 import TaskModal from '../components/TaskModal'
 import TaskViewModal from '../components/TaskViewModal'
 
@@ -54,6 +56,9 @@ export default function TasksPage() {
   const [search, setSearch] = useState('')
   const [dateFilter, setDateFilter] = useState('')
   const [searchParams, setSearchParams] = useSearchParams()
+  // This user's own ticks: personal, stored per account, and never the task's
+  // shared status. Everyone, admin or not, keeps their own separate answer.
+  const { completions, toggleCompletion } = useCompletions('/tasks')
   const processedHighlight = useRef(null)
   // Id whose row was missing on the first attempt (one retry, then drop the link).
   const missingHighlight = useRef(null)
@@ -300,11 +305,18 @@ export default function TasksPage() {
     <Card
       id={`item-${task._id}`}
       key={task._id}
-      className="p-4 flex flex-col h-full min-w-0"
+      // relative only so the tick below can sit on the card's corner; it takes
+      // no room in the card's own layout.
+      className="relative p-4 flex flex-col h-full min-w-0"
       onClick={isAdmin
         ? () => { setEditingTask(task); setShowModal(true) }
         : () => setViewingTask(task)}
     >
+      <CompletionTick
+        checked={completions.has(task._id)}
+        onToggle={() => toggleCompletion(task._id)}
+        itemTitle={task.title}
+      />
       <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 mb-2">
         <Badge color={priorityColor(task.priority)} bgColor={priorityBgColor(task.priority)} textColor={priorityTextColor(task.priority)} size="sm">{task.priority}</Badge>
         <Badge color={statusColor(task.status)} bgColor={statusBgColor(task.status)} textColor={statusTextColor(task.status)} size="sm">{task.status}</Badge>

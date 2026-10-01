@@ -57,6 +57,26 @@ const taskSchema = new mongoose.Schema(
       publicId: { type: String, default: '' },
       resourceType: { type: String, default: '' },
     },
+    // Optional link, exactly as on an Announcement: a free-text URL entered
+    // beside the file. It defaults to empty, so every task that already exists
+    // is unchanged and simply has no link.
+    link: {
+      type: String,
+      default: '',
+    },
+    // Personal completion tick: one account id per user who has ticked this task
+    // off for themselves, and nothing else.
+    //
+    // It is deliberately NOT `status`. `status` is the shared status the whole
+    // workspace sees and only an administrator may change it; this records what
+    // ONE user has finished, so the same task can be ticked by one account and
+    // unticked by every other. It lives on the task rather than in a collection
+    // of its own because it belongs to the task, and it defaults to empty, so
+    // every task that already exists is unchanged and simply starts unticked.
+    completions: {
+      type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+      default: [],
+    },
   },
   { timestamps: true }
 );

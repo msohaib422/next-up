@@ -13,7 +13,7 @@ const MAX_SIZE = 10 * 1024 * 1024
 
 export default function TaskModal({ isOpen, onClose, onSave, task }) {
   const [form, setForm] = useState({
-    subject: '', title: '', description: '', deadline: '', deadlineMode: null, priority: 'Medium', status: 'Pending'
+    subject: '', title: '', description: '', deadline: '', deadlineMode: null, priority: 'Medium', status: 'Pending', link: ''
   })
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState({})
@@ -35,12 +35,13 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
         deadlineMode: mode,
         priority: task.priority || 'Medium',
         status: task.status || 'Pending',
+        link: task.link || '',
       })
       if (task.attachment?.name) {
         setAttachment(task.attachment)
       }
     } else {
-      setForm({ subject: '', title: '', description: '', deadline: '', deadlineMode: null, priority: 'Medium', status: 'Pending' })
+      setForm({ subject: '', title: '', description: '', deadline: '', deadlineMode: null, priority: 'Medium', status: 'Pending', link: '' })
     }
   }, [task, isOpen])
 
@@ -161,6 +162,12 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
           accept=".pdf,.jpg,.jpeg,.png,.webp"
           id="task-attachment"
           error={errors.file}
+        />
+        <Input
+          label="Link"
+          value={form.link}
+          onChange={(e) => setForm({ ...form, link: e.target.value })}
+          placeholder="https://example.com (optional)"
         />
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Deadline</label>

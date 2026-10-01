@@ -13,7 +13,7 @@ const MAX_SIZE = 10 * 1024 * 1024
 
 export default function QuizModal({ isOpen, onClose, onSave, quiz }) {
   const [form, setForm] = useState({
-    subject: '', title: '', description: '', date: '', deadlineMode: null, priority: 'Medium', status: 'Pending'
+    subject: '', title: '', description: '', date: '', deadlineMode: null, priority: 'Medium', status: 'Pending', link: ''
   })
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState({})
@@ -35,12 +35,13 @@ export default function QuizModal({ isOpen, onClose, onSave, quiz }) {
         deadlineMode: mode,
         priority: quiz.priority || 'Medium',
         status: quiz.status || 'Pending',
+        link: quiz.link || '',
       })
       if (quiz.attachment?.name) {
         setAttachment(quiz.attachment)
       }
     } else {
-      setForm({ subject: '', title: '', description: '', date: '', deadlineMode: null, priority: 'Medium', status: 'Pending' })
+      setForm({ subject: '', title: '', description: '', date: '', deadlineMode: null, priority: 'Medium', status: 'Pending', link: '' })
     }
   }, [quiz, isOpen])
 
@@ -161,6 +162,12 @@ export default function QuizModal({ isOpen, onClose, onSave, quiz }) {
           accept=".pdf,.jpg,.jpeg,.png,.webp"
           id="quiz-attachment"
           error={errors.file}
+        />
+        <Input
+          label="Link"
+          value={form.link}
+          onChange={(e) => setForm({ ...form, link: e.target.value })}
+          placeholder="https://example.com (optional)"
         />
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Deadline</label>

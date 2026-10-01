@@ -3,6 +3,7 @@ import api from '../api/axios'
 import toast from 'react-hot-toast'
 import { useAuth } from '../hooks/useAuth'
 import { useHighlightSync } from '../hooks/useHighlightSync'
+import useCompletions from '../hooks/useCompletions'
 import { Plus, HelpCircle, Search, X, Paperclip, Download } from 'lucide-react'
 import { parseISO, isPast, isToday, format } from 'date-fns'
 import { useSearchParams } from 'react-router-dom'
@@ -15,6 +16,7 @@ import Select from '../components/ui/Select'
 import DateFilter from '../components/ui/DateFilter'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
+import CompletionTick from '../components/ui/CompletionTick'
 import QuizModal from '../components/QuizModal'
 import QuizViewModal from '../components/QuizViewModal'
 
@@ -53,6 +55,9 @@ export default function QuizzesPage() {
   const [search, setSearch] = useState('')
   const [dateFilter, setDateFilter] = useState('')
   const [searchParams, setSearchParams] = useSearchParams()
+  // This user's own ticks: personal, stored per account, and never the quiz's
+  // shared status. Everyone, admin or not, keeps their own separate answer.
+  const { completions, toggleCompletion } = useCompletions('/quizzes')
   const processedHighlight = useRef(null)
   // Id whose row was missing on the first attempt (one retry, then drop the link).
   const missingHighlight = useRef(null)
@@ -301,11 +306,18 @@ export default function QuizzesPage() {
     <Card
       id={`item-${quiz._id}`}
       key={quiz._id}
-      className="p-4 flex flex-col h-full min-w-0"
+      // relative only so the tick below can sit on the card's corner; it takes
+      // no room in the card's own layout.
+      className="relative p-4 flex flex-col h-full min-w-0"
       onClick={isAdmin
         ? () => { setEditingQuiz(quiz); setShowModal(true) }
         : () => setViewingQuiz(quiz)}
     >
+      <CompletionTick
+        checked={completions.has(quiz._id)}
+        onToggle={() => toggleCompletion(quiz._id)}
+        itemTitle={quiz.title}
+      />
       <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 mb-2">
         <Badge color={priorityColor(quiz.priority)} bgColor={priorityBgColor(quiz.priority)} textColor={priorityTextColor(quiz.priority)} size="sm">{quiz.priority}</Badge>
         <Badge color={statusColor(quiz.status)} bgColor={statusBgColor(quiz.status)} textColor={statusTextColor(quiz.status)} size="sm">{quiz.status}</Badge>

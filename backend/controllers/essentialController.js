@@ -106,7 +106,7 @@ export const getEssential = async (req, res, next) => {
 
 export const createEssential = async (req, res, next) => {
   try {
-    const { course, title, description, tag, attachment } = req.body;
+    const { course, title, description, tag, attachment, link } = req.body;
 
     const trimmedCourse = typeof course === 'string' ? course.trim() : course;
     const trimmedTitle = typeof title === 'string' ? title.trim() : title;
@@ -137,6 +137,12 @@ export const createEssential = async (req, res, next) => {
         publicId: attachment.publicId || '',
         resourceType: attachment.resourceType || '',
       };
+    }
+
+    // Optional, exactly as on an Announcement: an empty field simply leaves the
+    // field at its empty default.
+    if (link) {
+      essentialData.link = link;
     }
 
     const essential = await Essential.create(essentialData);
