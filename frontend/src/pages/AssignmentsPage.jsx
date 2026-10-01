@@ -3,6 +3,7 @@ import api from '../api/axios'
 import toast from 'react-hot-toast'
 import { useAuth } from '../hooks/useAuth'
 import { useHighlightSync } from '../hooks/useHighlightSync'
+import useCompletions from '../hooks/useCompletions'
 import { Plus, CheckSquare, Search, X, Paperclip, Download } from 'lucide-react'
 import { parseISO, isPast, isToday, format } from 'date-fns'
 import { useSearchParams } from 'react-router-dom'
@@ -15,6 +16,7 @@ import Select from '../components/ui/Select'
 import DateFilter from '../components/ui/DateFilter'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
+import CompletionTick from '../components/ui/CompletionTick'
 import AssignmentModal from '../components/AssignmentModal'
 import AssignmentViewModal from '../components/AssignmentViewModal'
 
@@ -53,6 +55,9 @@ export default function AssignmentsPage() {
   const [search, setSearch] = useState('')
   const [dateFilter, setDateFilter] = useState('')
   const [searchParams, setSearchParams] = useSearchParams()
+  // This user's own ticks: personal, stored per account, and never the
+  // assignment's shared status. Everyone, admin or not, keeps their own answer.
+  const { completions, toggleCompletion } = useCompletions('/assignments')
   const processedHighlight = useRef(null)
   // Id whose row was missing on the first attempt (one retry, then drop the link).
   const missingHighlight = useRef(null)
@@ -298,11 +303,18 @@ export default function AssignmentsPage() {
     <Card
       id={`item-${assignment._id}`}
       key={assignment._id}
-      className="p-4 flex flex-col h-full min-w-0"
+      // relative only so the tick below can sit on the card's corner; it takes
+      // no room in the card's own layout.
+      className="relative p-4 flex flex-col h-full min-w-0"
       onClick={isAdmin
         ? () => { setEditingAssignment(assignment); setShowModal(true) }
         : () => setViewingAssignment(assignment)}
     >
+      <CompletionTick
+        checked={completions.has(assignment._id)}
+        onToggle={() => toggleCompletion(assignment._id)}
+        itemTitle={assignment.title}
+      />
       <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 mb-2">
         <Badge color={priorityColor(assignment.priority)} bgColor={priorityBgColor(assignment.priority)} textColor={priorityTextColor(assignment.priority)} size="sm">{assignment.priority}</Badge>
         <Badge color={statusColor(assignment.status)} bgColor={statusBgColor(assignment.status)} textColor={statusTextColor(assignment.status)} size="sm">{assignment.status}</Badge>

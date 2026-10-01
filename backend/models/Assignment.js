@@ -75,6 +75,18 @@ const assignmentSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    // Personal completion tick: one account id per user who has ticked this
+    // assignment off for themselves, and nothing else.
+    //
+    // It is deliberately NOT `status`. `status` is the shared status the whole
+    // workspace sees and only an administrator may change it; this records what
+    // ONE user has finished, so the same assignment can be ticked by one account
+    // and unticked by every other. It defaults to empty, so every assignment that
+    // already exists is unchanged and simply starts unticked.
+    completions: {
+      type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+      default: [],
+    },
   },
   { timestamps: true }
 );

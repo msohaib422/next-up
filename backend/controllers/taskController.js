@@ -158,6 +158,10 @@ export const updateTask = async (req, res, next) => {
 
     const { attachment: newAttachment, ...updateFields } = req.body;
 
+    // The per-user tick is written only by its own endpoint. It is dropped here
+    // so that editing a task can never write another user's tick (or clear one).
+    delete updateFields.completions;
+
     if (newAttachment && newAttachment.url && newAttachment.url !== existingTask.attachment?.url) {
       if (existingTask.attachment?.publicId) {
         await deleteFromCloudinary({
@@ -260,6 +264,62 @@ export const completeTask = async (req, res, next) => {
     }
 
     res.json({ success: true, data: task });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * The ids of the tasks THIS user has ticked off for themselves.
+ *
+ * The tick lives on the task, so this is one query over the tasks the requester
+ * may already see, filtered by their own id. It is answered separately from the
+ * list so every existing endpoint - and every existing response - stays exactly
+ * as it was.
+ */
+export const getTaskCompletions = async (req, res, next) => {
+  try {
+    const tasks = await Task.find({
+      user: { $in: await getVisibleUserIds(req.user) },
+      completions: req.user._id,
+    }).select('_id');
+    res.json({ success: true, data: tasks.map((task) => task._id) });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Tick a task off for the requester, or clear the tick if it is already set.
+ *
+ * Only the requester's own id is added or removed, and `status` is not part of
+ * the update, so a tick can never change the task for anyone else, for the
+ * workspace, or for an administrator. Nothing is logged, notified or mailed:
+ * it is a private note by one user about their own work.
+ */
+export const toggleTaskCompletion = async (req, res, next) => {
+  try {
+    // Read permission, not write permission: a user ticks the administrator's
+    // tasks as well as their own, exactly as they can open them.
+    const scope = { _id: req.params.id, user: { $in: await getVisibleUserIds(req.user) } };
+    const existingTask = await Task.findOne(scope);
+    if (!existingTask) {
+      return res.status(404).json({ success: false, message: 'Task not found' });
+    }
+
+    const ticked = existingTask.completions.some((id) => String(id) === String(req.user._id));
+    const task = await Task.findOneAndUpdate(
+      scope,
+      ticked ? { $pull: { completions: req.user._id } } : { $addToSet: { completions: req.user._id } },
+      // A tick is not an edit of the task, so the task's own updatedAt is left
+      // exactly as it was: nothing about the shared record moves.
+      { new: true, timestamps: false }
+    );
+    if (!task) {
+      return res.status(404).json({ success: false, message: 'Task not found' });
+    }
+
+    res.json({ success: true, data: { completed: !ticked } });
   } catch (error) {
     next(error);
   }
