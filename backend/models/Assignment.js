@@ -75,6 +75,13 @@ const assignmentSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    // Optional link, exactly as on an Announcement: a free-text URL entered
+    // beside the file. It defaults to empty, so every assignment that already
+    // exists is unchanged and simply has no link.
+    link: {
+      type: String,
+      default: '',
+    },
     // Personal completion tick: one account id per user who has ticked this
     // assignment off for themselves, and nothing else.
     //

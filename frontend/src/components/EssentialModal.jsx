@@ -15,6 +15,7 @@ export default function EssentialModal({ isOpen, onClose, onSave, essential }) {
     course: '',
     title: '',
     description: '',
+    link: '',
   })
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState({})
@@ -31,12 +32,13 @@ export default function EssentialModal({ isOpen, onClose, onSave, essential }) {
         course: essential.course || '',
         title: essential.title || '',
         description: essential.description || '',
+        link: essential.link || '',
       })
       if (essential.attachment?.name) {
         setAttachment(essential.attachment)
       }
     } else {
-      setForm({ course: '', title: '', description: '' })
+      setForm({ course: '', title: '', description: '', link: '' })
     }
   }, [essential, isOpen])
 
@@ -95,6 +97,7 @@ export default function EssentialModal({ isOpen, onClose, onSave, essential }) {
         title: form.title.trim(),
         description: form.description.trim(),
         attachment: uploadedAttachment || null,
+        link: form.link,
       })
     } catch (err) {
       setUploading(false)
@@ -150,6 +153,13 @@ export default function EssentialModal({ isOpen, onClose, onSave, essential }) {
           accept=".pdf,.jpg,.jpeg,.png,.webp"
           id="essential-attachment"
           error={errors.file}
+        />
+
+        <Input
+          label="Link"
+          value={form.link}
+          onChange={(e) => setForm({ ...form, link: e.target.value })}
+          placeholder="https://example.com (optional)"
         />
       </form>
     </Modal>

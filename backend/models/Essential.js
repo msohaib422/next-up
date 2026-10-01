@@ -42,6 +42,13 @@ const essentialSchema = new mongoose.Schema(
       publicId: { type: String, default: '' },
       resourceType: { type: String, default: '' },
     },
+    // Optional link, exactly as on an Announcement: a free-text URL entered
+    // beside the file. It defaults to empty, so every essential that already
+    // exists is unchanged and simply has no link.
+    link: {
+      type: String,
+      default: '',
+    },
     savedBy: [
       {
         type: mongoose.Schema.Types.ObjectId,

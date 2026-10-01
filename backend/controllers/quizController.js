@@ -91,7 +91,7 @@ export const getQuiz = async (req, res, next) => {
 
 export const createQuiz = async (req, res, next) => {
   try {
-    const { subject, title, description, date, deadlineMode, priority, status, attachment } = req.body;
+    const { subject, title, description, date, deadlineMode, priority, status, attachment, link } = req.body;
 
     const validModes = ['Date', 'Upcoming Lecture', 'Surprise'];
     if (!deadlineMode || !validModes.includes(deadlineMode)) {
@@ -124,6 +124,12 @@ export const createQuiz = async (req, res, next) => {
         publicId: attachment.publicId || '',
         resourceType: attachment.resourceType || '',
       };
+    }
+
+    // Optional, exactly as on an Announcement: an empty field simply leaves the
+    // field at its empty default.
+    if (link) {
+      quizData.link = link;
     }
 
     const quiz = await Quiz.create(quizData);

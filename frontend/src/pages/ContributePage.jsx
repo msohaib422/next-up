@@ -87,6 +87,7 @@ function ContributionForm({ type, onClose, onSubmitted }) {
       if (dated) Object.assign(content, { subject: form.subject.trim(), deadlineMode: form.deadlineMode, priority: form.priority })
       if (type === 'Essential') Object.assign(content, { course: form.course.trim(), tag: 'Topic' })
       if (type === 'Announcement') Object.assign(content, { type: form.type, link: form.link.trim() })
+      else content.link = form.link.trim()
       if (uploadedAttachment) content.attachment = uploadedAttachment
       await api.post('/contributions', { type, title: form.title.trim(), content })
       toast.success('Contribution submitted successfully — it is now waiting for admin review.', { duration: 3000 })
@@ -112,6 +113,9 @@ function ContributionForm({ type, onClose, onSubmitted }) {
         id={`contribution-attachment-${type}`}
         error={errors.file}
       />
+      {/* The same optional Link field the Announcement form uses, directly under
+          Choose File. Announcement keeps the one it already had further down. */}
+      {type !== 'Announcement' && <Input label="Link" value={form.link} onChange={e => update('link', e.target.value)} placeholder="https://example.com (optional)" />}
       {dated && <><Select label="Deadline" value={form.deadlineMode} onChange={e => update('deadlineMode', e.target.value)} options={[{ value: '', label: 'Select deadline' }, ...modes.map(mode => ({ value: mode, label: mode }))]} />{form.deadlineMode === 'Date' && <Input label="Due date" type="date" min={minSelectableDate} value={form.date} onChange={e => update('date', e.target.value)} error={errors.date} />}{errors.deadlineMode && <p className="-mt-2 text-xs text-red-600">{errors.deadlineMode}</p>}</>}
       {type === 'Announcement' && <><Select label="Announcement type" value={form.type} onChange={e => update('type', e.target.value)} options={['General', 'Academic', 'Assignment', 'Quiz', 'Task', 'Exam', 'Event'].map(value => ({ value, label: value }))} /><Input label="Date" type="date" min={minSelectableDate} value={form.date} onChange={e => update('date', e.target.value)} error={errors.date} /><Input label="Link (optional)" type="url" value={form.link} onChange={e => update('link', e.target.value)} placeholder="https://" /></>}
       {dated && <Select label="Priority" value={form.priority} onChange={e => update('priority', e.target.value)} options={['High', 'Medium', 'Low'].map(value => ({ value, label: value }))} />}

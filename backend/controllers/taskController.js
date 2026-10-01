@@ -104,7 +104,7 @@ export const getTask = async (req, res, next) => {
 
 export const createTask = async (req, res, next) => {
   try {
-    const { subject, title, description, deadline, deadlineMode, priority, status, attachment } = req.body;
+    const { subject, title, description, deadline, deadlineMode, priority, status, attachment, link } = req.body;
 
     const validModes = ['Date', 'Upcoming Lecture', 'As Possible'];
     if (!deadlineMode || !validModes.includes(deadlineMode)) {
@@ -135,6 +135,12 @@ export const createTask = async (req, res, next) => {
         publicId: attachment.publicId || '',
         resourceType: attachment.resourceType || '',
       };
+    }
+
+    // Optional, exactly as on an Announcement: an empty field simply leaves the
+    // field at its empty default.
+    if (link) {
+      taskData.link = link;
     }
 
     const task = await Task.create(taskData);
