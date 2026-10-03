@@ -6,7 +6,7 @@ import EmailDelivery from '../models/EmailDelivery.js';
  * Four jobs, all deliberately small:
  *   - record the outcome of each attempt (Pending / Sent / Failed) so a failed
  *     email is never reported as a successful one;
- *   - keep an address that the mail server refuses out of rotation;
+ *   - keep an address out of rotation the moment one delivery to it fails;
  *   - accept a bounce report for an address that *accepted* at SMTP level but
  *     never arrived, which is the only way to learn about that failure mode;
  *   - allow a person - never a loop - to retry or resume an address.
@@ -19,21 +19,36 @@ import EmailDelivery from '../models/EmailDelivery.js';
  * There is no scheduler, no queue and no retry loop in this file or anywhere
  * else: an address only leaves this module as "Sent", "skipped" or "failed"
  * for the one event that triggered the send.
+ *
+ * ONE FAILURE IS FINAL FOR A RECIPIENT
+ * ------------------------------------
+ * This used to be a retry count - three consecutive failures, configurable with
+ * `EMAIL_MAX_FAILURES` - and that is exactly what caused the same message to be
+ * handed to the same address again and again.
+ *
+ * A "temporary-looking" failure is the common case, not the exception. If the
+ * mail server refuses the connection, times out, or is briefly down, every
+ * recipient fails - and under a retry count each of them stayed eligible, so the
+ * next event (the next admin action, i.e. tomorrow) mailed all of them again and
+ * produced another round of failures. The recipient, not the mood of the mail
+ * server, is the thing that decides whether there is a next attempt.
+ *
+ * So a failure - permanent rejection, refused connection, timeout, anything -
+ * is written straight to `suppressed: true` in the single atomic update in
+ * completeAttempt, in MongoDB. That is what stops the retry on the next run, the
+ * next day, a server restart or a cold serverless boot: there is no in-memory
+ * flag that a restart could lose, and nothing re-arms it. The only way an
+ * address is tried again is a person asking (resumeAddress / resendLastEmailTo).
+ *
+ * The state is keyed on the recipient address alone, so one dead address never
+ * blocks the rest of a notification: the other recipients in the same message
+ * are still delivered and are recorded separately.
  */
-
-/** After this many consecutive failures a possibly-transient problem is
- *  treated as a dead address rather than retried forever. */
-const MAX_CONSECUTIVE_FAILURES = 3;
 
 const normalize = (email) => String(email || '').trim().toLowerCase();
 
 /** A syntactically unusable address is never worth an SMTP round trip. */
 export const isUsableAddress = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(normalize(email));
-
-const suppressionThreshold = () => {
-  const configured = Number(process.env.EMAIL_MAX_FAILURES);
-  return Number.isFinite(configured) && configured > 0 ? configured : MAX_CONSECUTIVE_FAILURES;
-};
 
 /**
  * Addresses the operator has taken out of rotation by configuration, e.g.
@@ -55,8 +70,15 @@ export const isSuppressedByEnv = (email) => envSuppressed().includes(normalize(e
  *
  * Resolves to { skip: boolean, reason?: string }. `skip: true` means the caller
  * must not call the mail server for this address.
- */
-/**
+ *
+ * This is the check that answers "has this recipient already failed?". It reads
+ * the persisted per-address record, so a delivery that failed on any earlier run
+ * - yesterday, last week, before the last restart - is skipped here, before any
+ * SMTP conversation is opened and before a Pending record is written. That makes
+ * a repeated run, a cron tick, a cold serverless boot and a manual re-trigger of
+ * the same notification all behave identically: the failed recipient is never
+ * attempted a second time.
+ *
  * `bypassSuppression` is deliberately not reachable from any request body: the
  * only caller that sets it is the operator resend in mailService, so a client
  * cannot talk the mail service into mailing a known-dead address.
@@ -114,8 +136,19 @@ export const beginAttempt = async ({ email, subject = '', context = '', relatedU
  * Close out an attempt.
  *
  * A success clears the failure streak, so a later event can mail the address
- * again normally. A failure increments it and suppresses the address when the
- * mail server reported a permanent problem or the streak got too long.
+ * again normally.
+ *
+ * A failure does the opposite, and it does it in ONE write. The outcome, the
+ * streak and the permanent stop (`suppressed: true`) are all part of the same
+ * atomic update, so the state that says "do not attempt this address again"
+ * can never be lost to a crash, a restart or a cold boot between two separate
+ * writes. Every later call to beginAttempt reads `suppressed` and skips the
+ * address without ever opening an SMTP conversation for it, which is what makes
+ * "attempted exactly once" true across runs, days and process restarts.
+ *
+ * `permanent` is diagnostics only - it picks the wording shown to an
+ * administrator - and never decides whether the address is retried. A refused
+ * connection is treated exactly like a 550 rejection, per the one-strike rule.
  */
 export const completeAttempt = async ({ email, ok, reason = '', permanent = false }) => {
   const recipient = normalize(email);
@@ -139,31 +172,40 @@ export const completeAttempt = async ({ email, ok, reason = '', permanent = fals
       );
     }
 
-    const threshold = suppressionThreshold();
     const updated = await EmailDelivery.findOneAndUpdate(
       { email: recipient },
       {
         $inc: { failureCount: 1 },
-        $set: { status: 'Failed', lastError: reason, lastAttemptAt: new Date() },
-        $setOnInsert: { email: recipient, suppressed: false, undeliverable: false, lastSubject: '', lastContext: '' },
+        $set: {
+          status: 'Failed',
+          // The one-strike rule, written with the failure rather than after it.
+          suppressed: true,
+          lastError: reason,
+          lastAttemptAt: new Date(),
+        },
+        $setOnInsert: { email: recipient, undeliverable: false, lastSubject: '', lastContext: '' },
       },
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );
     if (!updated) return null;
 
-    const shouldSuppress = permanent || updated.failureCount >= threshold;
-    if (!shouldSuppress || updated.suppressed) return updated;
+    // Cosmetic, and deliberately a second statement: the reason is only
+    // meaningful if it does not overwrite a stronger one already recorded (an
+    // address reported as bounced keeps saying so even if a later manual resend
+    // fails). Nothing about the retry decision lives here.
+    if (!updated.undeliverable && updated.suppressionReason !== 'bounced') {
+      await EmailDelivery.updateOne(
+        { email: recipient },
+        { $set: { suppressionReason: permanent ? 'rejected-by-server' : 'send-failed' } }
+      );
+    }
 
-    const suppressed = await EmailDelivery.findOneAndUpdate(
-      { email: recipient },
-      { $set: { suppressed: true, suppressionReason: updated.undeliverable ? 'bounced' : permanent ? 'rejected-by-server' : 'repeated-failure' } },
-      { new: true }
-    );
     console.warn(
-      `[email-status] suppressing ${recipient} after ${updated.failureCount} failed attempt(s)` +
-        `${permanent ? ' (permanent rejection from the mail server)' : ''}. No further email will be attempted to this address unless an administrator asks for it.`
+      `[email-status] ${recipient} stopped after ${updated.failureCount} failed attempt(s)` +
+        `${permanent ? ' (permanent rejection from the mail server)' : ''}: ${reason}. ` +
+        'No further email will be attempted to this address unless an administrator asks for it.'
     );
-    return suppressed || updated;
+    return updated;
   } catch (error) {
     console.error('[email-status] could not record the delivery outcome:', error.message);
     return null;

@@ -217,7 +217,7 @@ check('listed address shows as blocked in the admin list', listedRow?.blocked ==
 check('and is flagged as configured, not a server failure', listedRow?.blockedByConfig === true);
 delete process.env.EMAIL_SUPPRESSED_ADDRESSES;
 
-section('8 - Transient failures are bounded, not infinite');
+section('8 - A transient-looking failure is attempted exactly once too');
 const flaky = newAddr('test.local');
 await EmailDelivery.deleteMany({ email: flaky });
 // The mail service caches its transporter, so the failure is toggled on the stub
@@ -226,11 +226,12 @@ transientFailure = true;
 const t = [];
 for (let i = 0; i < 6; i += 1) t.push((await sendRegistrationReceivedEmail({ name: 'F', email: flaky, createdAt: new Date() })).status);
 transientFailure = false;
-check('every attempt failed', t.slice(0, 3).every((s) => s === 'failed'), t.join(','));
-check('attempts stop after the limit - no infinite retry', t.slice(3).every((s) => s === 'skipped'), t.join(','));
-check('only the limit number of SMTP calls were made', flakyCalls === 3, `${flakyCalls}`);
+check('the first attempt failed', t[0] === 'failed', t.join(','));
+check('every attempt after the first is skipped, no automatic retry at all', t.slice(1).every((s) => s === 'skipped'), t.join(','));
+check('only one SMTP call was ever made', flakyCalls === 1, `${flakyCalls}`);
 const flakyRec = await getDeliveryStatus(flaky);
-check('address suppressed after the streak', flakyRec?.suppressed === true, flakyRec?.suppressed);
+check('address stopped after the first failure', flakyRec?.suppressed === true, flakyRec?.suppressed);
+check('and the streak shows exactly one attempt', flakyRec?.failureCount === 1, flakyRec?.failureCount);
 
 section('9 - A bounce for a brand new address is also honoured');
 const fresh = newAddr('fresh-bounce.example');

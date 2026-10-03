@@ -322,7 +322,7 @@ check('no further SMTP attempt for it', sent.length === beforeF2, `${beforeF2} -
 // c has had 4 emails by now: registration, rejection, re-application, approval.
 check('other users unaffected by the suppression', mailsTo(a.email).length === 1 && mailsTo(c.email).length === 4, `a=${mailsTo(a.email).length} c=${mailsTo(c.email).length}`);
 
-section('F3 - Transient failures stop after a bounded number of attempts');
+section('F3 - A transient-looking failure is never retried either');
 const flaky = `${uniq()}@test.local`;
 const beforeF3 = sent.length;
 failSend = { message: 'connection refused', code: 'ECONNREFUSED' };
@@ -331,10 +331,11 @@ const r2 = await sendRegistrationReceivedEmail({ name: 'Flaky', email: flaky, cr
 const r3 = await sendRegistrationReceivedEmail({ name: 'Flaky', email: flaky, createdAt: new Date() });
 const r4 = await sendRegistrationReceivedEmail({ name: 'Flaky', email: flaky, createdAt: new Date() });
 failSend = null;
-check('transient errors reported as failed', [r1, r2, r3].every((r) => r.status === 'failed'), [r1, r2, r3].map((r) => r.status).join(','));
-check('4th attempt is skipped, so no infinite retry', r4.status === 'skipped', r4.status);
+check('the first attempt reports a failure', r1.status === 'failed', r1.status);
+check('every attempt after the first is skipped, even though the error looked temporary', [r2, r3, r4].every((r) => r.status === 'skipped'), [r2, r3, r4].map((r) => r.status).join(','));
+check('so exactly one SMTP call was ever made for it', sent.length === beforeF3 + 1, `${beforeF3} -> ${sent.length}`);
 const flakyRec = await EmailDelivery.findOne({ email: flaky });
-check('streak counted to the limit then suppressed', flakyRec?.suppressed === true && flakyRec?.failureCount === 3, JSON.stringify({ n: flakyRec?.failureCount, s: flakyRec?.suppressed }));
+check('stopped on the very first failure', flakyRec?.suppressed === true && flakyRec?.failureCount === 1, JSON.stringify({ n: flakyRec?.failureCount, s: flakyRec?.suppressed }));
 // Only the two addresses this section made fail should be suppressed. Scoped to
 // this script's own address namespace so a record from another run cannot
 // influence the result.
@@ -345,8 +346,9 @@ const collateral = await EmailDelivery.countDocuments({
 });
 check('transient error did not suppress anyone else', collateral === 0, `${collateral} other suppressed`);
 
-// A success must clear the streak, so a temporary outage does not blacklist an
-// address forever.
+// A record left behind by the old retry-count behaviour (a streak but no
+// permanent stop) must not be retroactively blacklisted: it still delivers, and
+// a success clears the streak.
 const recovered = `${uniq()}@test.local`;
 await EmailDelivery.create({ email: recovered, status: 'Failed', failureCount: 2, suppressed: false, lastError: 'transient' });
 const rec = await sendRegistrationReceivedEmail({ name: 'Recovered', email: recovered, createdAt: new Date() });
