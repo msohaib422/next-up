@@ -137,11 +137,14 @@ const classifyError = (error) => {
 };
 
 /**
- * Distinguish "this recipient will never work" from "the network hiccupped".
+ * Tell a hard recipient rejection apart from a network problem, for the wording
+ * shown to an administrator.
  *
- * A 5xx reply (or an explicit "no such user") is permanent: retrying the same
- * address later is pointless, so the address is suppressed. Connection and
- * timeout problems are transient and only count towards the failure streak.
+ * This is diagnostics ONLY. It decides nothing about whether the recipient is
+ * tried again: one failed send stops that address for good, whether the server
+ * answered 550 or simply refused the connection (see completeAttempt). A 5xx
+ * reply (or an explicit "no such user") just means the reason reads "the mail
+ * server rejected the address" rather than "the connection failed".
  */
 const isPermanentRecipientError = (error) => {
   const code = String(error?.code || '').trim();
