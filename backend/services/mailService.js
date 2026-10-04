@@ -318,11 +318,20 @@ const toPlainText = ({ heading, intro, rows = [], action }) =>
  * run twice. The delivery record is still kept per address, so one recipient
  * being suppressed never hides the others.
  *
+ * `messageKey` is the stable identity of THIS message, and it is what makes a
+ * failed email a one-time thing. Every sender below builds it from the entity or
+ * the account the email is about, never from the time, so the same event always
+ * produces the same key. emailStatusService records it when a send fails and
+ * refuses that same key for that same address ever again, which is what stops the
+ * repeated attempt this file used to make on the next event, the next day, after
+ * a deploy or after a restart. A different message about the same person is
+ * unaffected, because its key differs.
+ *
  * Resolves to
  *   { sent, status: 'sent' | 'skipped' | 'failed', reason?, messageId? }
  * and, for a list, a `results` array with one entry per address considered.
  */
-export const sendMail = async ({ to, subject, heading, intro, rows, bodyHtml, bodyText, action, footer, footerRule = true, showFallbackLink = true, context, relatedUser = null, allowSuppressed = false }) => {
+export const sendMail = async ({ to, subject, heading, intro, rows, bodyHtml, bodyText, action, footer, footerRule = true, showFallbackLink = true, context, relatedUser = null, allowSuppressed = false, messageKey = '' }) => {
   const html = layout({ heading, intro, rows, body: bodyHtml, action, footer, footerRule, showFallbackLink });
   const text = bodyText || toPlainText({ heading, intro, rows, action });
   const where = context ? ` (${context})` : '';
@@ -379,6 +388,7 @@ export const sendMail = async ({ to, subject, heading, intro, rows, bodyHtml, bo
       subject,
       context,
       relatedUserId: relatedUser?._id || null,
+      messageKey,
       bypassSuppression: allowSuppressed === true,
     });
     if (attempt.skip) {
@@ -412,14 +422,14 @@ export const sendMail = async ({ to, subject, heading, intro, rows, bodyHtml, bo
       html,
       text,
     });
-    await Promise.all(deliverable.map((email) => completeAttempt({ email, ok: true })));
+    await Promise.all(deliverable.map((email) => completeAttempt({ email, ok: true, messageKey })));
     console.log(`[mail] SENT "${subject}" to=${label}${where} (messageId=${info?.messageId || 'n/a'})`);
     deliverable.forEach((email) => results.push({ email, sent: true, status: 'sent' }));
     return { sent: true, status: 'sent', messageId: info?.messageId || null, results };
   } catch (error) {
     const reason = classifyError(error);
     const permanent = isPermanentRecipientError(error);
-    await Promise.all(deliverable.map((email) => completeAttempt({ email, ok: false, reason, permanent })));
+    await Promise.all(deliverable.map((email) => completeAttempt({ email, ok: false, reason, permanent, messageKey })));
     // The reason is a fixed, human-written string, so no secret can reach it.
     console.error(`[mail] FAILED "${subject}" to=${label}${where}: ${reason}`);
     console.error('[mail] details:', JSON.stringify(redact({ code: error?.code, command: error?.command, responseCode: error?.responseCode })));
@@ -444,6 +454,7 @@ export const sendRegistrationReceivedEmail = async (user, { allowSuppressed = fa
     context: 'registration-received',
     relatedUser: user,
     allowSuppressed,
+    messageKey: `registration-received:${user._id}`,
     subject: 'Your NextUp registration has been received',
     heading: `Welcome, ${user.name}`,
     intro:
@@ -488,6 +499,7 @@ export const sendAdminNewRegistrationEmail = async (user, recipients, { allowSup
     context: 'admin-new-registration',
     relatedUser: user,
     allowSuppressed,
+    messageKey: `admin-new-registration:${user._id}`,
     subject: 'New registration awaiting your approval',
     heading: 'New user registration',
     intro: 'A new user has registered and is waiting for your approval before they can access the system.',
@@ -532,6 +544,7 @@ export const sendRegistrationApprovedEmail = async (user, { allowSuppressed = fa
     context: 'registration-approved',
     relatedUser: user,
     allowSuppressed,
+    messageKey: `registration-approved:${user._id}`,
     subject: 'Your NextUp registration has been approved',
     heading: 'Your registration has been approved',
     intro: `Good news, ${user.name}. An administrator has approved your registration and you can now access the NextUp system.`,
@@ -559,6 +572,7 @@ export const sendRegistrationRejectedEmail = async (user, reason, { allowSuppres
     context: 'registration-rejected',
     relatedUser: user,
     allowSuppressed,
+    messageKey: `registration-rejected:${user._id}`,
     subject: 'Your NextUp registration was not approved',
     heading: 'Your registration was not approved',
     intro: `Hello ${user.name}, an administrator has reviewed your registration and it was not approved at this time.`,
@@ -592,6 +606,7 @@ export const sendAccountDeletedEmail = async (user, { allowSuppressed = false } 
     to: user.email,
     context: 'account-deleted',
     allowSuppressed,
+    messageKey: `account-deleted:${user._id}`,
     // A plain snapshot: the record is already gone by the time this is sent.
     relatedUser: { _id: user._id, name: user.name, email: user.email, createdAt: user.createdAt },
     subject: 'Your NextUp account has been removed',
@@ -776,6 +791,7 @@ export const sendContentChangeEmail = async ({ entityType, entity, action, exclu
   return sendPrivately({
     to: recipients,
     context: `content-${entityType.toLowerCase()}-${action}`,
+    messageKey: `content:${entityType}:${entity._id}:${isAdd ? 'added' : 'updated'}`,
     subject: isAdd ? `New ${spec.name} Added` : `${spec.name} Updated`,
     heading: isAdd ? `New ${spec.name} Added` : `${spec.name} Updated`,
     intro: isAdd ? `A new ${spec.noun} has been added.` : `The ${spec.noun} has been updated.`,
@@ -840,6 +856,7 @@ export const sendContributionSubmittedEmail = async ({ contribution, contributor
   return sendPrivately({
     to: recipients,
     context: `contribution-${String(contribution.type || 'item').toLowerCase()}-submitted`,
+    messageKey: `contribution:${contribution._id}:submitted`,
     subject: `New ${name} Contribution Submitted`,
     heading: `New ${name} Contribution Submitted`,
     intro: `${submittedBy} submitted a new ${noun} for review.`,
