@@ -82,8 +82,27 @@ export const isSuppressedByEnv = (email) => envSuppressed().includes(normalize(e
  * `bypassSuppression` is deliberately not reachable from any request body: the
  * only caller that sets it is the operator resend in mailService, so a client
  * cannot talk the mail service into mailing a known-dead address.
+ *
+ * THE PER-MESSAGE STOP, WHICH IS THE PART THAT ACTUALLY MATTERS
+ * ------------------------------------------------------------
+ * `suppressed` answers "should this ADDRESS be mailed at all?". It cannot answer
+ * "was THIS MESSAGE already tried?", because the record is keyed on the address
+ * and its outcome fields are overwritten by the next send. So before this check
+ * existed, a delivery that failed was not recorded as a failed delivery - it was
+ * recorded as "the address's latest state", and the next event mailed the same
+ * message to the same address again. Because content events in this app cluster
+ * roughly a day apart, that repeat read as a 24-hour retry even though nothing in
+ * the system was ever on a timer.
+ *
+ * `messageKey` is the stable identity of one message, and `failedMessages` is the
+ * list of the ones this address has already failed. The check below therefore
+ * answers the question the retry problem actually asks - "has this failed email
+ * already been attempted for this recipient?" - and it does so BEFORE any SMTP
+ * conversation is opened, with no time condition of any kind. The same message
+ * for a different recipient is unaffected, and a different message for the same
+ * recipient is unaffected.
  */
-export const beginAttempt = async ({ email, subject = '', context = '', relatedUserId = null, bypassSuppression = false }) => {
+export const beginAttempt = async ({ email, subject = '', context = '', relatedUserId = null, messageKey = '', bypassSuppression = false }) => {
   const recipient = normalize(email);
   if (!recipient) return { skip: true, reason: 'no recipient address' };
 
@@ -93,8 +112,19 @@ export const beginAttempt = async ({ email, subject = '', context = '', relatedU
 
   try {
     const existing = await EmailDelivery.findOne({ email: recipient })
-      .select('suppressed undeliverable suppressionReason lastError')
+      .select('suppressed undeliverable suppressionReason lastError failedMessages')
       .lean();
+
+    // The stop for an individual failed email. Checked first, because it is the
+    // narrower and more specific of the two, and its reason is the more useful
+    // one to see in a log. A key is only ever added by a failure, so reaching
+    // here means an earlier attempt of this exact message really did fail.
+    if (!bypassSuppression && messageKey && existing?.failedMessages?.includes(messageKey)) {
+      return {
+        skip: true,
+        reason: `this email already failed for this address and is never attempted again automatically (message ${messageKey})`,
+      };
+    }
 
     if (!bypassSuppression && existing?.undeliverable) {
       return {
@@ -149,8 +179,14 @@ export const beginAttempt = async ({ email, subject = '', context = '', relatedU
  * `permanent` is diagnostics only - it picks the wording shown to an
  * administrator - and never decides whether the address is retried. A refused
  * connection is treated exactly like a 550 rejection, per the one-strike rule.
+ *
+ * `messageKey` is recorded alongside the outcome, in the SAME atomic update, so
+ * the fact that this particular message failed cannot be separated from the fact
+ * that the send failed. Adding it here rather than in a follow-up write means a
+ * crash between two writes cannot leave a failed message looking untried, which
+ * would hand it straight back to the mail server on the next event.
  */
-export const completeAttempt = async ({ email, ok, reason = '', permanent = false }) => {
+export const completeAttempt = async ({ email, ok, reason = '', permanent = false, messageKey = '' }) => {
   const recipient = normalize(email);
   if (!recipient) return null;
 
@@ -172,19 +208,26 @@ export const completeAttempt = async ({ email, ok, reason = '', permanent = fals
       );
     }
 
+    const failureWrite = {
+      $inc: { failureCount: 1 },
+      $set: {
+        status: 'Failed',
+        // The one-strike rule, written with the failure rather than after it.
+        suppressed: true,
+        lastError: reason,
+        lastAttemptAt: new Date(),
+      },
+      $setOnInsert: { email: recipient, undeliverable: false, lastSubject: '', lastContext: '' },
+    };
+    // The identity of the message that failed, so this exact email is never
+    // handed to the mail server for this address again. `$addToSet` keeps it
+    // idempotent: a repeated failure records the same key once, and the list
+    // only ever grows with genuinely different failed messages.
+    if (messageKey) failureWrite.$addToSet = { failedMessages: messageKey };
+
     const updated = await EmailDelivery.findOneAndUpdate(
       { email: recipient },
-      {
-        $inc: { failureCount: 1 },
-        $set: {
-          status: 'Failed',
-          // The one-strike rule, written with the failure rather than after it.
-          suppressed: true,
-          lastError: reason,
-          lastAttemptAt: new Date(),
-        },
-        $setOnInsert: { email: recipient, undeliverable: false, lastSubject: '', lastContext: '' },
-      },
+      failureWrite,
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );
     if (!updated) return null;

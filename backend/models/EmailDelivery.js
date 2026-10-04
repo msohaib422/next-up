@@ -41,6 +41,28 @@ const emailDeliverySchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    /**
+     * The messages this address has already FAILED, as stable message keys
+     * (see messageKey in mailService.js), one per failed message.
+     *
+     * This is what makes "attempted exactly once" true per message rather than
+     * per address. `status`/`failureCount` alone describe the address, so a
+     * message that failed was indistinguishable from a message that was never
+     * tried: the next content event simply handed the same message over again,
+     * which is where the repeated failures came from.
+     *
+     * Entries are added only when a send actually FAILS, so a healthy address
+     * keeps this empty and its behaviour is completely unchanged. Nothing
+     * removes an entry and nothing expires it: no timer, no cleanup job, no
+     * date comparison. It lives in MongoDB, so a restart, a redeploy or a cold
+     * serverless boot cannot lose it. The single exception is an explicit
+     * administrator resend, which bypasses this deliberately (see
+     * `bypassSuppression` in beginAttempt).
+     */
+    failedMessages: {
+      type: [String],
+      default: [],
+    },
     // When true, the mail service short-circuits and skips this address.
     suppressed: {
       type: Boolean,
