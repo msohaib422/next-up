@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { registerCourses } from '../hooks/useCourses'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
 import { CheckSquare, HelpCircle, FileCheck, BookOpen, Megaphone, Send, ArrowRight, Clock, CheckCircle2, XCircle, Layers } from 'lucide-react'
@@ -11,6 +12,7 @@ import LoadingSpinner from '../components/ui/LoadingSpinner'
 import Modal from '../components/ui/Modal'
 import Input from '../components/ui/Input'
 import Select from '../components/ui/Select'
+import CourseSelect from '../components/ui/CourseSelect'
 import FileUploadField from '../components/ui/FileUploadField'
 
 const TYPES = [
@@ -101,8 +103,8 @@ function ContributionForm({ type, onClose, onSubmitted }) {
     <form onSubmit={submit} className="space-y-4">
       <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm leading-5 text-blue-800 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-200">Your submission stays private until an administrator reviews and approves it.</div>
       <Input label="Title" value={form.title} onChange={e => update('title', e.target.value)} placeholder={`${type} title`} error={errors.title} required />
-      {dated && <Input label="Course / Subject" value={form.subject} onChange={e => update('subject', e.target.value)} placeholder="e.g. Mathematics" error={errors.subject} />}
-      {type === 'Essential' && <Input label="Course" value={form.course} onChange={e => update('course', e.target.value)} placeholder="e.g. Computer Science" error={errors.course} />}
+      {dated && <CourseSelect label="Course / Subject" value={form.subject} onChange={val => update('subject', val)} placeholder="e.g. Mathematics" error={errors.subject} />}
+      {type === 'Essential' && <CourseSelect label="Course" value={form.course} onChange={val => update('course', val)} placeholder="e.g. Computer Science" error={errors.course} />}
       <div><label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="contribution-description">Description</label><textarea id="contribution-description" className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" rows="4" value={form.description} onChange={e => update('description', e.target.value)} placeholder="Add useful context for reviewers" /></div>
       <FileUploadField
         file={file}
@@ -142,6 +144,32 @@ export default function ContributePage() {
     finally { setLoading(false) }
   }
   useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    const seedCourses = async () => {
+      try {
+        const [t, q, a, e] = await Promise.all([
+          api.get('/tasks').catch(() => ({ data: [] })),
+          api.get('/quizzes').catch(() => ({ data: [] })),
+          api.get('/assignments').catch(() => ({ data: [] })),
+          api.get('/essentials').catch(() => ({ data: [] })),
+        ])
+        const names = []
+        const tasks = Array.isArray(t.data) ? t.data : (t.data?.data || [])
+        const quizzes = Array.isArray(q.data) ? q.data : (q.data?.data || [])
+        const assignments = Array.isArray(a.data) ? a.data : (a.data?.data || [])
+        const essentials = Array.isArray(e.data) ? e.data : (e.data?.data || [])
+        tasks.forEach((x) => x?.subject && names.push(x.subject))
+        quizzes.forEach((x) => x?.subject && names.push(x.subject))
+        assignments.forEach((x) => x?.subject && names.push(x.subject))
+        essentials.forEach((x) => x?.course && names.push(x.course))
+        registerCourses(names)
+      } catch {
+        // ignore
+      }
+    }
+    seedCourses()
+  }, [])
 
   const filtered = useMemo(() => filter === 'all' ? items : items.filter(item => item.status === filter), [items, filter])
 

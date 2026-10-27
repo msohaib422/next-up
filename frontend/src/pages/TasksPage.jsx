@@ -8,6 +8,7 @@ import { Plus, CheckSquare, Search, X, Paperclip, Download } from 'lucide-react'
 import { parseISO, isPast, isToday, format } from 'date-fns'
 import { useSearchParams } from 'react-router-dom'
 import { hasList, readList, rememberList, forgetList } from '../utils/listCache'
+import { registerCourses } from '../hooks/useCourses'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -106,7 +107,9 @@ export default function TasksPage() {
   const fetchTasks = async () => {
     try {
       const res = await api.get('/tasks')
-      setTasks(rememberList('/tasks', Array.isArray(res.data) ? res.data : (res.data.data || [])))
+      const items = Array.isArray(res.data) ? res.data : (res.data.data || [])
+      setTasks(rememberList('/tasks', items))
+      registerCourses(items.map((t) => t.subject))
     } catch (err) {
       toast.error('Failed to load tasks')
     } finally {
@@ -520,7 +523,7 @@ export default function TasksPage() {
         </div>
       )}
 
-      <TaskModal isOpen={showModal} onClose={() => { setShowModal(false); setEditingTask(null) }} onSave={handleSave} task={editingTask} />
+      <TaskModal isOpen={showModal} onClose={() => { setShowModal(false); setEditingTask(null) }} onSave={handleSave} task={editingTask} courses={subjects} />
       <TaskViewModal isOpen={!!viewingTask} onClose={() => setViewingTask(null)} task={viewingTask} />
     </div>
   )

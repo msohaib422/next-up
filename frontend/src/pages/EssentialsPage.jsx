@@ -16,6 +16,7 @@ import DateFilter from '../components/ui/DateFilter'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import EssentialModal from '../components/EssentialModal'
+import { registerCourses } from '../hooks/useCourses'
 import EssentialViewModal from '../components/EssentialViewModal'
 
 export default function EssentialsPage() {
@@ -81,7 +82,9 @@ export default function EssentialsPage() {
   const fetchEssentials = async () => {
     try {
       const res = await api.get('/essentials')
-      setEssentials(rememberList('/essentials', Array.isArray(res.data) ? res.data : (res.data.data || [])))
+      const items = Array.isArray(res.data) ? res.data : (res.data.data || [])
+      setEssentials(rememberList('/essentials', items))
+      registerCourses(items.map((e) => e.course))
     } catch (err) {
       toast.error('Failed to load essentials')
     } finally {
@@ -333,7 +336,7 @@ export default function EssentialsPage() {
         </div>
       )}
 
-      <EssentialModal isOpen={showModal} onClose={() => { setShowModal(false); setEditingEssential(null) }} onSave={handleSave} essential={editingEssential} />
+      <EssentialModal isOpen={showModal} onClose={() => { setShowModal(false); setEditingEssential(null) }} onSave={handleSave} essential={editingEssential} courses={courses} />
       <EssentialViewModal isOpen={!!viewingEssential} onClose={() => setViewingEssential(null)} essential={viewingEssential} />
     </div>
   )

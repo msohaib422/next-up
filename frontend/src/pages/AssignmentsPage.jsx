@@ -8,6 +8,7 @@ import { Plus, CheckSquare, Search, X, Paperclip, Download } from 'lucide-react'
 import { parseISO, isPast, isToday, format } from 'date-fns'
 import { useSearchParams } from 'react-router-dom'
 import { hasList, readList, rememberList, forgetList } from '../utils/listCache'
+import { registerCourses } from '../hooks/useCourses'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -105,7 +106,9 @@ export default function AssignmentsPage() {
   const fetchAssignments = async () => {
     try {
       const res = await api.get('/assignments')
-      setAssignments(rememberList('/assignments', Array.isArray(res.data) ? res.data : (res.data.data || [])))
+      const items = Array.isArray(res.data) ? res.data : (res.data.data || [])
+      setAssignments(rememberList('/assignments', items))
+      registerCourses(items.map((a) => a.subject))
     } catch (err) {
       toast.error('Failed to load assignments')
     } finally {
@@ -518,7 +521,7 @@ export default function AssignmentsPage() {
         </div>
       )}
 
-      <AssignmentModal isOpen={showModal} onClose={() => { setShowModal(false); setEditingAssignment(null) }} onSave={handleSave} assignment={editingAssignment} />
+      <AssignmentModal isOpen={showModal} onClose={() => { setShowModal(false); setEditingAssignment(null) }} onSave={handleSave} assignment={editingAssignment} courses={subjects} />
       <AssignmentViewModal isOpen={!!viewingAssignment} onClose={() => setViewingAssignment(null)} assignment={viewingAssignment} />
     </div>
   )

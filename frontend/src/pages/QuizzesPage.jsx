@@ -8,6 +8,7 @@ import { Plus, HelpCircle, Search, X, Paperclip, Download } from 'lucide-react'
 import { parseISO, isPast, isToday, format } from 'date-fns'
 import { useSearchParams } from 'react-router-dom'
 import { hasList, readList, rememberList, forgetList } from '../utils/listCache'
+import { registerCourses } from '../hooks/useCourses'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -105,7 +106,9 @@ export default function QuizzesPage() {
   const fetchQuizzes = async () => {
     try {
       const res = await api.get('/quizzes')
-      setQuizzes(rememberList('/quizzes', Array.isArray(res.data) ? res.data : (res.data.data || [])))
+      const items = Array.isArray(res.data) ? res.data : (res.data.data || [])
+      setQuizzes(rememberList('/quizzes', items))
+      registerCourses(items.map((q) => q.subject))
     } catch (err) {
       toast.error('Failed to load quizzes')
     } finally {
@@ -521,7 +524,7 @@ export default function QuizzesPage() {
         </div>
       )}
 
-      <QuizModal isOpen={showModal} onClose={() => { setShowModal(false); setEditingQuiz(null) }} onSave={handleSave} quiz={editingQuiz} />
+      <QuizModal isOpen={showModal} onClose={() => { setShowModal(false); setEditingQuiz(null) }} onSave={handleSave} quiz={editingQuiz} courses={subjects} />
       <QuizViewModal isOpen={!!viewingQuiz} onClose={() => setViewingQuiz(null)} quiz={viewingQuiz} />
     </div>
   )

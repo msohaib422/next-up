@@ -5,6 +5,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useHighlightSync } from '../hooks/useHighlightSync'
 import { hasList, readList, rememberList } from '../utils/listCache'
+import { registerCourses } from '../hooks/useCourses'
 import { Plus, Clock, Trash2, Edit, FileText, Upload } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -67,7 +68,9 @@ export default function TimetablePage() {
   const fetchLectures = async () => {
     try {
       const res = await api.get('/lectures')
-      setLectures(rememberList('/lectures', Array.isArray(res.data) ? res.data : (res.data.data || [])))
+      const items = Array.isArray(res.data) ? res.data : (res.data.data || [])
+      setLectures(rememberList('/lectures', items))
+      registerCourses(items.map((l) => l.subject))
     } catch (err) {
       toast.error('Failed to load timetable')
     } finally {
@@ -200,6 +203,7 @@ export default function TimetablePage() {
         onClose={() => { setShowModal(false); setEditingLecture(null) }}
         onSave={handleSave}
         lecture={editingLecture}
+        courses={Array.from(new Set(lectures.map((l) => l.subject).filter(Boolean))).sort()}
       />
     </div>
   )

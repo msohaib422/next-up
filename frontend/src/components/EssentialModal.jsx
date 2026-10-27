@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import Modal from './ui/Modal'
 import Input from './ui/Input'
 import Button from './ui/Button'
+import CourseSelect from './ui/CourseSelect'
 import FileUploadField from './ui/FileUploadField'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
@@ -10,7 +11,7 @@ import ContributorAttribution from './ui/ContributorAttribution'
 const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp']
 const MAX_SIZE = 10 * 1024 * 1024
 
-export default function EssentialModal({ isOpen, onClose, onSave, essential }) {
+export default function EssentialModal({ isOpen, onClose, onSave, essential, courses }) {
   const [form, setForm] = useState({
     course: '',
     title: '',
@@ -122,11 +123,12 @@ export default function EssentialModal({ isOpen, onClose, onSave, essential }) {
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <ContributorAttribution contributor={essential?.contributor} />
-        <Input
+        <CourseSelect
           label="Course"
           value={form.course}
-          onChange={(e) => setForm({ ...form, course: e.target.value })}
+          onChange={(val) => setForm({ ...form, course: val })}
           placeholder="e.g. Mathematics"
+          courses={courses}
           required
         />
         {errors.course && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.course}</p>}
