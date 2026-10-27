@@ -8,7 +8,9 @@ import { Plus, CheckSquare, Search, X, Paperclip, Download } from 'lucide-react'
 import { parseISO, isPast, isToday, format } from 'date-fns'
 import { useSearchParams } from 'react-router-dom'
 import { hasList, readList, rememberList, forgetList } from '../utils/listCache'
+import { registerCourses } from '../hooks/useCourses'
 import Card from '../components/ui/Card'
+import ShareButton from '../components/ui/ShareButton'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Input from '../components/ui/Input'
@@ -69,6 +71,12 @@ export default function TasksPage() {
   // (e.g. another admin published it while this page was already open).
   useHighlightSync(tasks.map((item) => item._id), loading, () => fetchTasks())
 
+  // Reset the 'missing' guard whenever the list changes, so a highlight that
+  // arrived before its data loaded gets another chance after the fetch.
+  useEffect(() => {
+    missingHighlight.current = null
+  }, [tasks])
+
   // Highlight item from dashboard navigation.
   //
   // A row that is not on the page yet is retried once the data settles (see
@@ -106,7 +114,9 @@ export default function TasksPage() {
   const fetchTasks = async () => {
     try {
       const res = await api.get('/tasks')
-      setTasks(rememberList('/tasks', Array.isArray(res.data) ? res.data : (res.data.data || [])))
+      const items = Array.isArray(res.data) ? res.data : (res.data.data || [])
+      setTasks(rememberList('/tasks', items))
+      registerCourses(items.map((t) => t.subject))
     } catch (err) {
       toast.error('Failed to load tasks')
     } finally {
@@ -320,7 +330,10 @@ export default function TasksPage() {
       <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 mb-2">
         <Badge color={priorityColor(task.priority)} bgColor={priorityBgColor(task.priority)} textColor={priorityTextColor(task.priority)} size="sm">{task.priority}</Badge>
         <Badge color={statusColor(task.status)} bgColor={statusBgColor(task.status)} textColor={statusTextColor(task.status)} size="sm">{task.status}</Badge>
-        {getDeadlineBadge(task)}
+        <div className="flex items-center gap-1">
+          {getDeadlineBadge(task)}
+          <ShareButton id={task._id} path="/tasks" />
+        </div>
       </div>
       <h3 className="text-[15px] text-gray-900 dark:text-white mb-1"><span className="font-bold">Title:</span> <span className="font-normal">{task.title}</span></h3>
       {task.subject && <p className="text-sm text-gray-700 dark:text-gray-300 mb-1"><span className="font-bold">Course:</span> <span className="font-normal">{task.subject}</span></p>}
@@ -520,7 +533,7 @@ export default function TasksPage() {
         </div>
       )}
 
-      <TaskModal isOpen={showModal} onClose={() => { setShowModal(false); setEditingTask(null) }} onSave={handleSave} task={editingTask} />
+      <TaskModal isOpen={showModal} onClose={() => { setShowModal(false); setEditingTask(null) }} onSave={handleSave} task={editingTask} courses={subjects} />
       <TaskViewModal isOpen={!!viewingTask} onClose={() => setViewingTask(null)} task={viewingTask} />
     </div>
   )

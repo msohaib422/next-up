@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import Modal from './ui/Modal'
 import Input from './ui/Input'
+import CourseSelect from './ui/CourseSelect'
 import Button from './ui/Button'
 import FileUploadField from './ui/FileUploadField'
 import api from '../api/axios'
 import toast from 'react-hot-toast'
 
-export default function TimetableModal({ isOpen, onClose, onSave, lecture }) {
+export default function TimetableModal({ isOpen, onClose, onSave, lecture, courses }) {
   const [form, setForm] = useState({
     subject: '', timeline: 'Weekly', notes: '',
   })
@@ -54,6 +55,10 @@ export default function TimetableModal({ isOpen, onClose, onSave, lecture }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (!form.subject) {
+      toast.error('Course is required.')
+      return
+    }
     setLoading(true)
     try {
       let uploadedAttachment = attachment
@@ -99,7 +104,7 @@ export default function TimetableModal({ isOpen, onClose, onSave, lecture }) {
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        <Input label="Course" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="e.g. Timetable" required />
+        <CourseSelect label="Course" value={form.subject} onChange={(val) => setForm({ ...form, subject: val })} placeholder="e.g. Timetable" courses={courses} required />
         <Input label="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Optional notes" />
 
         <FileUploadField

@@ -5,12 +5,14 @@ import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useHighlightSync } from '../hooks/useHighlightSync'
 import { hasList, readList, rememberList } from '../utils/listCache'
+import { registerCourses } from '../hooks/useCourses'
 import { Plus, Clock, Trash2, Edit, FileText, Upload } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import TimetableModal from '../components/TimetableModal'
+import ShareButton from '../components/ui/ShareButton'
 
 export default function TimetablePage() {
   const { user } = useAuth()
@@ -37,6 +39,10 @@ export default function TimetablePage() {
   // link from an in-app notification or an email opens the timetable and points
   // at it. Nothing is highlighted unless the URL asks for it, so the page is
   // otherwise exactly as before.
+  useEffect(() => {
+    missingHighlight.current = null
+  }, [lectures])
+
   useEffect(() => {
     if (loading) return
     const highlightId = searchParams.get('highlight')
@@ -67,7 +73,9 @@ export default function TimetablePage() {
   const fetchLectures = async () => {
     try {
       const res = await api.get('/lectures')
-      setLectures(rememberList('/lectures', Array.isArray(res.data) ? res.data : (res.data.data || [])))
+      const items = Array.isArray(res.data) ? res.data : (res.data.data || [])
+      setLectures(rememberList('/lectures', items))
+      registerCourses(items.map((l) => l.subject))
     } catch (err) {
       toast.error('Failed to load timetable')
     } finally {
@@ -126,6 +134,7 @@ export default function TimetablePage() {
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {imageLecture && <ShareButton id={imageLecture._id} path="/timetable" />}
           {imageLecture && isAdmin && (
             <>
               <Button
@@ -200,6 +209,7 @@ export default function TimetablePage() {
         onClose={() => { setShowModal(false); setEditingLecture(null) }}
         onSave={handleSave}
         lecture={editingLecture}
+        courses={Array.from(new Set(lectures.map((l) => l.subject).filter(Boolean))).sort()}
       />
     </div>
   )

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import Modal from './ui/Modal'
 import Input from './ui/Input'
 import Select from './ui/Select'
+import CourseSelect from './ui/CourseSelect'
 import Button from './ui/Button'
 import FileUploadField from './ui/FileUploadField'
 import api from '../api/axios'
@@ -11,7 +12,7 @@ import ContributorAttribution from './ui/ContributorAttribution'
 const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp']
 const MAX_SIZE = 10 * 1024 * 1024
 
-export default function TaskModal({ isOpen, onClose, onSave, task }) {
+export default function TaskModal({ isOpen, onClose, onSave, task, courses }) {
   const [form, setForm] = useState({
     subject: '', title: '', description: '', deadline: '', deadlineMode: null, priority: 'Medium', status: 'Pending', link: ''
   })
@@ -148,7 +149,7 @@ export default function TaskModal({ isOpen, onClose, onSave, task }) {
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <ContributorAttribution contributor={task?.contributor} />
-        <Input label="Course" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="e.g. Mathematics" />
+        <CourseSelect label="Course" value={form.subject} onChange={(val) => setForm({ ...form, subject: val })} placeholder="e.g. Mathematics" courses={courses} />
         <Input label="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Task title" required />
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" htmlFor="task-description">Description</label>

@@ -8,7 +8,9 @@ import { Plus, HelpCircle, Search, X, Paperclip, Download } from 'lucide-react'
 import { parseISO, isPast, isToday, format } from 'date-fns'
 import { useSearchParams } from 'react-router-dom'
 import { hasList, readList, rememberList, forgetList } from '../utils/listCache'
+import { registerCourses } from '../hooks/useCourses'
 import Card from '../components/ui/Card'
+import ShareButton from '../components/ui/ShareButton'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Input from '../components/ui/Input'
@@ -68,6 +70,12 @@ export default function QuizzesPage() {
   // (e.g. another admin published it while this page was already open).
   useHighlightSync(quizzes.map((item) => item._id), loading, () => fetchQuizzes())
 
+  // Reset the 'missing' guard whenever the list changes, so a highlight that
+  // arrived before its data loaded gets another chance after the fetch.
+  useEffect(() => {
+    missingHighlight.current = null
+  }, [quizzes])
+
   // Highlight item from dashboard navigation.
   //
   // A row that is not on the page yet is retried once the data settles (see
@@ -105,7 +113,9 @@ export default function QuizzesPage() {
   const fetchQuizzes = async () => {
     try {
       const res = await api.get('/quizzes')
-      setQuizzes(rememberList('/quizzes', Array.isArray(res.data) ? res.data : (res.data.data || [])))
+      const items = Array.isArray(res.data) ? res.data : (res.data.data || [])
+      setQuizzes(rememberList('/quizzes', items))
+      registerCourses(items.map((q) => q.subject))
     } catch (err) {
       toast.error('Failed to load quizzes')
     } finally {
@@ -321,7 +331,10 @@ export default function QuizzesPage() {
       <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 mb-2">
         <Badge color={priorityColor(quiz.priority)} bgColor={priorityBgColor(quiz.priority)} textColor={priorityTextColor(quiz.priority)} size="sm">{quiz.priority}</Badge>
         <Badge color={statusColor(quiz.status)} bgColor={statusBgColor(quiz.status)} textColor={statusTextColor(quiz.status)} size="sm">{quiz.status}</Badge>
-        {getDeadlineBadge(quiz)}
+        <div className="flex items-center gap-1">
+          {getDeadlineBadge(quiz)}
+          <ShareButton id={quiz._id} path="/quizzes" />
+        </div>
       </div>
       <h3 className="text-[15px] text-gray-900 dark:text-white mb-1"><span className="font-bold">Title:</span> <span className="font-normal">{quiz.title}</span></h3>
       {quiz.subject && <p className="text-sm text-gray-700 dark:text-gray-300 mb-1"><span className="font-bold">Course:</span> <span className="font-normal">{quiz.subject}</span></p>}
@@ -521,7 +534,7 @@ export default function QuizzesPage() {
         </div>
       )}
 
-      <QuizModal isOpen={showModal} onClose={() => { setShowModal(false); setEditingQuiz(null) }} onSave={handleSave} quiz={editingQuiz} />
+      <QuizModal isOpen={showModal} onClose={() => { setShowModal(false); setEditingQuiz(null) }} onSave={handleSave} quiz={editingQuiz} courses={subjects} />
       <QuizViewModal isOpen={!!viewingQuiz} onClose={() => setViewingQuiz(null)} quiz={viewingQuiz} />
     </div>
   )
