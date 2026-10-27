@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { Plus, ChevronDown, Check } from 'lucide-react'
+import { Plus, ChevronDown, Check, Trash2 } from 'lucide-react'
 import { useCourses } from '../../hooks/useCourses'
+import Modal from './Modal'
 
 export default function CourseSelect({
   label,
@@ -14,11 +15,12 @@ export default function CourseSelect({
   className = '',
   ...props
 }) {
-  const { courses: storeCourses, addCourse, registerCourses } = useCourses()
+  const { courses: storeCourses, addCourse, registerCourses, deleteCourse, isCourseDeleted } = useCourses()
   const [open, setOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState('')
   const [createError, setCreateError] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(null)
   const containerRef = useRef(null)
   const inputRef = useRef(null)
 
@@ -28,9 +30,16 @@ export default function CourseSelect({
   }, [coursesProp, optionsProp, registerCourses])
 
   const allCourses = useMemo(() => {
-    const set = new Set([...storeCourses, ...(Array.isArray(coursesProp) ? coursesProp : []), ...(Array.isArray(optionsProp) ? optionsProp : [])])
-    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
-  }, [storeCourses, coursesProp, optionsProp])
+    const isDeleted = (name) => isCourseDeleted(name)
+    const merged = new Set([
+      ...storeCourses,
+      ...(Array.isArray(coursesProp) ? coursesProp : []),
+      ...(Array.isArray(optionsProp) ? optionsProp : []),
+    ])
+    return Array.from(merged)
+      .filter((c) => !isDeleted(c))
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+  }, [storeCourses, coursesProp, optionsProp, isCourseDeleted])
 
   useEffect(() => {
     if (!open) {
@@ -111,6 +120,26 @@ export default function CourseSelect({
     }
   }
 
+  const handleDeleteClick = (e, course) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setConfirmDelete(course)
+  }
+
+  const handleConfirmDelete = () => {
+    const course = confirmDelete
+    if (!course) return
+    deleteCourse(course)
+    if (value === course) {
+      fireChange('')
+    }
+    setConfirmDelete(null)
+  }
+
+  const handleCancelDelete = () => {
+    setConfirmDelete(null)
+  }
+
   return (
     <div className={`w-full ${className}`} ref={containerRef}>
       {label && (
@@ -141,15 +170,27 @@ export default function CourseSelect({
                 <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">No courses yet</div>
               )}
               {allCourses.map((course) => (
-                <button
+                <div
                   key={course}
-                  type="button"
-                  onClick={() => handleSelect(course)}
-                  className="w-full px-3 py-2 text-left text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-between gap-2"
+                  className="w-full px-3 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-between gap-2"
                 >
-                  <span>{course}</span>
-                  {value === course && <Check className="h-4 w-4 text-primary-600" />}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelect(course)}
+                    className="flex-1 text-left flex items-center justify-between gap-2 min-w-0"
+                  >
+                    <span className="truncate">{course}</span>
+                    {value === course && <Check className="h-4 w-4 text-primary-600 shrink-0" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => handleDeleteClick(e, course)}
+                    aria-label={`Delete ${course}`}
+                    className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-400 hover:text-red-500 shrink-0"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               ))}
             </div>
 
@@ -200,7 +241,34 @@ export default function CourseSelect({
         )}
       </div>
       {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
-      {createError && !open && null}
+
+      <Modal
+        isOpen={!!confirmDelete}
+        onClose={handleCancelDelete}
+        title="Delete course"
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={handleCancelDelete}
+              className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmDelete}
+              className="px-3 py-1.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg"
+            >
+              Delete
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm text-gray-700 dark:text-gray-300">
+          Are you sure you want to delete the course &quot;{confirmDelete}&quot;? This will remove it from the course list. Existing items will not be changed.
+        </p>
+      </Modal>
     </div>
   )
 }
