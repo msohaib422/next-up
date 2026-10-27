@@ -12,6 +12,7 @@ import Badge from '../components/ui/Badge'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import TimetableModal from '../components/TimetableModal'
+import ShareButton from '../components/ui/ShareButton'
 
 export default function TimetablePage() {
   const { user } = useAuth()
@@ -38,6 +39,10 @@ export default function TimetablePage() {
   // link from an in-app notification or an email opens the timetable and points
   // at it. Nothing is highlighted unless the URL asks for it, so the page is
   // otherwise exactly as before.
+  useEffect(() => {
+    missingHighlight.current = null
+  }, [lectures])
+
   useEffect(() => {
     if (loading) return
     const highlightId = searchParams.get('highlight')
@@ -129,6 +134,7 @@ export default function TimetablePage() {
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {imageLecture && <ShareButton id={imageLecture._id} path="/timetable" />}
           {imageLecture && isAdmin && (
             <>
               <Button

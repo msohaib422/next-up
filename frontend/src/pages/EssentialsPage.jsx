@@ -8,6 +8,7 @@ import { hasList, readList, rememberList, forgetList } from '../utils/listCache'
 import { Plus, BookOpen, Search, X, Paperclip, Download, Bookmark } from 'lucide-react'
 import { format } from 'date-fns'
 import Card from '../components/ui/Card'
+import ShareButton from '../components/ui/ShareButton'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Input from '../components/ui/Input'
@@ -44,6 +45,12 @@ export default function EssentialsPage() {
   // A notification may point at an item this page has not loaded yet
   // (e.g. another admin published it while this page was already open).
   useHighlightSync(essentials.map((item) => item._id), loading, () => fetchEssentials())
+
+  // Reset the 'missing' guard whenever the list changes, so a highlight that
+  // arrived before its data loaded gets another chance after the fetch.
+  useEffect(() => {
+    missingHighlight.current = null
+  }, [essentials])
 
   // Highlight item from dashboard navigation.
   //
@@ -207,13 +214,16 @@ export default function EssentialsPage() {
     <Card id={`item-${ess._id}`} key={ess._id} className="p-4 flex flex-col h-full min-w-0" onClick={isAdmin ? () => { setEditingEssential(ess); setShowModal(true) } : () => setViewingEssential(ess)}>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
         <Badge size="sm" className="!bg-purple-100 dark:!bg-purple-900/60 !text-purple-700 dark:!text-purple-300">{ess.tag || 'Topic'}</Badge>
-        <button
-          onClick={(e) => handleToggleSave(e, ess)}
-          className={`p-1 rounded transition-colors ${isSaved(ess) ? 'text-yellow-500' : 'text-gray-400 hover:text-yellow-500'}`}
-          title={isSaved(ess) ? 'Unsave' : 'Save'}
-        >
-          <Bookmark className="w-4 h-4" fill={isSaved(ess) ? 'currentColor' : 'none'} />
-        </button>
+        <div className="flex items-center gap-1">
+          <ShareButton id={ess._id} path="/essentials" />
+          <button
+            onClick={(e) => handleToggleSave(e, ess)}
+            className={`p-1 rounded transition-colors ${isSaved(ess) ? 'text-yellow-500' : 'text-gray-400 hover:text-yellow-500'}`}
+            title={isSaved(ess) ? 'Unsave' : 'Save'}
+          >
+            <Bookmark className="w-4 h-4" fill={isSaved(ess) ? 'currentColor' : 'none'} />
+          </button>
+        </div>
       </div>
       <h3 className="text-[15px] text-gray-900 dark:text-white mb-1"><span className="font-bold">Title:</span> <span className="font-normal">{ess.title}</span></h3>
       {ess.course && <p className="text-sm text-gray-700 dark:text-gray-300 mb-1"><span className="font-bold">Course:</span> <span className="font-normal">{ess.course}</span></p>}

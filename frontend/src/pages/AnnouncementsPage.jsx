@@ -8,6 +8,7 @@ import { format, parseISO } from 'date-fns'
 import { useSearchParams } from 'react-router-dom'
 import { hasList, readList, rememberList, forgetList } from '../utils/listCache'
 import Card from '../components/ui/Card'
+import ShareButton from '../components/ui/ShareButton'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Input from '../components/ui/Input'
@@ -83,6 +84,12 @@ export default function AnnouncementsPage() {
   // A notification may point at an item this page has not loaded yet
   // (e.g. another admin published it while this page was already open).
   useHighlightSync(announcements.map((item) => item._id), loading, () => fetchAnnouncements())
+
+  // Reset the 'missing' guard whenever the list changes, so a highlight that
+  // arrived before its data loaded gets another chance after the fetch.
+  useEffect(() => {
+    missingHighlight.current = null
+  }, [announcements])
 
   // Highlight item from dashboard navigation.
   //
@@ -277,6 +284,7 @@ export default function AnnouncementsPage() {
       <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
         <Badge bgColor={TYPE_BG_COLOR[ann.type]} textColor={TYPE_TEXT_COLOR[ann.type]} size="sm">{ann.type}</Badge>
         <div className="flex items-center gap-1 shrink-0">
+          <ShareButton id={ann._id} path="/announcements" />
           {isAdmin && (
             <button
               onClick={(e) => handleTogglePin(e, ann)}

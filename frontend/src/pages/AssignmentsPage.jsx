@@ -10,6 +10,7 @@ import { useSearchParams } from 'react-router-dom'
 import { hasList, readList, rememberList, forgetList } from '../utils/listCache'
 import { registerCourses } from '../hooks/useCourses'
 import Card from '../components/ui/Card'
+import ShareButton from '../components/ui/ShareButton'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Input from '../components/ui/Input'
@@ -68,6 +69,12 @@ export default function AssignmentsPage() {
   // A notification may point at an item this page has not loaded yet
   // (e.g. another admin published it while this page was already open).
   useHighlightSync(assignments.map((item) => item._id), loading, () => fetchAssignments())
+
+  // Reset the 'missing' guard whenever the list changes, so a highlight that
+  // arrived before its data loaded gets another chance after the fetch.
+  useEffect(() => {
+    missingHighlight.current = null
+  }, [assignments])
 
   // Highlight item from dashboard navigation.
   //
@@ -321,7 +328,10 @@ export default function AssignmentsPage() {
       <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 mb-2">
         <Badge color={priorityColor(assignment.priority)} bgColor={priorityBgColor(assignment.priority)} textColor={priorityTextColor(assignment.priority)} size="sm">{assignment.priority}</Badge>
         <Badge color={statusColor(assignment.status)} bgColor={statusBgColor(assignment.status)} textColor={statusTextColor(assignment.status)} size="sm">{assignment.status}</Badge>
-        {getDeadlineBadge(assignment)}
+        <div className="flex items-center gap-1">
+          {getDeadlineBadge(assignment)}
+          <ShareButton id={assignment._id} path="/assignments" />
+        </div>
       </div>
       <h3 className="text-[15px] text-gray-900 dark:text-white mb-1"><span className="font-bold">Title:</span> <span className="font-normal">{assignment.title}</span></h3>
       {assignment.subject && <p className="text-sm text-gray-700 dark:text-gray-300 mb-1"><span className="font-bold">Course:</span> <span className="font-normal">{assignment.subject}</span></p>}
