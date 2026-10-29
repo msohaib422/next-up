@@ -495,17 +495,22 @@ export default function AssignmentsPage() {
             <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
               <h2
                 onClick={() => setCompletedOpen(prev => !prev)}
-                className="flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 cursor-pointer select-none"
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCompletedOpen(prev => !prev) } }}
+                tabIndex={0}
+                className="flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors cursor-pointer select-none"
                 aria-expanded={completedOpen}
               >
                 Completed Assignments
                 <ChevronRight className={`w-4 h-4 transition-transform ${completedOpen ? 'rotate-90' : ''}`} />
+                <span className="text-xs font-normal normal-case text-gray-400 dark:text-gray-500">({dateFilteredCompletedItems.length})</span>
               </h2>
-              {completedOpen && (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {dateFilteredCompletedItems.map(renderAssignmentCard)}
+              <div className={`grid transition-all duration-300 ease-in-out ${completedOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+                <div className="overflow-hidden">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 pt-3">
+                    {dateFilteredCompletedItems.map(renderAssignmentCard)}
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
           )}
         </div>
@@ -530,17 +535,22 @@ export default function AssignmentsPage() {
             <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
               <h2
                 onClick={() => setCompletedOpen(prev => !prev)}
-                className="flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 cursor-pointer select-none"
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCompletedOpen(prev => !prev) } }}
+                tabIndex={0}
+                className="flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors cursor-pointer select-none"
                 aria-expanded={completedOpen}
               >
                 Completed Assignments
                 <ChevronRight className={`w-4 h-4 transition-transform ${completedOpen ? 'rotate-90' : ''}`} />
+                <span className="text-xs font-normal normal-case text-gray-400 dark:text-gray-500">({completedAssignments.length})</span>
               </h2>
-              {completedOpen && (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {completedAssignments.map(renderAssignmentCard)}
+              <div className={`grid transition-all duration-300 ease-in-out ${completedOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+                <div className="overflow-hidden">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 pt-3">
+                    {completedAssignments.map(renderAssignmentCard)}
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
           )}
         </div>
