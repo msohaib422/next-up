@@ -4,7 +4,7 @@ import toast from 'react-hot-toast'
 import { useAuth } from '../hooks/useAuth'
 import { useHighlightSync } from '../hooks/useHighlightSync'
 import useCompletions from '../hooks/useCompletions'
-import { Plus, HelpCircle, Search, X, Paperclip, Download } from 'lucide-react'
+import { Plus, HelpCircle, Search, X, Paperclip, Download, ChevronRight } from 'lucide-react'
 import { parseISO, isPast, isToday, format } from 'date-fns'
 import { useSearchParams } from 'react-router-dom'
 import { hasList, readList, rememberList, forgetList } from '../utils/listCache'
@@ -57,6 +57,7 @@ export default function QuizzesPage() {
   const [search, setSearch] = useState('')
   const [dateFilter, setDateFilter] = useState('')
   const [searchParams, setSearchParams] = useSearchParams()
+  const [completedOpen, setCompletedOpen] = useState(false)
   // This user's own ticks: personal, stored per account, and never the quiz's
   // shared status. Everyone, admin or not, keeps their own separate answer.
   const { completions, toggleCompletion } = useCompletions('/quizzes')
@@ -495,12 +496,19 @@ export default function QuizzesPage() {
 
           {dateFilteredCompletedItems.length > 0 && (
             <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
-              <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+              <h2
+                onClick={() => setCompletedOpen(prev => !prev)}
+                className="flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 cursor-pointer select-none"
+                aria-expanded={completedOpen}
+              >
+                <ChevronRight className={`w-4 h-4 transition-transform ${completedOpen ? 'rotate-90' : ''}`} />
                 Completed Quizzes
               </h2>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {dateFilteredCompletedItems.map(renderQuizCard)}
-              </div>
+              {completedOpen && (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {dateFilteredCompletedItems.map(renderQuizCard)}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -523,12 +531,19 @@ export default function QuizzesPage() {
 
           {completedQuizzes.length > 0 && (
             <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
-              <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+              <h2
+                onClick={() => setCompletedOpen(prev => !prev)}
+                className="flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 cursor-pointer select-none"
+                aria-expanded={completedOpen}
+              >
+                <ChevronRight className={`w-4 h-4 transition-transform ${completedOpen ? 'rotate-90' : ''}`} />
                 Completed Quizzes
               </h2>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {completedQuizzes.map(renderQuizCard)}
-              </div>
+              {completedOpen && (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {completedQuizzes.map(renderQuizCard)}
+                </div>
+              )}
             </div>
           )}
         </div>
