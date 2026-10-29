@@ -501,8 +501,8 @@ export default function QuizzesPage() {
                 className="flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 cursor-pointer select-none"
                 aria-expanded={completedOpen}
               >
-                <ChevronRight className={`w-4 h-4 transition-transform ${completedOpen ? 'rotate-90' : ''}`} />
                 Completed Quizzes
+                <ChevronRight className={`w-4 h-4 transition-transform ${completedOpen ? 'rotate-90' : ''}`} />
               </h2>
               {completedOpen && (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -536,8 +536,8 @@ export default function QuizzesPage() {
                 className="flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 cursor-pointer select-none"
                 aria-expanded={completedOpen}
               >
-                <ChevronRight className={`w-4 h-4 transition-transform ${completedOpen ? 'rotate-90' : ''}`} />
                 Completed Quizzes
+                <ChevronRight className={`w-4 h-4 transition-transform ${completedOpen ? 'rotate-90' : ''}`} />
               </h2>
               {completedOpen && (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
