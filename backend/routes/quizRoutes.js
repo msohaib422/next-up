@@ -9,7 +9,8 @@ import {
   toggleQuizCompletion,
   uploadQuizFile,
 } from '../controllers/quizController.js';
-import { protect } from '../middleware/auth.js';
+import { moveQuiz } from '../controllers/moveController.js';
+import { protect, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -21,5 +22,6 @@ router.post('/upload', uploadQuizFile);
 router.get('/completions', getQuizCompletions);
 router.route('/:id').get(getQuiz).put(updateQuiz).delete(deleteQuiz);
 router.put('/:id/completion', toggleQuizCompletion);
+router.put('/:id/move', authorize('collaborator'), moveQuiz);
 
 export default router;

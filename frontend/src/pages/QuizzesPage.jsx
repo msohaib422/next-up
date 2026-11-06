@@ -51,6 +51,7 @@ export default function QuizzesPage() {
   const [showModal, setShowModal] = useState(false)
   const [editingQuiz, setEditingQuiz] = useState(null)
   const [viewingQuiz, setViewingQuiz] = useState(null)
+  const [moveOpenId, setMoveOpenId] = useState(null)
   const [statusFilter, setStatusFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState('all')
   const [subjectFilter, setSubjectFilter] = useState('all')
@@ -149,6 +150,22 @@ export default function QuizzesPage() {
       fetchQuizzes()
     } catch (err) {
       toast.error('Failed to delete quiz')
+    }
+  }
+
+  const handleMove = async (quiz, destKey) => {
+    const destLabel = destKey === 'task' ? 'Tasks' : 'Assignments'
+    if (!confirm(`Move "${quiz.title}" from Quizzes to ${destLabel}?`)) { setMoveOpenId(null); return }
+    try {
+      await api.put(`/quizzes/${quiz._id}/move`, { to: destKey })
+      setQuizzes(prev => prev.filter(q => q._id !== quiz._id))
+      forgetList('/quizzes')
+      forgetList(destKey === 'task' ? '/tasks' : '/assignments')
+      toast.success(`Moved to ${destLabel}`)
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to move item')
+    } finally {
+      setMoveOpenId(null)
     }
   }
 
@@ -362,6 +379,20 @@ export default function QuizzesPage() {
       <div className="flex-1" />
       {isAdmin && (
         <div className="flex items-center gap-2 mt-3 pt-3 border-t dark:border-gray-700">
+          <div className="relative">
+            <button
+              onClick={(e) => { e.stopPropagation(); setMoveOpenId(moveOpenId === quiz._id ? null : quiz._id) }}
+              className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50"
+            >
+              Move To
+            </button>
+            {moveOpenId === quiz._id && (
+              <div className="absolute left-0 bottom-full mb-1 z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg min-w-[120px]">
+                <button onClick={(e) => { e.stopPropagation(); handleMove(quiz, 'task') }} className="block w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-gray-700">Tasks</button>
+                <button onClick={(e) => { e.stopPropagation(); handleMove(quiz, 'assignment') }} className="block w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-gray-700">Assignments</button>
+              </div>
+            )}
+          </div>
           <button
             onClick={(e) => { e.stopPropagation(); handleToggleComplete(quiz) }}
             className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${

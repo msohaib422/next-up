@@ -51,6 +51,7 @@ export default function AssignmentsPage() {
   const [showModal, setShowModal] = useState(false)
   const [editingAssignment, setEditingAssignment] = useState(null)
   const [viewingAssignment, setViewingAssignment] = useState(null)
+  const [moveOpenId, setMoveOpenId] = useState(null)
   const [statusFilter, setStatusFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState('all')
   const [subjectFilter, setSubjectFilter] = useState('all')
@@ -149,6 +150,22 @@ export default function AssignmentsPage() {
       fetchAssignments()
     } catch (err) {
       toast.error('Failed to delete assignment')
+    }
+  }
+
+  const handleMove = async (assignment, destKey) => {
+    const destLabel = destKey === 'task' ? 'Tasks' : 'Quizzes'
+    if (!confirm(`Move "${assignment.title}" from Assignments to ${destLabel}?`)) { setMoveOpenId(null); return }
+    try {
+      await api.put(`/assignments/${assignment._id}/move`, { to: destKey })
+      setAssignments(prev => prev.filter(a => a._id !== assignment._id))
+      forgetList('/assignments')
+      forgetList(destKey === 'task' ? '/tasks' : '/quizzes')
+      toast.success(`Moved to ${destLabel}`)
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to move item')
+    } finally {
+      setMoveOpenId(null)
     }
   }
 
@@ -359,6 +376,20 @@ export default function AssignmentsPage() {
       <div className="flex-1" />
       {isAdmin && (
         <div className="flex items-center gap-2 mt-3 pt-3 border-t dark:border-gray-700">
+          <div className="relative">
+            <button
+              onClick={(e) => { e.stopPropagation(); setMoveOpenId(moveOpenId === assignment._id ? null : assignment._id) }}
+              className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50"
+            >
+              Move To
+            </button>
+            {moveOpenId === assignment._id && (
+              <div className="absolute left-0 bottom-full mb-1 z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg min-w-[120px]">
+                <button onClick={(e) => { e.stopPropagation(); handleMove(assignment, 'task') }} className="block w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-gray-700">Tasks</button>
+                <button onClick={(e) => { e.stopPropagation(); handleMove(assignment, 'quiz') }} className="block w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-gray-700">Quizzes</button>
+              </div>
+            )}
+          </div>
           <button
             onClick={(e) => { e.stopPropagation(); handleToggleComplete(assignment) }}
             className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${

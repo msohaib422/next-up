@@ -14,6 +14,7 @@ import {
   getAssignmentCompletions,
   toggleAssignmentCompletion,
 } from '../controllers/assignmentController.js';
+import { moveAssignment } from '../controllers/moveController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -31,5 +32,6 @@ router.put('/:id/reject', authorize('collaborator'), rejectAssignment);
 router.route('/:id').get(getAssignment).put(updateAssignment).delete(deleteAssignment);
 router.put('/:id/complete', completeAssignment);
 router.put('/:id/completion', toggleAssignmentCompletion);
+router.put('/:id/move', authorize('collaborator'), moveAssignment);
 
 export default router;

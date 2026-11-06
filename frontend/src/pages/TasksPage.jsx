@@ -52,6 +52,7 @@ export default function TasksPage() {
   const [showModal, setShowModal] = useState(false)
   const [editingTask, setEditingTask] = useState(null)
   const [viewingTask, setViewingTask] = useState(null)
+  const [moveOpenId, setMoveOpenId] = useState(null)
   const [statusFilter, setStatusFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState('all')
   const [subjectFilter, setSubjectFilter] = useState('all')
@@ -150,6 +151,22 @@ export default function TasksPage() {
       fetchTasks()
     } catch (err) {
       toast.error('Failed to delete task')
+    }
+  }
+
+  const handleMove = async (task, destKey) => {
+    const destLabel = destKey === 'quiz' ? 'Quizzes' : 'Assignments'
+    if (!confirm(`Move "${task.title}" from Tasks to ${destLabel}?`)) { setMoveOpenId(null); return }
+    try {
+      await api.put(`/tasks/${task._id}/move`, { to: destKey })
+      setTasks(prev => prev.filter(t => t._id !== task._id))
+      forgetList('/tasks')
+      forgetList(destKey === 'quiz' ? '/quizzes' : '/assignments')
+      toast.success(`Moved to ${destLabel}`)
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to move item')
+    } finally {
+      setMoveOpenId(null)
     }
   }
 
@@ -361,6 +378,20 @@ export default function TasksPage() {
       <div className="flex-1" />
       {isAdmin && (
         <div className="flex items-center gap-2 mt-3 pt-3 border-t dark:border-gray-700">
+          <div className="relative">
+            <button
+              onClick={(e) => { e.stopPropagation(); setMoveOpenId(moveOpenId === task._id ? null : task._id) }}
+              className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50"
+            >
+              Move To
+            </button>
+            {moveOpenId === task._id && (
+              <div className="absolute left-0 bottom-full mb-1 z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg min-w-[120px]">
+                <button onClick={(e) => { e.stopPropagation(); handleMove(task, 'quiz') }} className="block w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-gray-700">Quizzes</button>
+                <button onClick={(e) => { e.stopPropagation(); handleMove(task, 'assignment') }} className="block w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-gray-700">Assignments</button>
+              </div>
+            )}
+          </div>
           <button
             onClick={(e) => { e.stopPropagation(); handleToggleComplete(task) }}
             className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
