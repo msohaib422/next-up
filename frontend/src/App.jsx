@@ -1,9 +1,10 @@
-import { Suspense } from 'react'
+import { Suspense, useState, useEffect, useRef } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import Layout from './components/Layout/Layout'
 import ProtectedRoute from './components/Layout/ProtectedRoute'
 import LoadingSpinner from './components/ui/LoadingSpinner'
+import LoadingScreen from './components/ui/LoadingScreen'
 import { lazyPage } from './pages/routes'
 
 /*
@@ -40,8 +41,20 @@ const SearchPage = lazyPage('/search')
 export default function App() {
   const { loading } = useAuth()
 
-  if (loading) return <LoadingSpinner />
+  const mountTimeRef = useRef(Date.now())
+  const [booting, setBooting] = useState(true)
+  useEffect(() => {
+    if (loading) {
+      setBooting(true)
+      return
+    }
+    const elapsed = Date.now() - mountTimeRef.current
+    const remaining = Math.max(0, 1000 - elapsed)
+    const id = setTimeout(() => setBooting(false), remaining)
+    return () => clearTimeout(id)
+  }, [loading])
 
+  if (loading || booting) return <LoadingScreen />
   return (
     <Suspense fallback={<LoadingSpinner />}>
       <Routes>
